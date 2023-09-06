@@ -85,3 +85,4 @@ Start the service
 <br>
 [Python3 Docs](https://docs.python.org/3/)
 <br>
+[Fritzing Schematics](https://fritzing.org/)
