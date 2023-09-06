@@ -1,6 +1,30 @@
 # ChatGPT Home
 ChatGPT at home! Basically a better G**gle Nest Hub made with Raspberry Pi and OpenAI.
 
+## Example Systemd Service:
+```bash
+    [Unit]
+    Description=ChatGPT Home
+    After=network.target
+
+    [Service]
+    User=pi
+    WorkingDirectory=/home/pi/chatgpt-home
+    ExecStart=/home/pi/chatgpt-home/app.py
+    Restart=always
+
+    [Install]
+    WantedBy=multi-user.target
+```
+Enable the service
+```bash
+    sudo systemctl enable chatgpt-home.service
+```
+Start the service
+```bash
+    sudo systemctl start chatgpt-home.service
+```
+
 ## Example Reclone script:
 ``` bash
     #!/bin/bash
@@ -17,7 +41,7 @@ ChatGPT at home! Basically a better G**gle Nest Hub made with Raspberry Pi and O
         export DEPENDENCIES_INSTALLED="true"
     fi
 
-    # Remove existing repo if it exists
+    # Remove existing local repo if it exists
     if [ -d "chatgpt-home" ]; then
         rm -rf chatgpt-home
     fi
@@ -25,43 +49,19 @@ ChatGPT at home! Basically a better G**gle Nest Hub made with Raspberry Pi and O
     # Clone the GitHub repo
     git clone https://github.com/judahpaul16/chatgpt-home.git
 
-    # Navigate to directory containing the Python script
+    # Navigate to root of the local repo
     cd chatgpt-home
 
     # Install Python dependencies
     pip3 install -r requirements.txt
 
-    # Run Python script
-    python3 app.py
+    # Restart the service
+    sudo systemctl restart chatgpt-home.service
 ```
 Be sure to make the script executable to run it
 ```bash
     chmod +x reclone.sh
     ./reclone.sh
-```
-
-## Example Systemd Service:
-```bash
-    [Unit]
-    Description=ChatGPT Home
-    After=network.target
-
-    [Service]
-    User=pi
-    WorkingDirectory=/home/pi/chatgpt-home
-    ExecStart=/home/pi/chatgpt-home/reclone.sh
-    Restart=always
-
-    [Install]
-    WantedBy=multi-user.target
-```
-Enable the service
-```bash
-    sudo systemctl enable chatgpt-home.service
-```
-Start the service
-```bash
-    sudo systemctl start chatgpt-home.service
 ```
 
 ## Schematics
