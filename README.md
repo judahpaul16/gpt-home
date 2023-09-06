@@ -64,6 +64,14 @@ Start the service
     sudo systemctl start chatgpt-home.service
 ```
 
+## Schematics
+### Caution: Battery Connection
+
+**IMPORTANT**: Before connecting the battery, ensure that the polarity is correct to avoid damage to your Raspberry Pi or other components. Disconnect power sources before making changes. This schematic does not include the SunFounder PiPower UPS HAT. Refer to [this link](https://a.co/d/0Jq1sHp) for details on integrating the PiPower UPS HAT.
+
+![Schematics](schematic_bb.png)
+![Schematics](schematic_schem.png)
+
 ## Documentation
 [OpenAI API Docs](https://beta.openai.com/docs/introduction)
 <br>
