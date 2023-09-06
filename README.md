@@ -1,5 +1,5 @@
 # ChatGPT Home
- ChatGPT at home! Basically a better G**gle Home made with Raspberry Pi and OpenAI.
+ChatGPT at home! Basically a better G**gle Nest Hub made with Raspberry Pi and OpenAI.
 
 ## Example Reclone script:
 ``` bash
