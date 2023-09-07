@@ -73,6 +73,10 @@ Be sure to make the script executable to run it
 ![Schematics](schematic_schem.png)
 
 ## Documentation
+[Raspberry Pi Docs](https://www.raspberrypi.com/documentation)
+<br>
+[GPIO Pinout](https://www.raspberrypi.com/documentation/computers/images/GPIO-Pinout-Diagram-2.png)
+<br>
 [OpenAI API Docs](https://beta.openai.com/docs/introduction)
 <br>
 [SpeechRecognition Docs](https://pypi.org/project/SpeechRecognition/)
