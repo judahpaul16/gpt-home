@@ -1,4 +1,5 @@
 import speech_recognition as sr
+import traceback
 import pyttsx3
 import requests
 import json
@@ -55,5 +56,5 @@ while True:
         print(f"Could not request results; {e}")
         updateLCD(f"Could not request results; {e}", display)
     except Exception as e:
-        print(f"An error occurred: {e}")
+        print(f"An error occurred: {traceback.format_exc()}")
         updateLCD(f"An error occurred: {e}", display)

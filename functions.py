@@ -46,8 +46,15 @@ def updateLCD(text, display):
     display.text("IP: " + str(ip_address), 0, 0, 1)
     # next row if text is too long
     if len(text) > 21:
-        display.text(text[:21], 0, 10, 1)
-        display.text(text[21:], 0, 20, 1)
+        if len(text) > 42:
+            # scroll text
+            display.text(text[:21], 0, 10, 1)
+            display.text(text[21:42], 0, 20, 1)
+            display.text(text[42:], 0, 30, 1)
+        else:
+            # split into two lines
+            display.text(text[:21], 0, 10, 1)
+            display.text(text[21:], 0, 20, 1)
     else:
         display.text(text, 0, 10, 1)
     display.show()
