@@ -1,30 +1,6 @@
 # ChatGPT Home
 ChatGPT at home! Basically a better G**gle Nest Hub made with Raspberry Pi and OpenAI.
 
-## Example Systemd Service:
-```bash
-[Unit]
-Description=ChatGPT Home
-After=network.target
-
-[Service]
-User=pi
-WorkingDirectory=/home/pi/chatgpt-home
-ExecStart=/home/pi/chatgpt-home/app.py
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-Enable the service
-```bash
-sudo systemctl enable chatgpt-home.service
-```
-Start the service
-```bash
-sudo systemctl start chatgpt-home.service
-```
-
 ## Example Reclone script:
 ``` bash
 #!/bin/bash
@@ -61,9 +37,42 @@ source env/bin/activate
 # Install Python dependencies
 pip install -r requirements.txt
 
-# Restart the service
-sudo systemctl restart chatgpt-home.service
+# Define the name of the systemd service
+SERVICE_NAME="chatgpt-home.service"
 
+# Check if the systemd service already exists
+if ! systemctl list-units --type=service | grep -q "$SERVICE_NAME"; then
+    echo "Systemd service $SERVICE_NAME does not exist. Creating and enabling it..."
+
+    # Create a systemd service unit file
+    cat <<EOF | sudo tee "/etc/systemd/system/$SERVICE_NAME" >/dev/null
+[Unit]
+Description=ChatGPT Home
+After=network.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/chatgpt-home
+ExecStart=/home/pi/chatgpt-home/app.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    # Reload systemd
+    sudo systemctl daemon-reload
+
+    # Enable the service
+    sudo systemctl enable "$SERVICE_NAME"
+
+    echo "Systemd service $SERVICE_NAME created and enabled."
+fi
+
+# Start the service
+sudo systemctl start "$SERVICE_NAME"
+
+echo "Systemd service $SERVICE_NAME started."
 ```
 Be sure to make the script executable to run it
 ```bash
