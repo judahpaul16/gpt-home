@@ -48,9 +48,9 @@ def updateLCD(text, display):
     # next row if text is too long
     if len(text) > 21:
         if len(text) > 42:
-            # animated scroll text
+            # animated scroll text loop
             for i in range(len(text) - 21):
-                display.fill(0)
+                display.fillrect(0, 10, 128, 20, 0)
                 display.text(text[i:i+21], 0, 10, 1)
                 display.text(text[i+21:i+42], 0, 20, 1)
                 display.show()            
