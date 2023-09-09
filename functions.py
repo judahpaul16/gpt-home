@@ -116,5 +116,5 @@ def query_openai(text):
     )
     return response.choices[0].text
 
-async def log_event(text):
+def log_event(text):
     logging.info(text)
