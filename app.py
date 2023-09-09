@@ -12,9 +12,9 @@ async def main():
             log_event(message)
             await updateLCD(message, display)
         except sr.UnknownValueError:
-            message = "Error: Could not understand you"
+            message = "Sorry, I did not understand that"
             print(message)
-            log_event(message)
+            log_event("Error: " + message)
             state_task.cancel()
             await updateLCD(message, display)
         except sr.RequestError as e:
