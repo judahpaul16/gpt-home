@@ -8,6 +8,9 @@ import busio
 import openai
 import os
 
+global r
+r = sr.Recognizer()
+
 def initLCD():
     # Create the I2C interface.
     i2c = busio.I2C(SCL, SDA)
@@ -76,7 +79,7 @@ async def listen_speech(loop, display):
     global r
     with sr.Microphone() as source:
         print("Listening...")
-        await updateLCD("Listening", display)
+        updateLCD("Listening", display)
         audio = r.listen(source)
         return r.recognize_google(audio)
 

@@ -5,7 +5,7 @@ from functions import *
 async def main():
     while True:
         try:
-            text = await listen_speech(loop, display)
+            text = loop.run_in_executor(None, listen_speech, loop, display)
             print(f"Heard: {text}")
             await updateLCD(f"Heard: {text}", display)
             speak(text)
@@ -24,9 +24,6 @@ async def main():
 
 # Initialize LCD
 display = initLCD()
-
-# Initialize recognizer
-r = sr.Recognizer()
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(main())
