@@ -20,6 +20,7 @@ def listen_speech():
         print("Listening...")
         updateLCD("Listening...", display)
         audio = r.listen(source)
+        del source  # Explicitly delete the source object to release the microphone
         return r.recognize_google(audio)
 
 # Function to query OpenAI and get a text response
