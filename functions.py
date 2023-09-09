@@ -38,5 +38,12 @@ def initLCD():
 
 # show text just below IP address
 def showText(text, display):
-    display.text(text, 0, 10, 1)
+    # clear on all rows except first
+    display.fill_rect(0, 10, 128, 32, 0)
+    # next row if text is too long
+    if len(text) > 21:
+        display.text(text[:21], 0, 10, 1)
+        display.text(text[21:], 0, 20, 1)
+    else:
+        display.text(text, 0, 10, 1)
     display.show()
