@@ -53,24 +53,24 @@ def updateLCD(text, display):
             display.text(text + '.' * i, 0, 10, 1)
             display.show()
             time.sleep(0.5)
-    
-    if len(text) > 21:
-        if len(text) > 42:
-            # animated scroll text loop
-            for i in range(len(text) - 21):
-                display.fillrect(0, 10, 128, 20, 0)
-                display.text(text[i:i+21], 0, 10, 1)
-                display.text(text[i+21:i+42], 0, 20, 1)
-                display.show()
-        else:
-            # split into two lines
-            display.text(text[:21], 0, 10, 1)
-            display.text(text[21:], 0, 20, 1)
     else:
-        display.text(text, 0, 10, 1)
-    display.show()
-    
-    time.sleep(5) # wait for 5 seconds
+        if len(text) > 21:
+            if len(text) > 42:
+                # animated scroll text loop
+                for i in range(len(text) - 21):
+                    display.fillrect(0, 10, 128, 20, 0)
+                    display.text(text[i:i+21], 0, 10, 1)
+                    display.text(text[i+21:i+42], 0, 20, 1)
+                    display.show()
+            else:
+                # split into two lines
+                display.text(text[:21], 0, 10, 1)
+                display.text(text[21:], 0, 20, 1)
+        else:
+            display.text(text, 0, 10, 1)
+        display.show()
+        
+        time.sleep(5) # wait for 5 seconds
 
 def speak(text):
     os.system(f"espeak '{text}'")
