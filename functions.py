@@ -1,4 +1,5 @@
-
+from concurrent.futures import ThreadPoolExecutor
+executor = ThreadPoolExecutor()
 import speech_recognition as sr
 from board import SCL, SDA
 import adafruit_ssd1306
@@ -75,11 +76,15 @@ async def updateLCD(text, display):
 
 async def listen_speech(loop, display):
     global r
-    with sr.Microphone() as source:
-        print("Listening...")
-        await updateLCD("Listening", display)
-        audio = r.listen(source)
-        return r.recognize_google(audio)
+    print("Listening...")
+    await updateLCD("Listening", display)
+
+    def recognize_audio():
+        with sr.Microphone() as source:
+            audio = r.listen(source)
+            return r.recognize_google(audio)
+        
+    return await loop.run_in_executor(executor, recognize_audio)
 
 def speak(text):
     os.system(f"espeak '{text}'")
