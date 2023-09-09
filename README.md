@@ -64,6 +64,7 @@ fi
 
 # Start the service
 sudo systemctl restart "$SERVICE_NAME"
+echo ""
 sudo systemctl status "$SERVICE_NAME"
 ```
 Be sure to make the script executable to run it
