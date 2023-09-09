@@ -50,20 +50,23 @@ async def updateLCD(text, display):
     display.text("IP: " + str(ip_address), 0, 0, 1)
 
     if len(text) > 42:
-        while True:
+        done = False
+        while not done:
             for i in range(0, len(text) - 21, 21):
                 display.fill_rect(0, 10, 128, 22, 0)
                 display.text(text[i:i+21], 0, 10, 1)
                 display.text(text[i+21:i+42], 0, 20, 1)
                 display.show()
-                await asyncio.sleep(2)
+                await asyncio.sleep(2) # wait 2 seconds
+            done = asyncio.sleep(20).result()
     elif len(text) > 21:
         display.text(text[:21], 0, 10, 1)
         display.text(text[21:], 0, 20, 1)
+        await asyncio.sleep(5) # wait 5 seconds
     else:
         display.text(text, 0, 10, 1)
     display.show()
-    await asyncio.sleep(5)
+    await asyncio.sleep(5) # wait 5 seconds
 
 async def listen_speech(loop, display, state_task):
     global r
