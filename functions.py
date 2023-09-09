@@ -102,3 +102,8 @@ def query_openai(text):
         stop=["\n", " Human:", " AI:"]
     )
     return response.choices[0].text
+
+async def animate_ellipses(display):
+    for i in range(4):
+        await updateLCD("Listening" + '.' * i, display)
+        await asyncio.sleep(0.5)
