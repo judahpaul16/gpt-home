@@ -1,21 +1,12 @@
 import speech_recognition as sr
 import traceback
-import pyttsx3
 import requests
 import json
 import os
-
-import pygame
-pygame.init()
-pygame.mixer.init()
-
 from functions import *
 
 # Initialize LCD
 display = initLCD()
-
-# Initialize TTS engine
-engine = pyttsx3.init()
 
 # Initialize recognizer
 r = sr.Recognizer()

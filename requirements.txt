@@ -9,9 +9,6 @@ Adafruit-PlatformDetect==3.52.0
 Adafruit-PureIO==1.1.11
 Pillow==10.0.0
 PyAudio==0.2.13
-pyttsx3==2.90
-pygame
-gtts
 requests==2.31.0
 SpeechRecognition==3.10.0
 pyftdi==0.55.0

@@ -3,11 +3,7 @@ from board import SCL, SDA
 import busio
 import adafruit_ssd1306
 import subprocess
-from gtts import gTTS
-import pygame
-import tempfile
-
-pygame.mixer.init()
+import os
 
 def initLCD():
     # Create the I2C interface.
@@ -65,10 +61,4 @@ def updateLCD(text, display):
     display.show()
 
 def speak(text):
-    tts = gTTS(text=text, lang='en')
-    temp_file = tempfile.NamedTemporaryFile(delete=True)
-    tts.save(temp_file.name)
-    pygame.mixer.music.load(temp_file.name)
-    pygame.mixer.music.play()
-    while pygame.mixer.music.get_busy():
-        continue
+    os.system(f"espeak '{text}'")
