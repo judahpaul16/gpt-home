@@ -77,8 +77,8 @@ async def listen_speech(loop, display):
     global r
     with sr.Microphone() as source:
         print("Listening...")
-        asyncio.create_task(updateLCD("Listening", display))
-        audio = await loop.run_in_executor(None, lambda: r.listen(source))
+        await updateLCD("Listening", display)
+        audio = r.listen(source)
         return r.recognize_google(audio)
 
 def speak(text):

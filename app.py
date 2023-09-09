@@ -5,10 +5,10 @@ from functions import *
 async def main():
     while True:
         try:
-            text = loop.run_in_executor(None, listen_speech, loop, display)
+            text = await listen_speech(loop, display)
             print(f"Heard: {text}")
             await updateLCD(f"Heard: {text}", display)
-            speak(text)
+            # speak(text)
             # response = query_openai(text)
             # speak(response)
         except sr.UnknownValueError:
