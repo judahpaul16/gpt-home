@@ -13,9 +13,8 @@ import logging
 
 logging.basicConfig(filename='events.log', level=logging.DEBUG)
 
-global r
 r = sr.Recognizer()
-
+openai_api_key = os.getenv("OPENAI_API_KEY")
 executor = ThreadPoolExecutor()
 
 def initLCD():
@@ -81,12 +80,10 @@ async def updateLCD(text, display):
         await asyncio.sleep(6)
 
 async def listen_speech(loop, display, state_task):
-    global r
     def recognize_audio():
         with sr.Microphone() as source:
             audio = r.listen(source)
             return r.recognize_google(audio)
-
     text = await loop.run_in_executor(executor, recognize_audio)
     state_task.cancel()
     return text
@@ -103,7 +100,6 @@ def speak(text):
     os.system(f"espeak '{text}'")
 
 def query_openai(text):
-    openai.api_key = os.getenv("OPENAI_API_KEY")
     response = openai.Completion.create(
         engine="davinci",
         prompt=text,
@@ -112,7 +108,8 @@ def query_openai(text):
         top_p=1,
         frequency_penalty=0.0,
         presence_penalty=0.6,
-        stop=["\n", " Human:", " AI:"]
+        stop=["\n", " Human:", " AI:"],
+        api_key=openai_api_key
     )
     return response.choices[0].text
 

@@ -24,7 +24,7 @@ async def main():
             state_task.cancel()
             await updateLCD(message, display)
         except asyncio.CancelledError:
-            pass
+            log_event("Async task was cancelled")
         except Exception as e:
             message = f"Something Went Wrong: {e}"
             tracebackMessage = f"Error: {traceback.format_exc()}"
@@ -38,3 +38,4 @@ display = initLCD()
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(main())
+loop.close()
