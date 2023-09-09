@@ -106,3 +106,7 @@ def query_openai(text):
         stop=["\n", " Human:", " AI:"]
     )
     return response.choices[0].text
+
+async def log_event(text):
+    with open("events.log", "a") as f:
+        f.write(f"{text}\n")

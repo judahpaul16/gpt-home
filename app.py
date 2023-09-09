@@ -7,22 +7,31 @@ async def main():
         try:
             state_task = asyncio.create_task(display_state("Listening", display))
             text = await listen_speech(loop, display, state_task)
-            print(f"Heard: {text}")
-            await updateLCD(f"Heard: {text}", display)
+            f"Heard: {text}"
+            print(message)
+            log_event(message)
+            await updateLCD(message, display)
         except sr.UnknownValueError:
-            print("Could not understand audio.")
+            message = "Could not understand audio"
+            print(message)
+            log_event(message)
             state_task.cancel()
-            await updateLCD("Could not understand audio.", display)
+            await updateLCD(message, display)
         except sr.RequestError as e:
-            print(f"Could not request results; {e}")
+            message = f"Could not request results; {e}"
+            print(message)
+            log_event(message)
             state_task.cancel()
-            await updateLCD(f"Could not request results; {e}", display)
+            await updateLCD(message, display)
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            print(f"An error occurred: {traceback.format_exc()}")
+            message = f"An error occurred: {e}"
+            tracebackMessage = f"An error occurred: {traceback.format_exc()}"
+            print(tracebackMessage)
+            log_event(tracebackMessage)
             state_task.cancel()
-            await updateLCD(f"An error occurred: {e}", display)
+            await updateLCD(message, display)
 
 # Initialize LCD
 display = initLCD()
