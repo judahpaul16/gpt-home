@@ -25,7 +25,6 @@ def initLCD():
     display.show()
 
     # Display IP address
-    # Get IP address
     ip_address = (
         subprocess.check_output(["hostname", "-I"])
         .decode("utf-8")
