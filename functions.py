@@ -49,10 +49,10 @@ def updateLCD(text, display):
     
     # if text is 'Listening' || 'Interpreting' blink ellipsis
     if text == 'Listening' or text == 'Interpreting':
-        for i in range(3):
+        for i in range(4):
             display.text(text + '.' * i, 0, 10, 1)
+            display.fill_rect(0, 10, 128, 10, 0)  # Clear the ellipsis
             display.show()
-            time.sleep(0.5)
     else:
         if len(text) > 21:
             if len(text) > 42:
@@ -70,7 +70,7 @@ def updateLCD(text, display):
             display.text(text, 0, 10, 1)
         display.show()
         
-        time.sleep(5) # wait for 5 seconds
+    time.sleep(5) # wait for 5 seconds
 
 def speak(text):
     os.system(f"espeak '{text}'")
