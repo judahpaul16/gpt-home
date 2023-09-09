@@ -1,5 +1,5 @@
-# ChatGPT Home
-ChatGPT at home! Basically a better G**gle Nest Hub made with Raspberry Pi and OpenAI.
+# gpt Home
+gpt at home! Basically a better G**gle Nest Hub made with Raspberry Pi and OpenAI.
 
 ## Example Reclone script:
 First initialize an environment variable with your OpenAI API Key.
@@ -11,15 +11,15 @@ Then create a script outside the local repo folder to reclone the repo and start
 #!/bin/bash
 
 # Remove existing local repo if it exists
-if [ -d "chatgpt-home" ]; then
-    rm -rf chatgpt-home
+if [ -d "gpt-home" ]; then
+    rm -rf gpt-home
 fi
 
 # Clone the GitHub repo
-git clone https://github.com/judahpaul16/chatgpt-home.git
+git clone https://github.com/judahpaul16/gpt-home.git
 
 # Navigate to root of the local repo
-cd chatgpt-home
+cd gpt-home
 
 # Create a virtual environment
 python3 -m venv env
@@ -31,7 +31,7 @@ source env/bin/activate
 pip install -r requirements.txt
 
 # Define the name of the systemd service
-SERVICE_NAME="chatgpt-home.service"
+SERVICE_NAME="gpt-home.service"
 
 # Check if the systemd service already exists
 if ! systemctl list-units --type=service | grep -q "$SERVICE_NAME"; then
@@ -40,13 +40,13 @@ if ! systemctl list-units --type=service | grep -q "$SERVICE_NAME"; then
     # Create a systemd service unit file
     cat <<EOF | sudo tee "/etc/systemd/system/$SERVICE_NAME" >/dev/null
 [Unit]
-Description=ChatGPT Home
+Description=gpt Home
 After=network.target
 
 [Service]
 User=ubuntu
-WorkingDirectory=/home/ubuntu/chatgpt-home
-ExecStart=/home/ubuntu/chatgpt-home/env/bin/python /home/ubuntu/chatgpt-home/app.py
+WorkingDirectory=/home/ubuntu/gpt-home
+ExecStart=/home/ubuntu/gpt-home/env/bin/python /home/ubuntu/gpt-home/app.py
 Restart=always
 
 [Install]
