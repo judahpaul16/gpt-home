@@ -51,7 +51,6 @@ def updateLCD(text, display):
     if text == 'Listening' or text == 'Interpreting':
         for i in range(4):
             display.text(text + '.' * i, 0, 10, 1)
-            display.fill_rect(0, 10, 128, 10, 0)  # Clear the ellipsis
             display.show()
     else:
         if len(text) > 21:
