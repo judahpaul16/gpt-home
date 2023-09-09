@@ -58,7 +58,7 @@ async def updateLCD(text, display):
     if len(lines) > 2:
         # scroll text
         start_time = time.time()
-        while time.time() - start_time < 16:
+        while time.time() - start_time < 15:
             for i in range(0, len(lines) - 1):
                 display.fill_rect(0, 10, 128, 22, 0)
                 display.text(lines[i], 0, 10, 1)
@@ -70,11 +70,12 @@ async def updateLCD(text, display):
         display.text(lines[0], 0, 10, 1)
         display.text(lines[1], 0, 20, 1)
         display.show()
+        await asyncio.sleep(10)
     else:
         # one line
         display.text(lines[0], 0, 10, 1)
         display.show()
-    await asyncio.sleep(8)
+        await asyncio.sleep(10)
 
 async def listen_speech(loop, display, state_task):
     global r
