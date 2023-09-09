@@ -43,7 +43,7 @@ while True:
         text = listen_speech()
         print(f"Heard: {text}")
         updateLCD(f"Heard: {text}", display)
-        speak("Heard: " + text)
+        speak(text)
         # response = query_openai(text)
         # speak(response)
     except sr.UnknownValueError:
