@@ -3,6 +3,7 @@ from board import SCL, SDA
 import busio
 import adafruit_ssd1306
 import subprocess
+import time
 import os
 
 def initLCD():
@@ -61,6 +62,7 @@ def updateLCD(text, display):
     else:
         display.text(text, 0, 10, 1)
     display.show()
+    time.sleep(3)
 
 def speak(text):
     os.system(f"espeak '{text}'")
