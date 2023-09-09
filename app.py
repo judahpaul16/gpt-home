@@ -14,13 +14,13 @@ async def main():
         except sr.UnknownValueError:
             message = "Sorry, I did not understand that"
             print(message)
-            log_event("Error: " + message)
+            log_event("Error: " + message + f" ({traceback.format_exc()})")
             state_task.cancel()
             await updateLCD(message, display)
         except sr.RequestError as e:
             message = f"Error: Could not request results; {e}"
             print(message)
-            log_event(message)
+            log_event("Error: " + message + f" ({traceback.format_exc()})")
             state_task.cancel()
             await updateLCD(message, display)
         except asyncio.CancelledError:
