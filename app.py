@@ -5,7 +5,7 @@ from functions import *
 async def main():
     while True:
         try:
-            text = await loop.run_in_executor(None, listen_speech)
+            text = await loop.run_in_executor(None, listen_speech, loop, display)
             print(f"Heard: {text}")
             asyncio.create_task(updateLCD(f"Heard: {text}", display))
             speak(text)
@@ -20,6 +20,7 @@ async def main():
         except Exception as e:
             print(f"An error occurred: {traceback.format_exc()}")
             asyncio.create_task(updateLCD(f"An error occurred: {e}", display))
+
 
 # Initialize LCD
 display = initLCD()
