@@ -5,6 +5,10 @@ import requests
 import json
 import os
 
+import pygame
+pygame.init()
+pygame.mixer.init()
+
 from functions import *
 
 # Initialize LCD
