@@ -5,7 +5,7 @@ from functions import *
 async def main():
     while True:
         try:
-            text = await listen_speech(display)
+            text = await loop.run_in_executor(None, listen_speech, loop, display)
             print(f"Heard: {text}")
             await updateLCD(f"Heard: {text}", display)
             speak(text)
