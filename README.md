@@ -46,7 +46,7 @@ After=network.target
 [Service]
 User=ubuntu
 WorkingDirectory=/home/ubuntu/chatgpt-home
-ExecStart=/home/ubuntu/chatgpt-home/app.py
+ExecStart=/home/ubuntu/chatgpt-home/env/bin/python /home/ubuntu/chatgpt-home/app.py
 Restart=always
 
 [Install]
