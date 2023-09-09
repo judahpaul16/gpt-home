@@ -38,7 +38,8 @@ def query_openai(text):
         "max_tokens": 50
     })
     response = requests.post(api_url, headers=headers, data=payload)
-    return json.loads(response.text).get('choices')[0].get('text').strip()
+    if response: return json.loads(response.text).get('choices')[0].get('text').strip()
+    else: return "No response from OpenAI"
 
 # Listen and send query to OpenAI
 while True:
@@ -47,7 +48,7 @@ while True:
         print(f"Received: {text}")
         updateLCD(text, display)
         speak("Received: " + text, engine)
-        response = query_openai(text)
+        # response = query_openai(text)
         # speak(response, engine)
     except sr.UnknownValueError:
         print("Could not understand audio.")
