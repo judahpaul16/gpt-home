@@ -1,8 +1,13 @@
-import os
 import speech_recognition as sr
 import pyttsx3
 import requests
 import json
+import os
+
+from functions import *
+
+# Initialize LCD
+initLCD()
 
 # Initialize TTS engine
 engine = pyttsx3.init()
