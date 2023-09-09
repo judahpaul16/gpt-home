@@ -49,10 +49,12 @@ def updateLCD(text, display):
     # next row if text is too long
     if len(text) > 21:
         if len(text) > 42:
-            # scroll text
-            display.text(text[:21], 0, 10, 1)
-            display.text(text[21:42], 0, 20, 1)
-            display.text(text[42:], 0, 30, 1)
+            # animated scroll text
+            for i in range(len(text) - 21):
+                display.fill(0)
+                display.text(text[i:i+21], 0, 10, 1)
+                display.text(text[i+21:i+42], 0, 20, 1)
+                display.show()            
         else:
             # split into two lines
             display.text(text[:21], 0, 10, 1)
