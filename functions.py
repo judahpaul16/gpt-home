@@ -69,7 +69,7 @@ async def updateLCD(text, display):
         # display text normally
         display.text(text, 0, 10, 1)
         display.show()
-    asyncio.sleep(8)
+    await asyncio.sleep(8)
 
 async def listen_speech(loop, display, state_task):
     global r
