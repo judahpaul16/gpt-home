@@ -11,6 +11,7 @@ Pillow==10.0.0
 PyAudio==0.2.13
 requests==2.31.0
 SpeechRecognition==3.10.0
+openai
 pyftdi==0.55.0
 pyserial==3.5
 pyusb==1.2.1

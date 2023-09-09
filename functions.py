@@ -1,10 +1,11 @@
 
+import speech_recognition as sr
 from board import SCL, SDA
 import busio
 import adafruit_ssd1306
 import asyncio
 import subprocess
-import time
+import openai
 import os
 
 def initLCD():
@@ -75,5 +76,26 @@ async def updateLCD(text, display):
         display.show()
         await asyncio.sleep(5)
 
+def listen_speech(loop, display):
+    with sr.Microphone() as source:
+        print("Listening...")
+        loop.run_until_complete(updateLCD("Listening", display))
+        audio = r.listen(source)
+        return r.recognize_google(audio)
+
 def speak(text):
     os.system(f"espeak '{text}'")
+
+def query_openai(text):
+    openai.api_key = os.getenv("OPENAI_API_KEY")
+    response = openai.Completion.create(
+        engine="davinci",
+        prompt=text,
+        temperature=0.9,
+        max_tokens=150,
+        top_p=1,
+        frequency_penalty=0.0,
+        presence_penalty=0.6,
+        stop=["\n", " Human:", " AI:"]
+    )
+    return response.choices[0].text
