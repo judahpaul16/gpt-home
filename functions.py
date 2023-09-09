@@ -62,7 +62,6 @@ def updateLCD(text, display):
     else:
         display.text(text, 0, 10, 1)
     display.show()
-    time.sleep(3)
 
 def speak(text):
     os.system(f"espeak '{text}'")

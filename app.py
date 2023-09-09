@@ -44,6 +44,7 @@ while True:
         print(f"Received: {text}")
         updateLCD(text, display)
         speak("Received: " + text)
+        time.sleep(3) # wait for 3 seconds
         # response = query_openai(text)
         # speak(response)
     except sr.UnknownValueError:
