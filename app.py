@@ -7,7 +7,7 @@ async def main():
         try:
             text = await listen_speech(display)
             print(f"Heard: {text}")
-            asyncio.create_task(updateLCD(f"Heard: {text}", display))
+            await updateLCD(f"Heard: {text}", display)
             speak(text)
             # response = query_openai(text)
             # speak(response)
