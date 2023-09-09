@@ -1,10 +1,10 @@
 
 import speech_recognition as sr
 from board import SCL, SDA
-import busio
 import adafruit_ssd1306
-import asyncio
 import subprocess
+import asyncio
+import busio
 import openai
 import os
 
@@ -40,10 +40,7 @@ def initLCD():
     display.show()
     return display
 
-import asyncio  # Import asyncio for async functionality
-
 async def updateLCD(text, display):
-    display.fill(0)
     ip_address = (
         subprocess.check_output(["hostname", "-I"])
         .decode("utf-8")
@@ -54,20 +51,19 @@ async def updateLCD(text, display):
     if text == 'Listening' or text == 'Interpreting':
         while text == 'Listening' or text == 'Interpreting':
             for i in range(4):
-                display.fill(0)
-                display.text("IP: " + str(ip_address), 0, 0, 1)
+                display.fill_rect(0, 10, 128, 20, 0)
                 display.text(text + '.' * i, 0, 20, 1)
                 display.show()
                 await asyncio.sleep(0.5)
     else:
+        display.fill_rect(0, 10, 128, 20, 0)
         if len(text) > 21:
             if len(text) > 42:
                 for i in range(len(text) - 21):
-                    display.fillrect(0, 10, 128, 20, 0)
                     display.text(text[i:i+21], 0, 10, 1)
                     display.text(text[i+21:i+42], 0, 20, 1)
                     display.show()
-                    await asyncio.sleep(0.5)  # For scrolling, consider adding a sleep here
+                    await asyncio.sleep(0.5)
             else:
                 display.text(text[:21], 0, 10, 1)
                 display.text(text[21:], 0, 20, 1)
@@ -75,6 +71,7 @@ async def updateLCD(text, display):
             display.text(text, 0, 10, 1)
         display.show()
         await asyncio.sleep(5)
+
 
 def listen_speech(loop, display):
     with sr.Microphone() as source:
