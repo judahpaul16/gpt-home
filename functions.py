@@ -64,14 +64,16 @@ async def updateLCD(text, display):
     display.show()
     await asyncio.sleep(5)
 
-
-async def listen_speech(loop, display):
+async def listen_speech(loop, display, state_task):
     global r
     def recognize_audio():
         with sr.Microphone() as source:
             audio = r.listen(source)
             return r.recognize_google(audio)
-    return await loop.run_in_executor(executor, recognize_audio)
+
+    text = await loop.run_in_executor(executor, recognize_audio)
+    state_task.cancel()
+    return text
 
 async def display_state(state, display):
     while True:
@@ -80,7 +82,7 @@ async def display_state(state, display):
             display.text(f"{state}" + '.' * i, 0, 20, 1)
             display.show()
             await asyncio.sleep(0.5)
-            
+
 def speak(text):
     os.system(f"espeak '{text}'")
 
