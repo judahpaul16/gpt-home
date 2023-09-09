@@ -54,3 +54,4 @@ while True:
     except Exception as e:
         print(f"An error occurred: {traceback.format_exc()}")
         updateLCD(f"An error occurred: {e}", display)
+        reconnect_device()
