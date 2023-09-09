@@ -8,6 +8,7 @@ Adafruit-GPIO==1.0.3
 Adafruit-PlatformDetect==3.52.0
 Adafruit-PureIO==1.1.11
 Pillow==10.0.0
+PyAudio==0.2.13
 pyttsx3==2.90
 requests==2.31.0
 SpeechRecognition==3.10.0
