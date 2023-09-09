@@ -36,10 +36,14 @@ def initLCD():
     display.show()
     return display
 
-# show text just below IP address
-def showText(text, display):
-    # clear on all rows except first
-    display.fill_rect(0, 10, 128, 32, 0)
+def updateLCD(text, display):
+    display.fill(0)
+    ip_address = (
+        subprocess.check_output(["hostname", "-I"])
+        .decode("utf-8")
+        .split(" ")[0]
+    )
+    display.text("IP: " + str(ip_address), 0, 0, 1)
     # next row if text is too long
     if len(text) > 21:
         display.text(text[:21], 0, 10, 1)
@@ -47,3 +51,7 @@ def showText(text, display):
     else:
         display.text(text, 0, 10, 1)
     display.show()
+
+def speak(text, engine):
+    engine.say(text)
+    engine.runAndWait()
