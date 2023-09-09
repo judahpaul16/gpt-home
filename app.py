@@ -18,7 +18,7 @@ api_url = "https://api.openai.com/v1/engines/davinci-codex/completions"
 def listen_speech():
     with sr.Microphone() as source:
         print("Listening...")
-        updateLCD("Listening...", display)
+        updateLCD("Listening", display)
         audio = r.listen(source)
         del source  # Explicitly delete the source object to release the microphone
         return r.recognize_google(audio)
@@ -41,9 +41,9 @@ def query_openai(text):
 while True:
     try:
         text = listen_speech()
-        print(f"Received: {text}")
-        updateLCD(f"Received: {text}", display)
-        speak("Received: " + text)
+        print(f"Heard: {text}")
+        updateLCD(f"Heard: {text}", display)
+        speak("Heard: " + text)
         # response = query_openai(text)
         # speak(response)
     except sr.UnknownValueError:

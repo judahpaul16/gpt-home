@@ -46,7 +46,14 @@ def updateLCD(text, display):
         .split(" ")[0]
     )
     display.text("IP: " + str(ip_address), 0, 0, 1)
-    # next row if text is too long
+    
+    # if text is 'Listening' || 'Interpreting' blink ellipsis
+    if text == 'Listening' or text == 'Interpreting':
+        for i in range(3):
+            display.text(text + '.' * i, 0, 10, 1)
+            display.show()
+            time.sleep(0.5)
+    
     if len(text) > 21:
         if len(text) > 42:
             # animated scroll text loop
