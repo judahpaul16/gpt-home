@@ -7,7 +7,7 @@ import os
 from functions import *
 
 # Initialize LCD
-initLCD()
+display = initLCD()
 
 # Initialize TTS engine
 engine = pyttsx3.init()
@@ -22,6 +22,7 @@ api_url = "https://api.openai.com/v1/engines/davinci-codex/completions"
 def listen_speech():
     with sr.Microphone() as source:
         print("Listening...")
+        showText("Listening...", display)
         audio = r.listen(source)
         return r.recognize_google(audio)
 
@@ -43,12 +44,16 @@ while True:
     try:
         text = listen_speech()
         print(f"Received: {text}")
+        showText(text, display)
         response = query_openai(text)
         engine.say(response)
         engine.runAndWait()
     except sr.UnknownValueError:
         print("Could not understand audio.")
+        showText("Could not understand audio.", display)
     except sr.RequestError as e:
         print(f"Could not request results; {e}")
+        showText(f"Could not request results; {e}", display)
     except Exception as e:
         print(f"An error occurred: {e}")
+        showText(f"An error occurred: {e}", display)

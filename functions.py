@@ -34,3 +34,9 @@ def initLCD():
 
     # Show the updated display with the text.
     display.show()
+    return display
+
+# show text just below IP address
+def showText(text, display):
+    display.text(text, 0, 10, 1)
+    display.show()
