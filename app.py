@@ -5,7 +5,7 @@ from functions import *
 async def main():
     while True:
         try:
-            text = await loop.run_in_executor(None, listen_speech, loop, display)
+            text = await listen_speech(display)
             print(f"Heard: {text}")
             asyncio.create_task(updateLCD(f"Heard: {text}", display))
             speak(text)

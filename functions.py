@@ -73,10 +73,10 @@ async def updateLCD(text, display):
         await asyncio.sleep(5)
 
 
-def listen_speech(loop, display):
+async def listen_speech(display):
     with sr.Microphone() as source:
         print("Listening...")
-        loop.run_until_complete(updateLCD("Listening", display))
+        await updateLCD("Listening", display)
         audio = r.listen(source)
         return r.recognize_google(audio)
 
