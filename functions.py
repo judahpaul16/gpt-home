@@ -1,7 +1,6 @@
 
 from board import SCL, SDA
 import busio
-from pyudev import Context, Monitor, MonitorObserver
 import adafruit_ssd1306
 import subprocess
 import os
@@ -65,24 +64,3 @@ def updateLCD(text, display):
 
 def speak(text):
     os.system(f"espeak '{text}'")
-
-def reconnect_device():
-    context = Context()
-    monitor = Monitor.from_netlink(context)
-    monitor.filter_by(subsystem='sound')
-
-    for device in context.list_devices(subsystem='sound'):
-        if "USB PnP Sound Device" in device.properties.get('ID_MODEL', ''):
-            device_path = device.device_path
-            with open(f"{device_path}/uevent", 'w') as f:
-                f.write("remove")
-
-    monitor = Monitor.from_netlink(context)
-    monitor.filter_by(subsystem='sound')
-
-    def device_event_callback(device):
-        if "add" in device.action and "USB PnP Sound Device" in device.properties.get('ID_MODEL', ''):
-            print("Device reconnected.")
-
-    observer = MonitorObserver(monitor, callback=device_event_callback)
-    observer.start()
