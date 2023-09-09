@@ -2,20 +2,13 @@
 ChatGPT at home! Basically a better G**gle Nest Hub made with Raspberry Pi and OpenAI.
 
 ## Example Reclone script:
+First initialize an environment variable with your OpenAI API Key.
+```bash
+export OPENAI_API_KEY="your_openai_api_key_here"
+```
+Then create a script outside the local repo folder to reclone the repo and start the service.
 ``` bash
 #!/bin/bash
-
-# Initialize environment variables
-export OPENAI_API_KEY="your_openai_api_key_here"
-export DEPENDENCIES_INSTALLED="false"
-
-# Install dependencies if not installed
-if [ "$DEPENDENCIES_INSTALLED" == "false" ]; then
-    sudo apt-get update
-    sudo apt-get install -y python3-pip python3-venv
-    sudo apt-get install -y portaudio19-dev python3-pyaudio
-    export DEPENDENCIES_INSTALLED="true"
-fi
 
 # Remove existing local repo if it exists
 if [ -d "chatgpt-home" ]; then
