@@ -3,6 +3,7 @@ import speech_recognition as sr
 from board import SCL, SDA
 import adafruit_ssd1306
 import subprocess
+import textwrap
 import asyncio
 import busio
 import openai
@@ -49,25 +50,29 @@ async def updateLCD(text, display):
     display.fill_rect(0, 10, 128, 22, 0)
     ip_address = subprocess.check_output(["hostname", "-I"]).decode("utf-8").split(" ")[0]
     display.text("IP: " + str(ip_address), 0, 0, 1)
+    display.show()
 
-    if len(text) > 42:
+    wrapped_text = textwrap.fill(text, 21)
+    lines = wrapped_text.split('\n')
+
+    if len(lines) > 2:
         # scroll text
         start_time = time.time()
         while time.time() - start_time < 16:
-            for i in range(0, len(text) - 21, 21):
+            for i in range(0, len(lines) - 1):
                 display.fill_rect(0, 10, 128, 22, 0)
-                display.text(text[i:i+21], 0, 10, 1)
-                display.text(text[i+21:i+42], 0, 20, 1)
+                display.text(lines[i], 0, 10, 1)
+                display.text(lines[i+1], 0, 20, 1)
                 display.show()
-                await asyncio.sleep(3) # wait 2 seconds
-    elif len(text) > 21:
-        # split text into two lines
-        display.text(text[:21], 0, 10, 1)
-        display.text(text[21:], 0, 20, 1)
+                await asyncio.sleep(3)
+    elif len(lines) == 2:
+        # two lines
+        display.text(lines[0], 0, 10, 1)
+        display.text(lines[1], 0, 20, 1)
         display.show()
     else:
-        # display text normally
-        display.text(text, 0, 10, 1)
+        # one line
+        display.text(lines[0], 0, 10, 1)
         display.show()
     await asyncio.sleep(8)
 
