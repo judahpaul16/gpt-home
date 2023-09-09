@@ -43,9 +43,9 @@ while True:
         text = listen_speech()
         print(f"Received: {text}")
         updateLCD(text, display)
-        speak("Received: " + text, engine)
+        speak("Received: " + text)
         # response = query_openai(text)
-        # speak(response, engine)
+        # speak(response)
     except sr.UnknownValueError:
         print("Could not understand audio.")
         updateLCD("Could not understand audio.", display)
