@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from vosk import Model, KaldiRecognizer
 import speech_recognition as sr
 from board import SCL, SDA
 import adafruit_ssd1306
@@ -7,9 +8,13 @@ import textwrap
 import asyncio
 import busio
 import openai
+import json
 import time
 import os
 import logging
+
+# Initialize Vosk language model
+model = Model("vosk")
 
 logging.basicConfig(filename='events.log', level=logging.DEBUG)
 
@@ -81,9 +86,16 @@ async def updateLCD(text, display):
 
 async def listen_speech(loop, display, state_task):
     def recognize_audio():
+        rec = KaldiRecognizer(model, 16000)  # Initialize recognizer with Vosk
         with sr.Microphone() as source:
             audio = r.listen(source)
-            return r.recognize_google(audio)
+            audio_data = audio.get_wav_data()
+            if rec.AcceptWaveform(audio_data):
+                text = json.loads(rec.Result())['text']  # Parse JSON result
+                return text
+            else:
+                return "Sorry, I did not understand that."
+
     text = await loop.run_in_executor(executor, recognize_audio)
     state_task.cancel()
     return text
