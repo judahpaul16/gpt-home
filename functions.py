@@ -1,10 +1,8 @@
 
-# Import all board pins.
 from board import SCL, SDA
 import busio
-
-# Import the SSD1306 module.
 import adafruit_ssd1306
+import subprocess
 
 def initLCD():
     # Create the I2C interface.
