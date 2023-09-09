@@ -59,17 +59,18 @@ async def updateLCD(text, display):
                 display.text(text[i:i+21], 0, 10, 1)
                 display.text(text[i+21:i+42], 0, 20, 1)
                 display.show()
-                await asyncio.sleep(2) # wait 2 seconds
+                await asyncio.sleep(3) # wait 2 seconds
     elif len(text) > 21:
         # split text into two lines
         display.text(text[:21], 0, 10, 1)
         display.text(text[21:], 0, 20, 1)
-        await asyncio.sleep(5) # wait 5 seconds
+        display.show()
+        await asyncio.sleep(10) # wait 5 seconds
     else:
         # display text normally
         display.text(text, 0, 10, 1)
-    display.show()
-    await asyncio.sleep(5) # wait 5 seconds
+        display.show()
+        await asyncio.sleep(5) # wait 5 seconds
 
 async def listen_speech(loop, display, state_task):
     global r
