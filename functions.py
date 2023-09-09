@@ -31,15 +31,7 @@ def initLCD():
         .decode("utf-8")
         .split(" ")[0]
     )
-    # Get CPU temperature
-    cpu_temp = (
-        subprocess.check_output(["vcgencmd", "measure_temp"])
-        .decode("utf-8")
-        .split("=")[1]
-        .split("'")[0]
-    )
     display.text("IP: " + str(ip_address), 0, 0, 1)
-    display.text("CPU: " + str(cpu_temp), 0, 10, 1)
 
     # Show the updated display with the text.
     display.show()
