@@ -64,10 +64,7 @@ fi
 
 # Start the service
 sudo systemctl restart "$SERVICE_NAME"
-
-echo ""
-echo "Systemd service $SERVICE_NAME started."
-echo ""
+sudo systemctl status "$SERVICE_NAME"
 ```
 Be sure to make the script executable to run it
 ```bash
