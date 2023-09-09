@@ -9,6 +9,9 @@ import busio
 import openai
 import time
 import os
+import logging
+
+logging.basicConfig(filename='events.log', level=logging.DEBUG)
 
 global r
 r = sr.Recognizer()
@@ -113,10 +116,5 @@ def query_openai(text):
     )
     return response.choices[0].text
 
-
 async def log_event(text):
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    log_path = os.path.join(script_dir, "events.log")
-
-    with open(log_path, "a") as f:
-        f.write(f"{text}\n")
+    logging.info(text)
