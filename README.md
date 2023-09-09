@@ -44,9 +44,9 @@ Description=ChatGPT Home
 After=network.target
 
 [Service]
-User=pi
-WorkingDirectory=/home/pi/chatgpt-home
-ExecStart=/home/pi/chatgpt-home/app.py
+User=ubuntu
+WorkingDirectory=/home/ubuntu/chatgpt-home
+ExecStart=/home/ubuntu/chatgpt-home/app.py
 Restart=always
 
 [Install]
