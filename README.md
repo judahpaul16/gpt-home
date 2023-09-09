@@ -63,9 +63,11 @@ EOF
 fi
 
 # Start the service
-sudo systemctl start "$SERVICE_NAME"
+sudo systemctl restart "$SERVICE_NAME"
 
+echo ""
 echo "Systemd service $SERVICE_NAME started."
+echo ""
 ```
 Be sure to make the script executable to run it
 ```bash
