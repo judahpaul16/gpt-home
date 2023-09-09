@@ -42,7 +42,7 @@ while True:
     try:
         text = listen_speech()
         print(f"Received: {text}")
-        updateLCD(text, display)
+        updateLCD(f"Received: {text}", display)
         speak("Received: " + text)
         # response = query_openai(text)
         # speak(response)
