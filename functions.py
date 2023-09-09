@@ -2,6 +2,7 @@
 from board import SCL, SDA
 import busio
 import adafruit_ssd1306
+import asyncio
 import subprocess
 import time
 import os
@@ -38,7 +39,9 @@ def initLCD():
     display.show()
     return display
 
-def updateLCD(text, display):
+import asyncio  # Import asyncio for async functionality
+
+async def updateLCD(text, display):
     display.fill(0)
     ip_address = (
         subprocess.check_output(["hostname", "-I"])
@@ -47,33 +50,30 @@ def updateLCD(text, display):
     )
     display.text("IP: " + str(ip_address), 0, 0, 1)
     
-    # if text is 'Listening' || 'Interpreting' blink ellipsis
     if text == 'Listening' or text == 'Interpreting':
-        while text == 'Listening' or text == 'Interpreting':  # Add this line
+        while text == 'Listening' or text == 'Interpreting':
             for i in range(4):
                 display.fill(0)
                 display.text("IP: " + str(ip_address), 0, 0, 1)
                 display.text(text + '.' * i, 0, 20, 1)
                 display.show()
-                time.sleep(0.5)  # wait for 0.5 seconds
+                await asyncio.sleep(0.5)
     else:
         if len(text) > 21:
             if len(text) > 42:
-                # animated scroll text loop
                 for i in range(len(text) - 21):
                     display.fillrect(0, 10, 128, 20, 0)
                     display.text(text[i:i+21], 0, 10, 1)
                     display.text(text[i+21:i+42], 0, 20, 1)
                     display.show()
+                    await asyncio.sleep(0.5)  # For scrolling, consider adding a sleep here
             else:
-                # split into two lines
                 display.text(text[:21], 0, 10, 1)
                 display.text(text[21:], 0, 20, 1)
         else:
             display.text(text, 0, 10, 1)
         display.show()
-        
-    time.sleep(5) # wait for 5 seconds
+        await asyncio.sleep(5)
 
 def speak(text):
     os.system(f"espeak '{text}'")

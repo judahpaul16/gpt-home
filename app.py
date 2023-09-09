@@ -1,9 +1,51 @@
 import speech_recognition as sr
 import traceback
 import requests
+import asyncio
 import json
 import os
 from functions import *
+
+async def main():
+    while True:
+        try:
+            text = await loop.run_in_executor(None, listen_speech)
+            print(f"Heard: {text}")
+            asyncio.create_task(updateLCD(f"Heard: {text}", display))
+            speak(text)
+            # response = query_openai(text)
+            # speak(response)
+        except sr.UnknownValueError:
+            print("Could not understand audio.")
+            asyncio.create_task(updateLCD("Could not understand audio.", display))
+        except sr.RequestError as e:
+            print(f"Could not request results; {e}")
+            asyncio.create_task(updateLCD(f"Could not request results; {e}", display))
+        except Exception as e:
+            print(f"An error occurred: {traceback.format_exc()}")
+            asyncio.create_task(updateLCD(f"An error occurred: {e}", display))
+
+async def updateLCD(text, display):
+    display.fill(0)
+    ip_address = (
+        subprocess.check_output(["hostname", "-I"])
+        .decode("utf-8")
+        .split(" ")[0]
+    )
+    display.text("IP: " + str(ip_address), 0, 0, 1)
+    
+    if text == 'Listening' or text == 'Interpreting':
+        while text == 'Listening' or text == 'Interpreting':
+            for i in range(4):
+                display.fill(0)
+                display.text("IP: " + str(ip_address), 0, 0, 1)
+                display.text(text + '.' * i, 0, 20, 1)
+                display.show()
+                await asyncio.sleep(0.5)
+    else:
+        # ... (Your existing text display logic)
+        display.show()
+        await asyncio.sleep(5)
 
 # Initialize LCD
 display = initLCD()
@@ -11,47 +53,5 @@ display = initLCD()
 # Initialize recognizer
 r = sr.Recognizer()
 
-# OpenAI API URL
-api_url = "https://api.openai.com/v1/engines/davinci-codex/completions"
-
-# Function to listen to and recognize speech
-def listen_speech():
-    with sr.Microphone() as source:
-        print("Listening...")
-        updateLCD("Listening", display)
-        audio = r.listen(source)
-        del source  # Explicitly delete the source object to release the microphone
-        return r.recognize_google(audio)
-
-# Function to query OpenAI and get a text response
-def query_openai(text):
-    headers = {
-        "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}",
-        "Content-Type": "application/json"
-    }
-    payload = json.dumps({
-        "prompt": text,
-        "max_tokens": 50
-    })
-    response = requests.post(api_url, headers=headers, data=payload)
-    if response: return json.loads(response.text).get('choices')[0].get('text').strip()
-    else: return "No response from OpenAI"
-
-# Listen and send query to OpenAI
-while True:
-    try:
-        text = listen_speech()
-        print(f"Heard: {text}")
-        updateLCD(f"Heard: {text}", display)
-        speak(text)
-        # response = query_openai(text)
-        # speak(response)
-    except sr.UnknownValueError:
-        print("Could not understand audio.")
-        updateLCD("Could not understand audio.", display)
-    except sr.RequestError as e:
-        print(f"Could not request results; {e}")
-        updateLCD(f"Could not request results; {e}", display)
-    except Exception as e:
-        print(f"An error occurred: {traceback.format_exc()}")
-        updateLCD(f"An error occurred: {e}", display)
+loop = asyncio.get_event_loop()
+loop.run_until_complete(main())
