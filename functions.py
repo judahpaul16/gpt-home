@@ -44,11 +44,8 @@ def initLCD():
     return display
 
 async def updateLCD(text, display):
-    ip_address = (
-        subprocess.check_output(["hostname", "-I"])
-        .decode("utf-8")
-        .split(" ")[0]
-    )
+    display.fill_rect(0, 10, 128, 20, 0)
+    ip_address = subprocess.check_output(["hostname", "-I"]).decode("utf-8").split(" ")[0]
     display.text("IP: " + str(ip_address), 0, 0, 1)
     
     if text == 'Listening' or text == 'Interpreting':
@@ -59,7 +56,6 @@ async def updateLCD(text, display):
                 display.show()
                 await asyncio.sleep(0.5)
     else:
-        display.fill_rect(0, 10, 128, 20, 0)
         if len(text) > 21:
             if len(text) > 42:
                 for i in range(len(text) - 21):
@@ -79,8 +75,8 @@ async def listen_speech(loop, display):
     global r
     with sr.Microphone() as source:
         print("Listening...")
-        updateLCD("Listening", display)
-        audio = r.listen(source)
+        asyncio.create_task(updateLCD("Listening", display))
+        audio = await loop.run_in_executor(None, lambda: r.listen(source))
         return r.recognize_google(audio)
 
 def speak(text):
