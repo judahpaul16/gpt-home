@@ -102,6 +102,7 @@ async def speak(text):
     engine.runAndWait()
 
 def query_openai(text):
+    openai.api_key = openai_api_key
     response = openai.Completion.create(
         engine="davinci",
         prompt=text,
@@ -110,8 +111,7 @@ def query_openai(text):
         top_p=1,
         frequency_penalty=0.0,
         presence_penalty=0.6,
-        stop=["\n", " Human:", " AI:"],
-        api_key=openai_api_key
+        stop=["\n", " Human:", " AI:"]
     )
     return response.choices[0].text
 
