@@ -14,12 +14,14 @@ async def main():
             await updateLCD(message, display)
         except sr.UnknownValueError:
             message = "Sorry, I did not understand that"
+            speak(message)
             print(message)
             log_event("Error: " + message)
             state_task.cancel()
             await updateLCD(message, display)
         except sr.RequestError as e:
             message = f"Could not request results; {e}"
+            speak(message)
             print(message)
             log_event("Error: " + message)
             state_task.cancel()
@@ -29,6 +31,7 @@ async def main():
         except Exception as e:
             message = f"Something Went Wrong: {e}"
             tracebackMessage = f"Error: {traceback.format_exc()}"
+            speak(message)
             print(tracebackMessage)
             log_event(tracebackMessage)
             state_task.cancel()
