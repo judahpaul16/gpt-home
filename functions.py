@@ -35,24 +35,17 @@ def initLCD():
     # Clear the display. Always call show after changing pixels to make the display
     # update visible
     display.fill(0)
-    display.show()
 
     # Display IP address
-    ip_address = ""
-    retry_count = 0
-    while not ip_address and retry_count < 5:
-        ip_address = subprocess.check_output(["hostname", "-I"]).decode("utf-8").split(" ")[0]
-        retry_count += 1
-        if not ip_address:
-            time.sleep(2)  # Wait for 2 seconds before retrying
-    display.text("IP: " + str(ip_address), 0, 0, 1)
+    ip_address = subprocess.check_output(["hostname", "-I"]).decode("utf-8").split(" ")[0]
+    display.text(f"IP: {ip_address}", 0, 0, 1)
 
     # Show the updated display with the text.
     display.show()
     return display
 
 async def updateLCD(text, display):
-    display.fill_rect(0, 10, 128, 22, 0)
+    display.fill(0)
     ip_address = subprocess.check_output(["hostname", "-I"]).decode("utf-8").split(" ")[0]
     display.text(f"IP: {ip_address}", 0, 0, 1)
     display.show()
