@@ -8,6 +8,7 @@ async def main():
             state_task = asyncio.create_task(display_state("Listening", display))
             text = await listen_speech(loop, display, state_task)
             message = f"Heard: {text}"
+            speak(message)
             print(message)
             log_event(message)
             await updateLCD(message, display)

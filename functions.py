@@ -5,6 +5,7 @@ import adafruit_ssd1306
 import subprocess
 import textwrap
 import asyncio
+import pyttsx3
 import busio
 import openai
 import time
@@ -97,7 +98,18 @@ async def display_state(state, display):
             await asyncio.sleep(0.5)
 
 def speak(text):
-    os.system(f"espeak '{text}'")
+    # Initialize the text-to-speech engine
+    engine = pyttsx3.init()
+
+    # Set properties (optional)
+    engine.setProperty('rate', 150)
+    engine.setProperty('volume', 1.0)
+
+    # Speak text
+    engine.say(text)
+
+    # Wait for speech to complete
+    engine.runAndWait()
 
 def query_openai(text):
     response = openai.Completion.create(
