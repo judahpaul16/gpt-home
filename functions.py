@@ -71,10 +71,12 @@ async def updateLCD(text, display):
         while time.time() - start_time < 15:
             for i in range(0, line_count - 1):
                 await display_lines(i, i + 2)
-                await speak(text)
+            await speak(text)
+            await speak(query_openai(text))
     else:
         await display_lines(0, line_count)
         await speak(text)
+        await speak(query_openai(text))
 
 async def listen_speech(loop, display, state_task):
     def recognize_audio():
