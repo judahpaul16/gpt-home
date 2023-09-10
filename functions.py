@@ -15,7 +15,7 @@ import logging
 logging.basicConfig(filename='events.log', level=logging.DEBUG)
 
 r = sr.Recognizer()
-openai_api_key = os.getenv("OPENAI_API_KEY")
+openai.api_key = os.environ['OPENAI_API_KEY']
 executor = ThreadPoolExecutor()
 
 def initLCD():
@@ -102,7 +102,6 @@ async def speak(text):
     engine.runAndWait()
 
 def query_openai(text):
-    openai.api_key = openai_api_key
     response = openai.Completion.create(
         engine="davinci",
         prompt=text,
