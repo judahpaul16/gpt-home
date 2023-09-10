@@ -8,20 +8,17 @@ async def main():
             state_task = asyncio.create_task(display_state("Listening", display))
             text = await listen_speech(loop, display, state_task)
             message = f"Heard: {text}"
-            speak(message)
             print(message)
             log_event(message)
             await updateLCD(message, display)
         except sr.UnknownValueError:
             message = "Sorry, I did not understand that"
-            speak(message)
             print(message)
             log_event("Error: " + message)
             state_task.cancel()
             await updateLCD(message, display)
         except sr.RequestError as e:
             message = f"Could not request results; {e}"
-            speak(message)
             print(message)
             log_event("Error: " + message)
             state_task.cancel()
@@ -31,7 +28,6 @@ async def main():
         except Exception as e:
             message = f"Something Went Wrong: {e}"
             tracebackMessage = f"Error: {traceback.format_exc()}"
-            speak(message)
             print(tracebackMessage)
             log_event(tracebackMessage)
             state_task.cancel()

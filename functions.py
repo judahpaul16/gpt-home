@@ -67,18 +67,18 @@ async def updateLCD(text, display):
                 display.text(lines[i], 0, 10, 1)
                 display.text(lines[i+1], 0, 20, 1)
                 display.show()
-                await asyncio.sleep(3)
+                await speak(text)
     elif len(lines) == 2:
         # two lines
         display.text(lines[0], 0, 10, 1)
         display.text(lines[1], 0, 20, 1)
         display.show()
-        await asyncio.sleep(6)
+        await speak(text)
     else:
         # one line
         display.text(lines[0], 0, 10, 1)
         display.show()
-        await asyncio.sleep(6)
+        await speak(text)
 
 async def listen_speech(loop, display, state_task):
     def recognize_audio():
@@ -97,17 +97,14 @@ async def display_state(state, display):
             display.show()
             await asyncio.sleep(0.5)
 
-def speak(text):
+async def speak(text):
     # Initialize the text-to-speech engine
     engine = pyttsx3.init()
-
     # Set properties (optional)
     engine.setProperty('rate', 150)
     engine.setProperty('volume', 1.0)
-
     # Speak text
     engine.say(text)
-
     # Wait for speech to complete
     engine.runAndWait()
 
