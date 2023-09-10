@@ -38,11 +38,13 @@ def initLCD():
     display.show()
 
     # Display IP address
-    ip_address = (
-        subprocess.check_output(["hostname", "-I"])
-        .decode("utf-8")
-        .split(" ")[0]
-    )
+    ip_address = ""
+    retry_count = 0
+    while not ip_address and retry_count < 5:
+        ip_address = subprocess.check_output(["hostname", "-I"]).decode("utf-8").split(" ")[0]
+        retry_count += 1
+        if not ip_address:
+            time.sleep(2)  # Wait for 2 seconds before retrying
     display.text("IP: " + str(ip_address), 0, 0, 1)
 
     # Show the updated display with the text.
@@ -52,32 +54,26 @@ def initLCD():
 async def updateLCD(text, display):
     display.fill_rect(0, 10, 128, 22, 0)
     ip_address = subprocess.check_output(["hostname", "-I"]).decode("utf-8").split(" ")[0]
-    display.text("IP: " + str(ip_address), 0, 0, 1)
+    display.text(f"IP: {ip_address}", 0, 0, 1)
     display.show()
 
-    wrapped_text = textwrap.fill(text, 21)
-    lines = wrapped_text.split('\n')
+    lines = textwrap.fill(text, 21).split('\n')
+    line_count = len(lines)
 
-    if len(lines) > 2:
-        # scroll text
+    async def display_lines(start, end):
+        display.fill_rect(0, 10, 128, 22, 0)
+        for i, line_index in enumerate(range(start, end)):
+            display.text(lines[line_index], 0, 10 + i * 10, 1)
+        display.show()
+
+    if line_count > 2:
         start_time = time.time()
         while time.time() - start_time < 15:
-            for i in range(0, len(lines) - 1):
-                display.fill_rect(0, 10, 128, 22, 0)
-                display.text(lines[i], 0, 10, 1)
-                display.text(lines[i+1], 0, 20, 1)
-                display.show()
+            for i in range(0, line_count - 1):
+                await display_lines(i, i + 2)
                 await speak(text)
-    elif len(lines) == 2:
-        # two lines
-        display.text(lines[0], 0, 10, 1)
-        display.text(lines[1], 0, 20, 1)
-        display.show()
-        await speak(text)
     else:
-        # one line
-        display.text(lines[0], 0, 10, 1)
-        display.show()
+        await display_lines(0, line_count)
         await speak(text)
 
 async def listen_speech(loop, display, state_task):
@@ -100,7 +96,7 @@ async def display_state(state, display):
 async def speak(text):
     # Initialize the text-to-speech engine
     engine = pyttsx3.init()
-    # Set properties (optional)
+    # Set properties
     engine.setProperty('rate', 150)
     engine.setProperty('volume', 1.0)
     # Direct audio to specific hardware (here, 'Headphones' on card 0, device 0)
