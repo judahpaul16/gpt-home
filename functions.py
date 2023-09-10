@@ -4,13 +4,13 @@ from board import SCL, SDA
 import adafruit_ssd1306
 import subprocess
 import textwrap
+import logging
 import asyncio
 import pyttsx3
 import busio
 import openai
 import time
 import os
-import logging
 
 logging.basicConfig(filename='events.log', level=logging.DEBUG)
 
@@ -94,8 +94,8 @@ async def speak(text):
     # Set properties
     engine.setProperty('rate', 150)
     engine.setProperty('volume', 1.0)
-    # Direct audio to specific hardware (here, 'Headphones' on card 0, device 0)
-    engine.setProperty('alsa_device', 'hw:0,0')
+    # Direct audio to specific hardware
+    engine.setProperty('alsa_device', 'hw:Headphones,0')
     # Speak text
     engine.say(text)
     # Wait for speech to complete
