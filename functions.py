@@ -103,6 +103,8 @@ async def speak(text):
     # Set properties (optional)
     engine.setProperty('rate', 150)
     engine.setProperty('volume', 1.0)
+    # Direct audio to specific hardware (here, 'Headphones' on card 0, device 0)
+    engine.setProperty('alsa_device', 'hw:0,0')
     # Speak text
     engine.say(text)
     # Wait for speech to complete
