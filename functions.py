@@ -28,6 +28,7 @@ engine.setProperty('rate', 150)
 engine.setProperty('volume', 1.0)
 # Direct audio to specific hardware
 engine.setProperty('alsa_device', 'hw:Headphones,0')
+speak_lock = asyncio.Lock()
 
 def initLCD():
     # Create the I2C interface.
@@ -107,11 +108,12 @@ async def display_state(state, display):
             await asyncio.sleep(0.5)
 
 async def speak(text):
-    loop = asyncio.get_running_loop()
-    def _speak():
-        engine.say(text)
-        engine.runAndWait()
-    await loop.run_in_executor(executor, _speak)
+    async with speak_lock:
+        loop = asyncio.get_running_loop()
+        def _speak():
+            engine.say(text)
+            engine.runAndWait()
+        await loop.run_in_executor(executor, _speak)
 
 async def query_openai(text):
     try:
