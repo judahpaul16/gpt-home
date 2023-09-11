@@ -52,7 +52,7 @@ WorkingDirectory=/home/ubuntu/gpt-home
 ExecStart=/home/ubuntu/gpt-home/env/bin/python /home/ubuntu/gpt-home/app.py
 Environment="OPENAI_API_KEY=$OPENAI_API_KEY"
 Restart=always
-Type=notify
+Type=simple
 
 [Install]
 WantedBy=multi-user.target
