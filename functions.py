@@ -88,7 +88,7 @@ async def updateLCD(text, display, error=False, stop_event=None):
                 i = (i + 2) % line_count
             else:
                 await display_lines(0, line_count)
-            await asyncio.sleep(2)
+            await asyncio.sleep(0.020)
 
     # Clear the display
     display.fill(0)
