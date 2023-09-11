@@ -45,7 +45,7 @@ async def main():
 if __name__ == "__main__":
     # Initialize LCD
     display = initLCD()
-    state_task = display_state("Initializing", display)
+    state_task = asyncio.create_task(display_state("Initializing", display))
     while not network_connected():
         time.sleep(1)
         message = "Network not connected"
