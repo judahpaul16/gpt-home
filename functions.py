@@ -129,7 +129,8 @@ async def query_openai(text, display):
         return message
     except Exception as e:
         error_message = f"Something went wrong: {e}"
-        await speak(error_message)
+        stop_event = asyncio.Event()
+        await speak(error_message, stop_event)
         log_event(f"Error: {traceback.format_exc()}")
         return error_message
 

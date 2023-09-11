@@ -13,8 +13,9 @@ async def main():
                 heard_message = f"Heard: {actual_text}"
                 response_message = await query_openai(actual_text, display)
                 
-                heard_task = asyncio.gather(speak(heard_message), updateLCD(heard_message, display))
-                response_task = asyncio.gather(speak(response_message), updateLCD(response_message, display))
+                stop_event = asyncio.Event()
+                heard_task = asyncio.gather(speak(heard_message, stop_event), updateLCD(heard_message, display))
+                response_task = asyncio.gather(speak(response_message, stop_event), updateLCD(response_message, display))
 
                 await heard_task
                 log_event(heard_message)
@@ -41,7 +42,8 @@ if __name__ == "__main__":
         message = "Network not connected"
         log_event(f"Error: {message}")
         updateLCD(message, display, error=True)
-        speak(message)
+        stop_event = asyncio.Event()
+        speak(message, stop_event)
         if network_connected(): break
     
     # Start main loop
