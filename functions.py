@@ -117,7 +117,7 @@ async def query_openai(text):
     try:
         response = openai.Completion.create(
             engine="davinci",
-            prompt=f"Q: {text}\nA: (But add snark and sarcasm)",
+            prompt=f"Q: {text}\nA: (But add a hint of snark)",
             temperature=0.9,
             max_tokens=64,
             top_p=1,
