@@ -70,24 +70,24 @@ async def updateLCD(text, display, error=False, stop_event=None):
 
     async def display_lines(start, end):
         display.fill_rect(0, 10, 128, 22, 0)
+        # typewriter effect
         for i, line_index in enumerate(range(start, end)):
-            # Typewriter effect
             for j, char in enumerate(lines[line_index]):
                 if stop_event.is_set():
                     break
-                display.text(char, j * 6, 10 + i * 10, 1)  # j * 6 adjusts the x-coordinate
+                display.text(char, j * 6, 10 + i * 10, 1)
                 display.show()
-                await asyncio.sleep(0.025)  # delay between each character
+                await asyncio.sleep(0.020) # 20ms delay between characters
         display.show()
 
     async def loop_text():
         i = 0
         while not (stop_event and stop_event.is_set()):
-            if line_count > 1:
+            if line_count > 2:
                 await display_lines(i, i + 2)
-                i = (i + 1) % (line_count - 1)
+                i = (i + 2) % line_count
             else:
-                await display_lines(0, 1)
+                await display_lines(0, line_count)
             await asyncio.sleep(2)
 
     # Clear the display
@@ -99,7 +99,6 @@ async def updateLCD(text, display, error=False, stop_event=None):
     # Line wrap the text
     lines = textwrap.fill(text, 21).split('\n')
     line_count = len(lines)
-    # Loop the text if it's more than 2 lines
     loop_task = asyncio.create_task(loop_text())
 
     # Wait for just the loop_task to finish if an error occurred
