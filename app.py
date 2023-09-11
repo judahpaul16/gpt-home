@@ -1,6 +1,5 @@
-import traceback
-import asyncio
 from functions import *
+import asyncio
 
 async def main():
     while True:

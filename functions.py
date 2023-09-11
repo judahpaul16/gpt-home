@@ -3,15 +3,14 @@ import speech_recognition as sr
 from asyncio import create_task
 from board import SCL, SDA
 import adafruit_ssd1306
-import traceback
 import subprocess
+import traceback
 import textwrap
 import logging
 import asyncio
 import pyttsx3
-import busio
 import openai
-import time
+import busio
 import os
 
 logging.basicConfig(filename='events.log', level=logging.DEBUG)
