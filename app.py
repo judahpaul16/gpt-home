@@ -19,7 +19,6 @@ async def main():
                 stop_event_response = asyncio.Event()
                 response_task = asyncio.gather(speak(response_message, stop_event_response), updateLCD(response_message, display, stop_event=stop_event_response))
 
-
                 await heard_task
                 log_event(heard_message)
 
