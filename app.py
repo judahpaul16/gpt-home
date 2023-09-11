@@ -7,16 +7,19 @@ async def main():
         try:
             state_task = asyncio.create_task(display_state("Listening", display))
             text = await listen_speech(loop, display, state_task)
-            heard_message = f"Heard: {text}"
-            response_message = await query_openai(text, display)
-            
-            heard_task = asyncio.gather(speak(heard_message), updateLCD(heard_message, display))
-            response_task = asyncio.gather(speak(response_message), updateLCD(response_message, display))
-            
-            await heard_task
-            log_event(heard_message)
-            await response_task
-            log_event(response_message)
+            if "Computer" in text:
+                actual_text = text.split("Computer")[1].strip()
+                heard_message = f"Heard: {actual_text}"
+                response_message = await query_openai(actual_text, display)
+                
+                heard_task = asyncio.gather(speak(heard_message), updateLCD(heard_message, display))
+                response_task = asyncio.gather(speak(response_message), updateLCD(response_message, display))
+
+                await heard_task
+                log_event(heard_message)
+
+                await response_task
+                log_event(response_message)
         except sr.UnknownValueError:
             error_message = "Sorry, I did not understand that"
             await handle_error(error_message, state_task, display)
@@ -27,7 +30,7 @@ async def main():
             error_message = f"Something Went Wrong: {e}"
             await handle_error(error_message, state_task, display)
 
-# Ensure network is connected before continuing
+# Ensure network is connected before starting
 if __name__ == "__main__":
     # Initialize LCD
     display = initLCD()
