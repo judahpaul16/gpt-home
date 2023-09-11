@@ -107,10 +107,8 @@ async def display_state(state, display):
             await asyncio.sleep(0.5)
 
 async def speak(text):
-    # Speak text
-    engine.say(text)
-    # Wait for speech to complete
-    engine.runAndWait()
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, lambda: [engine.say(text), engine.runAndWait()])
 
 async def query_openai(text):
     try:
