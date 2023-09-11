@@ -33,34 +33,38 @@ pip install -r requirements.txt
 # Define the name of the systemd service
 SERVICE_NAME="gpt-home.service"
 
-# Check if the systemd service already exists
-if ! systemctl list-units --type=service | grep -q "$SERVICE_NAME"; then
-    echo "Systemd service $SERVICE_NAME does not exist. Creating and enabling it..."
+# Check if the systemd service already exists, recreate it if it does
+if [ -f "/etc/systemd/system/$SERVICE_NAME" ]; then
+    sudo systemctl stop "$SERVICE_NAME"
+fi
 
-    # Create a systemd service unit file
-    cat <<EOF | sudo tee "/etc/systemd/system/$SERVICE_NAME" >/dev/null
+echo "Creating and enabling systemd service $SERVICE_NAME..."
+
+# Create a systemd service unit file
+cat <<EOF | sudo tee "/etc/systemd/system/$SERVICE_NAME" >/dev/null
 [Unit]
-Description=gpt Home
+Description=ChatGPT Home
 After=network.target
 
 [Service]
 User=ubuntu
 WorkingDirectory=/home/ubuntu/gpt-home
 ExecStart=/home/ubuntu/gpt-home/env/bin/python /home/ubuntu/gpt-home/app.py
+Environment="OPENAI_API_KEY=$OPENAI_API_KEY"
 Restart=always
+Type=notify
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-    # Reload systemd
-    sudo systemctl daemon-reload
+# Reload systemd
+sudo systemctl daemon-reload
 
-    # Enable the service
-    sudo systemctl enable "$SERVICE_NAME"
+# Enable the service
+sudo systemctl enable "$SERVICE_NAME"
 
-    echo "Systemd service $SERVICE_NAME created and enabled."
-fi
+echo "Systemd service $SERVICE_NAME created and enabled."
 
 # Start the service
 sudo systemctl restart "$SERVICE_NAME"
