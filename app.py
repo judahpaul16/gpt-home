@@ -13,9 +13,12 @@ async def main():
                 heard_message = f"Heard: {actual_text}"
                 response_message = await query_openai(actual_text, display)
                 
-                stop_event = asyncio.Event()
-                heard_task = asyncio.gather(speak(heard_message, stop_event), updateLCD(heard_message, display))
-                response_task = asyncio.gather(speak(response_message, stop_event), updateLCD(response_message, display))
+                stop_event_heard = asyncio.Event()
+                heard_task = asyncio.gather(speak(heard_message, stop_event_heard), updateLCD(heard_message, display, stop_event=stop_event_heard))
+
+                stop_event_response = asyncio.Event()
+                response_task = asyncio.gather(speak(response_message, stop_event_response), updateLCD(response_message, display, stop_event=stop_event_response))
+
 
                 await heard_task
                 log_event(heard_message)
