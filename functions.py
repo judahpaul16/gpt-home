@@ -24,7 +24,7 @@ executor = ThreadPoolExecutor()
 # Initialize the text-to-speech engine
 engine = pyttsx3.init()
 # Set properties
-engine.setProperty('rate', 140)
+engine.setProperty('rate', 150)
 engine.setProperty('volume', 1.0)
 # Direct audio to specific hardware
 engine.setProperty('alsa_device', 'hw:Headphones,0')
@@ -77,7 +77,7 @@ async def updateLCD(text, display, error=False, stop_event=None):
                     break
                 display.text(char, j * 6, 10 + i * 10, 1)
                 display.show()
-                await asyncio.sleep(0.020) # 20ms delay between characters
+                await asyncio.sleep(0.022) # 22ms delay between characters
         display.show()
 
     async def loop_text():
@@ -88,7 +88,7 @@ async def updateLCD(text, display, error=False, stop_event=None):
                 i = (i + 2) % line_count
             else:
                 await display_lines(0, line_count)
-            await asyncio.sleep(0.020)
+            await asyncio.sleep(0.022)
 
     # Clear the display
     display.fill(0)
