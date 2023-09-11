@@ -68,9 +68,12 @@ async def updateLCD(text, display, error=False):
     async def loop_text():
         i = 0
         while not stop_event.is_set():
-            await display_lines(i, i + 2)
+            if line_count > 1:
+                await display_lines(i, i + 2)
+                i = (i + 1) % (line_count - 1)
+            else:
+                await display_lines(0, 1)
             await asyncio.sleep(2)
-            i = (i + 1) % (line_count - 1)
 
     display.fill(0)
     ip_address = subprocess.check_output(["hostname", "-I"]).decode("utf-8").split(" ")[0]
