@@ -7,6 +7,7 @@ async def main():
             keyword = "computer"
             state_task = asyncio.create_task(display_state("Listening", display))
             text = await listen_speech(loop, display, state_task)
+            state_task.cancel()
             split_text = text.split(keyword)
             if keyword in text and len(split_text) > 1 and len(split_text[1].strip()) > 0:
                 try:
