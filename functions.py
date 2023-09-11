@@ -51,6 +51,18 @@ def initLCD():
     display.show()
     return display
 
+async def initialize_system():
+    display = initLCD()
+    stop_event_init = asyncio.Event()
+    state_task = asyncio.create_task(display_state("Initializing", display, stop_event_init))
+    while not network_connected():
+        await asyncio.sleep(1)
+        message = "Network not connected. Retrying..."
+        log_event(f"Error: {message}")
+    stop_event_init.set()  # Signal to stop the 'Initializing' display
+    state_task.cancel()  # Cancel the display task
+    return display
+
 async def updateLCD(text, display, error=False, stop_event=None):
     if stop_event is None:
         stop_event = asyncio.Event()
@@ -113,30 +125,34 @@ async def speak(text, stop_event):
         await loop.run_in_executor(executor, _speak)
         stop_event.set()
 
-async def query_openai(text, display):
-    try:
-        response = openai.Completion.create(
-            engine="davinci",
-            prompt=f"Q: {text}\nA: (But add a hint of snark and sarcasm)",
-            temperature=0.9,
-            max_tokens=64,
-            top_p=1,
-            frequency_penalty=0.0,
-            presence_penalty=0.6,
-            stop=["\n"]
-        )
-        if response.choices[0].text != "":
-            message = f"Response: {response.choices[0].text}"
-        else:
-            message = "Response: No response from OpenAI"
-            log_event(message)
-        return message
-    except Exception as e:
-        error_message = f"Something went wrong: {e}"
-        stop_event = asyncio.Event()
-        await speak(error_message, stop_event)
-        log_event(f"Error: {traceback.format_exc()}")
-        return error_message
+async def query_openai(text, display, retries=3):
+    for i in range(retries):
+        try:
+            response = openai.Completion.create(
+                engine="davinci",
+                prompt=f"Q: {text}\nA: (But add a hint of snark and sarcasm)",
+                temperature=0.9,
+                max_tokens=64,
+                top_p=1,
+                frequency_penalty=0.0,
+                presence_penalty=0.6,
+                stop=["\n"]
+            )
+            if response.choices[0].text.strip():  # Check if the response is not empty
+                message = f"Response: {response.choices[0].text.strip()}"
+                return message
+            else:
+                log_event(f"Retry {i+1}: Received empty response from OpenAI.")
+        except Exception as e:
+            log_event(f"Error on try {i+1}: {e}")
+            if i == retries - 1:  # If this was the last retry
+                error_message = f"Something went wrong after {retries} retries: {e}"
+                stop_event = asyncio.Event()
+                await speak(error_message, stop_event)
+                log_event(f"Error: {traceback.format_exc()}")
+                return error_message
+        await asyncio.sleep(2)  # Wait before retrying
+    return "Response: No response from OpenAI after maximum retries."
 
 def network_connected():
     return os.system("ping -c 1 google.com") == 0

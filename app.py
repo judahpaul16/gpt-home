@@ -52,18 +52,6 @@ async def main():
             error_message = f"Something Went Wrong: {e}"
             await handle_error(error_message, state_task, display)
 
-async def initialize_system():
-    display = initLCD()
-    stop_event_init = asyncio.Event()
-    state_task = asyncio.create_task(display_state("Initializing", display, stop_event_init))
-    while not network_connected():
-        await asyncio.sleep(1)
-        message = "Network not connected. Retrying..."
-        log_event(f"Error: {message}")
-    stop_event_init.set()  # Signal to stop the 'Initializing' display
-    state_task.cancel()  # Cancel the display task
-    return display
-
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     init_done_event = asyncio.Event()  # Create an event to signal when initialization is done
