@@ -75,12 +75,13 @@ async def updateLCD(text, display, error=False, stop_event=None):
     # Display IP address
     ip_address = subprocess.check_output(["hostname", "-I"]).decode("utf-8").split(" ")[0]
     display.text(f"IP: {ip_address}", 0, 0, 1)
+    display.show()
     # Line wrap the text
     lines = textwrap.fill(text, 21).split('\n')
     line_count = len(lines)
     # Loop the text if it's more than 2 lines
     loop_task = asyncio.create_task(loop_text())
-    display.show()
+
     # Wait for just the loop_task to finish if an error occurred
     if error: await asyncio.gather(loop_task)
 
