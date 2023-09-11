@@ -81,22 +81,24 @@ async def updateLCD(text, display, error=False):
 
     if line_count > 2:
         stop_event = asyncio.Event()
-        loop_task = create_task(loop_text(stop_event))  # Start the text loop
-        speaking_task = create_task(speak(text))  # Start speaking
+        loop_task = create_task(loop_text(stop_event))
+        speaking_task = create_task(speak(text))
 
         if not error:
-            query_task = create_task(query_openai(text))  # Preemptively prepare query task
+            query_task = create_task(query_openai(text))
 
-        await asyncio.gather(speaking_task, loop_task)
-
-        stop_event.set()  # Signal to stop the text loop
+        await speaking_task
 
         if not error:
-            await query_task  # Ensure the query task is completed
+            await query_task
+
+        stop_event.set()
+        await loop_task
     else:
         await display_lines(0, line_count)
         await speak(text)
-        if not error: await query_openai(text)
+        if not error:
+            await query_openai(text)
 
 async def listen_speech(loop, display, state_task):
     def recognize_audio():
