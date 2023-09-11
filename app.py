@@ -5,11 +5,8 @@ async def main():
     while True:
         try:
             keyword = "computer"
-            if state_task and not state_task.done():
-                state_task.cancel()
             state_task = asyncio.create_task(display_state("Listening", display))
             text = await listen_speech(loop, display, state_task)
-            state_task.cancel()
             split_text = text.split(keyword)
             if keyword in text and len(split_text) > 1 and len(split_text[1].strip()) > 0:
                 try:
@@ -19,7 +16,8 @@ async def main():
 
                     stop_event_heard = asyncio.Event()
                     stop_event_response = asyncio.Event()
-
+                    
+                    state_task.cancel()
                     heard_task_speak = asyncio.create_task(speak(heard_message, stop_event_heard))
                     heard_task_lcd = asyncio.create_task(updateLCD(heard_message, display, stop_event=stop_event_heard))
                     

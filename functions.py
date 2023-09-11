@@ -125,7 +125,8 @@ async def query_openai(text, display):
             presence_penalty=0.6,
             stop=["\n"]
         )
-        message = f"Response: {response.choices[0].text}"
+        if response.choices[0].text != "": message = f"Response: {response.choices[0].text}"
+        else: raise Exception("No response")
         return message
     except Exception as e:
         error_message = f"Something went wrong: {e}"
