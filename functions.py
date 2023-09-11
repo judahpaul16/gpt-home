@@ -51,7 +51,7 @@ def initLCD():
     display.show()
     return display
 
-async def updateLCD(text, display, error=False):
+async def updateLCD(text, display, error=False, stop_event=None):
     stop_event = asyncio.Event()
 
     async def display_lines(start, end):
@@ -62,7 +62,7 @@ async def updateLCD(text, display, error=False):
 
     async def loop_text():
         i = 0
-        while not stop_event.is_set():
+        while not (stop_event and stop_event.is_set()):
             if line_count > 1:
                 await display_lines(i, i + 2)
                 i = (i + 1) % (line_count - 1)
@@ -104,13 +104,14 @@ async def display_state(state, display):
             display.show()
             await asyncio.sleep(0.5)
 
-async def speak(text):
+async def speak(text, stop_event):
     async with speak_lock:
         loop = asyncio.get_running_loop()
         def _speak():
             engine.say(text)
             engine.runAndWait()
         await loop.run_in_executor(executor, _speak)
+        stop_event.set()
 
 async def query_openai(text, display):
     try:
@@ -140,5 +141,8 @@ def log_event(text):
     
 async def handle_error(message, state_task, display):
     state_task.cancel()
-    await updateLCD(message, display, error=True)
+    stop_event = asyncio.Event()
+    lcd_task = asyncio.create_task(updateLCD(message, display, error=True, stop_event=stop_event))
+    speak_task = asyncio.create_task(speak(message, stop_event))
+    await asyncio.gather(lcd_task, speak_task)
     log_event(f"Error: {message}")
