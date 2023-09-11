@@ -83,13 +83,10 @@ async def updateLCD(text, display, error=False):
     loop_task = asyncio.create_task(loop_text())
     speaking_task = asyncio.create_task(speak(text))
 
-    tasks = [loop_task, speaking_task]
     if not error:
         query_task = asyncio.create_task(query_openai(text))
-        tasks.append(query_task)
 
-    await asyncio.gather(*tasks)
-    loop_task.cancel()
+    await asyncio.gather(loop_task, speaking_task, query_task)
 
     stop_event.set()
 
@@ -122,7 +119,7 @@ async def query_openai(text):
     try:
         response = openai.Completion.create(
             engine="davinci",
-            prompt=f"Q: {text}\nA: (But add a hint of snark and sarcasm)",
+            prompt=f"Q: {text}\nA: (But add a hint of snark)",
             temperature=0.9,
             max_tokens=64,
             top_p=1,
