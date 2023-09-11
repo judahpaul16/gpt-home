@@ -75,21 +75,20 @@ async def updateLCD(text, display, error=False):
                 await display_lines(0, 1)
             await asyncio.sleep(2)
 
+    # Clear the display
     display.fill(0)
+    # Display IP address
     ip_address = subprocess.check_output(["hostname", "-I"]).decode("utf-8").split(" ")[0]
     display.text(f"IP: {ip_address}", 0, 0, 1)
     display.show()
-
+    # Line wrap the text
     lines = textwrap.fill(text, 21).split('\n')
     line_count = len(lines)
-
+    # Loop the text if it's more than 2 lines
     loop_task = asyncio.create_task(loop_text())
-    speaking_task = asyncio.create_task(speak(text))
 
-    if not error:
-        query_task = asyncio.create_task(query_openai(text))
-
-    await asyncio.gather(speaking_task, query_task)
+    # Wait for just the loop_task to finish if an error occurred
+    if error: await asyncio.gather(loop_task)
 
     stop_event.set()
 
@@ -118,7 +117,7 @@ async def speak(text):
             engine.runAndWait()
         await loop.run_in_executor(executor, _speak)
 
-async def query_openai(text):
+async def query_openai(text, display):
     try:
         response = openai.Completion.create(
             engine="davinci",
@@ -131,11 +130,12 @@ async def query_openai(text):
             stop=["\n"]
         )
         message = f"Response: {response.choices[0].text}"
-        await speak(message)
-        log_event(message)
+        return message
     except Exception as e:
-        await speak(f"Something went wrong: {e}")
+        error_message = f"Something went wrong: {e}"
+        await speak(error_message)
         log_event(f"Error: {traceback.format_exc()}")
+        return error_message
 
 def log_event(text):
     logging.info(text)
