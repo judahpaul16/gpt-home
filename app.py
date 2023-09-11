@@ -59,6 +59,7 @@ if __name__ == "__main__":
         speak(message, stop_event)
         if network_connected(): break
     
+    display = initLCD()
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
     loop.close()
