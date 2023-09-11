@@ -61,6 +61,7 @@ async def initialize_system():
         log_event(f"Error: {message}")
     stop_event_init.set()  # Signal to stop the 'Initializing' display
     state_task.cancel()  # Cancel the display task
+    display = initLCD()  # Reinitialize the display
     return display
 
 async def updateLCD(text, display, error=False, stop_event=None):
