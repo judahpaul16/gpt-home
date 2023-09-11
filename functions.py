@@ -72,10 +72,12 @@ async def updateLCD(text, display, error=False):
 
     async def loop_text(stop_event):
         i = 0
-        while not stop_event.is_set():
+        while True:
             await display_lines(i, i + 2)
             await asyncio.sleep(2)
             i = (i + 1) % (line_count - 1)
+            if stop_event.is_set():
+                break
 
     if line_count > 2:
         stop_event = asyncio.Event()
