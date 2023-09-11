@@ -3,14 +3,22 @@ import asyncio
 
 async def main():
     state_task = None
+    stop_event = asyncio.Event()
     while True:
+        if state_task is None:
+            stop_event.clear()
+            state_task = asyncio.create_task(display_state("Listening", display, stop_event))
+        
         try:
             keyword = "computer"
-            if state_task is None or state_task.done():
-                state_task = asyncio.create_task(display_state("Listening", display))
-            text = await listen_speech(loop, display, state_task)
+            text = await listen(loop, display, state_task)
             split_text = text.split(keyword)
+            
             if keyword in text and len(split_text) > 1 and len(split_text[1].strip()) > 0:
+                stop_event.set()
+                state_task.cancel()
+                state_task = None
+                
                 try:
                     actual_text = split_text[1].strip()
                     heard_message = f"Heard: {actual_text}"
@@ -18,25 +26,23 @@ async def main():
 
                     stop_event_heard = asyncio.Event()
                     stop_event_response = asyncio.Event()
-                    
-                    state_task.cancel()
 
-                    # Tasks for the 'heard' message
                     heard_task_speak = asyncio.create_task(speak(heard_message, stop_event_heard))
                     heard_task_lcd = asyncio.create_task(updateLCD(heard_message, display, stop_event=stop_event_heard))
                     
                     await asyncio.gather(heard_task_speak, heard_task_lcd)
                     log_event(heard_message)
 
-                    # Tasks for the 'response' message
                     response_task_speak = asyncio.create_task(speak(response_message, stop_event_response))
                     response_task_lcd = asyncio.create_task(updateLCD(response_message, display, stop_event=stop_event_response))
                     
                     await asyncio.gather(response_task_speak, response_task_lcd)
                     log_event(response_message)
+                
                 except sr.UnknownValueError:
                     error_message = "Sorry, I did not understand that"
                     await handle_error(error_message, state_task, display)
+        
         except sr.UnknownValueError:
             pass
         except sr.RequestError as e:

@@ -86,18 +86,19 @@ async def updateLCD(text, display, error=False, stop_event=None):
     # Wait for just the loop_task to finish if an error occurred
     if error: await asyncio.gather(loop_task)
 
-async def listen_speech(loop, display, state_task):
+async def listen(loop, display, state_task):
     def recognize_audio():
         with sr.Microphone() as source:
             audio = r.listen(source)
             return r.recognize_google(audio)
     text = await loop.run_in_executor(executor, recognize_audio)
-    state_task.cancel()
     return text
 
-async def display_state(state, display):
-    while True:
+async def display_state(state, display, stop_event):
+    while not stop_event.is_set():
         for i in range(4):
+            if stop_event.is_set():
+                break
             display.fill_rect(0, 10, 128, 22, 0)
             display.text(f"{state}" + '.' * i, 0, 20, 1)
             display.show()
