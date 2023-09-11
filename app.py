@@ -27,14 +27,20 @@ async def main():
             error_message = f"Something Went Wrong: {e}"
             await handle_error(error_message, state_task, display)
 
-async def handle_error(message, state_task, display):
-    state_task.cancel()
-    await updateLCD(message, display, error=True)
-    log_event(f"Error: {message}")
-
-# Initialize LCD
-display = initLCD()
-
-loop = asyncio.get_event_loop()
-loop.run_until_complete(main())
-loop.close()
+# Ensure network is connected before continuing
+if __name__ == "__main__":
+    # Initialize LCD
+    display = initLCD()
+    state_task = asyncio.create_task(display_state("Initializing", display))
+    while not network_connected():
+        time.sleep(1)
+        message = "Network not connected"
+        log_event(f"Error: {message}")
+        updateLCD(message, display, error=True)
+        speak(message)
+        if network_connected(): break
+    
+    # Start main loop
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
+    loop.close()
