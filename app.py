@@ -70,6 +70,18 @@ async def initialize_system():
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
-    display = loop.run_until_complete(initialize_system())
-    loop.run_until_complete(main())
+    init_done_event = asyncio.Event()  # Create an event to signal when initialization is done
+
+    async def wrapped_initialize_system():
+        display = await initialize_system()
+        init_done_event.set()  # Signal that initialization is done
+        return display
+
+    display = loop.run_until_complete(wrapped_initialize_system())
+
+    async def wrapped_main():
+        await init_done_event.wait()  # Wait for the event to be set
+        await main()
+
+    loop.run_until_complete(wrapped_main())
     loop.close()

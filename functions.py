@@ -125,8 +125,11 @@ async def query_openai(text, display):
             presence_penalty=0.6,
             stop=["\n"]
         )
-        if response.choices[0].text != "": message = f"Response: {response.choices[0].text}"
-        else: raise Exception("No response")
+        if response.choices[0].text != "":
+            message = f"Response: {response.choices[0].text}"
+        else:
+            message = "Response: No response from OpenAI"
+            log_event(message)
         return message
     except Exception as e:
         error_message = f"Something went wrong: {e}"
