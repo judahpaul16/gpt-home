@@ -21,7 +21,7 @@ async def main():
                 
                 try:
                     actual_text = split_text[1].strip()
-                    heard_message = f"Heard: {actual_text}"
+                    heard_message = f"Heard: \"{actual_text}\""
                     response_message = await query_openai(actual_text, display)
 
                     stop_event_heard = asyncio.Event()

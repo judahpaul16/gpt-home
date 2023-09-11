@@ -101,9 +101,15 @@ async def updateLCD(text, display, error=False, stop_event=None):
 
 async def listen(loop, display, state_task):
     def recognize_audio():
-        with sr.Microphone() as source:
-            audio = r.listen(source)
-            return r.recognize_google(audio)
+        try:
+            with sr.Microphone() as source:
+                audio = r.listen(source)
+                return r.recognize_google(audio)
+        except OSError as e:
+            if "No Default Input Device Available" in str(e):
+                subprocess.run(["sudo", "systemctl", "restart", "gpt-home"])
+                raise Exception("Restarting gpt-home due to no default input device")
+    
     text = await loop.run_in_executor(executor, recognize_audio)
     return text
 
