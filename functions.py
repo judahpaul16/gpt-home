@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 import speech_recognition as sr
+from asyncio import create_task
 from board import SCL, SDA
 import adafruit_ssd1306
 import traceback
@@ -69,13 +70,21 @@ async def updateLCD(text, display, error=False):
             display.text(lines[line_index], 0, 10 + i * 10, 1)
         display.show()
 
-    if line_count > 2:
-        start_time = time.time()
-        while time.time() - start_time < 15:
+    async def loop_text():
+        while True:
             for i in range(0, line_count - 1):
                 await display_lines(i, i + 2)
-            await speak(text)
-            if not error: await query_openai(text)
+                await asyncio.sleep(2)
+
+    if line_count > 2:
+        loop_task = create_task(loop_text())  # Start the text loop
+
+        speaking_task = create_task(speak(text))  # Start speaking
+        await speaking_task  # Wait for speaking to finish
+
+        loop_task.cancel()  # Stop the text loop
+        
+        if not error: await query_openai(text)
     else:
         await display_lines(0, line_count)
         await speak(text)
