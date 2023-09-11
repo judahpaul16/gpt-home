@@ -145,4 +145,4 @@ async def handle_error(message, state_task, display):
     lcd_task = asyncio.create_task(updateLCD(message, display, error=True, stop_event=stop_event))
     speak_task = asyncio.create_task(speak(message, stop_event))
     await asyncio.gather(lcd_task, speak_task)
-    log_event(f"Error: {message}")
+    log_event(f"Error: {traceback.format_exc()}")

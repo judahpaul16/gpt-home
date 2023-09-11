@@ -7,7 +7,7 @@ async def main():
             keyword = "computer"
             state_task = asyncio.create_task(display_state("Listening", display))
             text = await listen_speech(loop, display, state_task)
-            if keyword in text:
+            if keyword in text and len(text.split("Computer")[1].strip()) > 0:
                 actual_text = text.split("Computer")[1].strip()
                 heard_message = f"Heard: {actual_text}"
                 response_message = await query_openai(actual_text, display)
