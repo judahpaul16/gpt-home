@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 import speech_recognition as sr
 from board import SCL, SDA
 import adafruit_ssd1306
+import traceback
 import subprocess
 import textwrap
 import logging
@@ -14,9 +15,18 @@ import os
 
 logging.basicConfig(filename='events.log', level=logging.DEBUG)
 
+# Initialize the speech recognition engine
 r = sr.Recognizer()
 openai.api_key = os.environ['OPENAI_API_KEY']
 executor = ThreadPoolExecutor()
+
+# Initialize the text-to-speech engine
+engine = pyttsx3.init()
+# Set properties
+engine.setProperty('rate', 150)
+engine.setProperty('volume', 1.0)
+# Direct audio to specific hardware
+engine.setProperty('alsa_device', 'hw:Headphones,0')
 
 def initLCD():
     # Create the I2C interface.
@@ -65,11 +75,11 @@ async def updateLCD(text, display):
             for i in range(0, line_count - 1):
                 await display_lines(i, i + 2)
             await speak(text)
-            await speak(query_openai(text))
+            await query_openai(text)
     else:
         await display_lines(0, line_count)
         await speak(text)
-        await speak(query_openai(text))
+        await query_openai(text)
 
 async def listen_speech(loop, display, state_task):
     def recognize_audio():
@@ -89,13 +99,6 @@ async def display_state(state, display):
             await asyncio.sleep(0.5)
 
 async def speak(text):
-    # Initialize the text-to-speech engine
-    engine = pyttsx3.init()
-    # Set properties
-    engine.setProperty('rate', 150)
-    engine.setProperty('volume', 1.0)
-    # Direct audio to specific hardware
-    engine.setProperty('alsa_device', 'hw:Headphones,0')
     # Speak text
     engine.say(text)
     # Wait for speech to complete
@@ -105,18 +108,18 @@ async def query_openai(text):
     try:
         response = openai.Completion.create(
             engine="davinci",
-            prompt=text,
+            prompt=f"Q: {text}\nA:",
             temperature=0.9,
-            max_tokens=150,
+            max_tokens=64,
             top_p=1,
             frequency_penalty=0.0,
             presence_penalty=0.6,
-            stop=["\n", " Human:", " AI:"]
+            stop=["\n"]
         )
-        return response.choices[0].text
+        await speak(response.choices[0].text)
     except Exception as e:
         await speak(f"Something went wrong: {e}")
-        return f"Something went wrong: {e}"
+        log_event(f"Error: {traceback.format_exc()}")
 
 def log_event(text):
     logging.info(text)
