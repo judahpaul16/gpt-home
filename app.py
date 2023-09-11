@@ -54,7 +54,8 @@ async def main():
 
 async def initialize_system():
     display = initLCD()
-    state_task = asyncio.create_task(display_state("Initializing", display))
+    stop_event_init = asyncio.Event()
+    state_task = asyncio.create_task(display_state("Initializing", display, stop_event_init))
     while not network_connected():
         await asyncio.sleep(1)
         message = "Network not connected"
@@ -63,6 +64,7 @@ async def initialize_system():
         stop_event = asyncio.Event()
         await speak(message, stop_event)
         if network_connected():
+            stop_event_init.set()
             break
     return display
 
