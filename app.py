@@ -63,9 +63,8 @@ async def initialize_system():
         await updateLCD(message, display, error=True)
         stop_event = asyncio.Event()
         await speak(message, stop_event)
-        if network_connected():
-            stop_event_init.set()
-            break
+    stop_event_init.set()  # Signal to stop the 'Initializing' display
+    state_task.cancel()  # Cancel the display task
     return display
 
 if __name__ == "__main__":
