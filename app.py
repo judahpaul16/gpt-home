@@ -58,11 +58,8 @@ async def initialize_system():
     state_task = asyncio.create_task(display_state("Initializing", display, stop_event_init))
     while not network_connected():
         await asyncio.sleep(1)
-        message = "Network not connected"
+        message = "Network not connected. Retrying..."
         log_event(f"Error: {message}")
-        await updateLCD(message, display, error=True)
-        stop_event = asyncio.Event()
-        await speak(message, stop_event)
     stop_event_init.set()  # Signal to stop the 'Initializing' display
     state_task.cancel()  # Cancel the display task
     return display
