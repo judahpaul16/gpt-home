@@ -68,6 +68,17 @@ async def updateLCD(text, display, stop_event=None):
     if stop_event is None:
         stop_event = asyncio.Event()
 
+    async def display_text():
+        i = 0
+        while not (stop_event and stop_event.is_set()) and i < line_count:
+            if line_count > 2:
+                await display_lines(i, min(i + 2, line_count))
+                i += 2
+            else:
+                await display_lines(0, line_count)
+                break  # Exit the loop if less than or equal to 2 lines
+            await asyncio.sleep(2)  # Delay between pages
+
     async def display_lines(start, end):
         display.fill_rect(0, 10, 128, 22, 0)
         # typewriter effect
@@ -79,17 +90,7 @@ async def updateLCD(text, display, stop_event=None):
                 display.show()
                 await asyncio.sleep(0.02) # 22ms delay between characters
         display.show()
-
-    async def loop_text():
-        i = 0
-        while not (stop_event and stop_event.is_set()):
-            if line_count > 2:
-                await display_lines(i, i + 2)
-                i = (i + 2) % line_count
-            else:
-                await display_lines(0, line_count)
-            await asyncio.sleep(0.02)
-
+    
     # Clear the display
     display.fill(0)
     # Display IP address
@@ -99,7 +100,7 @@ async def updateLCD(text, display, stop_event=None):
     # Line wrap the text
     lines = textwrap.fill(text, 21).split('\n')
     line_count = len(lines)
-    loop_task = asyncio.create_task(loop_text())
+    display_task = asyncio.create_task(display_text())
 
 async def listen(loop, display, state_task):
     def recognize_audio():
