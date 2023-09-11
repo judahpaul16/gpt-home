@@ -101,18 +101,22 @@ async def speak(text):
     # Wait for speech to complete
     engine.runAndWait()
 
-def query_openai(text):
-    response = openai.Completion.create(
-        engine="davinci",
-        prompt=text,
-        temperature=0.9,
-        max_tokens=150,
-        top_p=1,
-        frequency_penalty=0.0,
-        presence_penalty=0.6,
-        stop=["\n", " Human:", " AI:"]
-    )
-    return response.choices[0].text
+async def query_openai(text):
+    try:
+        response = openai.Completion.create(
+            engine="davinci",
+            prompt=text,
+            temperature=0.9,
+            max_tokens=150,
+            top_p=1,
+            frequency_penalty=0.0,
+            presence_penalty=0.6,
+            stop=["\n", " Human:", " AI:"]
+        )
+        return response.choices[0].text
+    except Exception as e:
+        await speak(f"Something went wrong: {e}")
+        return f"Something went wrong: {e}"
 
 def log_event(text):
     logging.info(text)
