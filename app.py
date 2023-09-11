@@ -5,6 +5,8 @@ async def main():
     while True:
         try:
             keyword = "computer"
+            if state_task and not state_task.done():
+                state_task.cancel()
             state_task = asyncio.create_task(display_state("Listening", display))
             text = await listen_speech(loop, display, state_task)
             state_task.cancel()
