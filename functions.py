@@ -11,6 +11,7 @@ import asyncio
 import pyttsx3
 import openai
 import busio
+import time
 import os
 
 logging.basicConfig(filename='events.log', level=logging.DEBUG)
