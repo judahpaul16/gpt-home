@@ -56,6 +56,21 @@ def initLCD():
     return display
 
 async def updateLCD(text, display, error=False):
+    stop_event = asyncio.Event()
+
+    async def display_lines(start, end):
+        display.fill_rect(0, 10, 128, 22, 0)
+        for i, line_index in enumerate(range(start, end)):
+            display.text(lines[line_index], 0, 10 + i * 10, 1)
+        display.show()
+
+    async def loop_text():
+        i = 0
+        while not stop_event.is_set():
+            await display_lines(i, i + 2)
+            await asyncio.sleep(2)
+            i = (i + 1) % (line_count - 1)
+
     display.fill(0)
     ip_address = subprocess.check_output(["hostname", "-I"]).decode("utf-8").split(" ")[0]
     display.text(f"IP: {ip_address}", 0, 0, 1)
@@ -64,41 +79,16 @@ async def updateLCD(text, display, error=False):
     lines = textwrap.fill(text, 21).split('\n')
     line_count = len(lines)
 
-    async def display_lines(start, end):
-        display.fill_rect(0, 10, 128, 22, 0)
-        for i, line_index in enumerate(range(start, end)):
-            display.text(lines[line_index], 0, 10 + i * 10, 1)
-        display.show()
+    loop_task = asyncio.create_task(loop_text())
+    speaking_task = asyncio.create_task(speak(text))
 
-    async def loop_text(stop_event):
-        i = 0
-        while True:
-            await display_lines(i, i + 2)
-            await asyncio.sleep(2)
-            i = (i + 1) % (line_count - 1)
-            if stop_event.is_set():
-                break
+    if not error:
+        query_task = asyncio.create_task(query_openai(text))
 
-    if line_count > 2:
-        stop_event = asyncio.Event()
-        loop_task = create_task(loop_text(stop_event))
-        speaking_task = create_task(speak(text))
+    await asyncio.gather(speaking_task, query_task)
 
-        if not error:
-            query_task = create_task(query_openai(text))
-
-        await speaking_task
-
-        if not error:
-            await query_task
-
-        stop_event.set()
-        await loop_task
-    else:
-        await display_lines(0, line_count)
-        await speak(text)
-        if not error:
-            await query_openai(text)
+    stop_event.set()
+    await loop_task
 
 async def listen_speech(loop, display, state_task):
     def recognize_audio():
