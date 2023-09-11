@@ -54,7 +54,7 @@ def initLCD():
     display.show()
     return display
 
-async def updateLCD(text, display):
+async def updateLCD(text, display, error=False):
     display.fill(0)
     ip_address = subprocess.check_output(["hostname", "-I"]).decode("utf-8").split(" ")[0]
     display.text(f"IP: {ip_address}", 0, 0, 1)
@@ -75,11 +75,11 @@ async def updateLCD(text, display):
             for i in range(0, line_count - 1):
                 await display_lines(i, i + 2)
             await speak(text)
-            await query_openai(text)
+            if not error: await query_openai(text)
     else:
         await display_lines(0, line_count)
         await speak(text)
-        await query_openai(text)
+        if not error: await query_openai(text)
 
 async def listen_speech(loop, display, state_task):
     def recognize_audio():

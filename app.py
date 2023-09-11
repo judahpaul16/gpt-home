@@ -16,13 +16,13 @@ async def main():
             print(message)
             log_event("Error: " + message)
             state_task.cancel()
-            await updateLCD(message, display)
+            await updateLCD(message, display, error=True)
         except sr.RequestError as e:
             message = f"Could not request results; {e}"
             print(message)
             log_event("Error: " + message)
             state_task.cancel()
-            await updateLCD(message, display)
+            await updateLCD(message, display, error=True)
         except asyncio.CancelledError:
             log_event("Async task was cancelled")
         except Exception as e:
@@ -31,7 +31,7 @@ async def main():
             print(tracebackMessage)
             log_event(tracebackMessage)
             state_task.cancel()
-            await updateLCD(message, display)
+            await updateLCD(message, display, error=True)
 
 # Initialize LCD
 display = initLCD()
