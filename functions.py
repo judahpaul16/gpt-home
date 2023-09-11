@@ -64,7 +64,7 @@ async def initialize_system():
     display = initLCD()  # Reinitialize the display
     return display
 
-async def updateLCD(text, display, error=False, stop_event=None):
+async def updateLCD(text, display, stop_event=None):
     if stop_event is None:
         stop_event = asyncio.Event()
 
@@ -100,9 +100,6 @@ async def updateLCD(text, display, error=False, stop_event=None):
     lines = textwrap.fill(text, 21).split('\n')
     line_count = len(lines)
     loop_task = asyncio.create_task(loop_text())
-
-    # Wait for just the loop_task to finish if an error occurred
-    if error: await asyncio.gather(loop_task)
 
 async def listen(loop, display, state_task):
     def recognize_audio():
@@ -175,7 +172,7 @@ def log_event(text):
 async def handle_error(message, state_task, display):
     state_task.cancel()
     stop_event = asyncio.Event()
-    lcd_task = asyncio.create_task(updateLCD(message, display, error=True, stop_event=stop_event))
+    lcd_task = asyncio.create_task(updateLCD(message, display, stop_event=stop_event))
     speak_task = asyncio.create_task(speak(message, stop_event))
     await speak_task
     lcd_task.cancel()
