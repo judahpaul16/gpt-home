@@ -77,7 +77,7 @@ async def updateLCD(text, display, error=False, stop_event=None):
                     break
                 display.text(char, j * 6, 10 + i * 10, 1)  # j * 6 adjusts the x-coordinate
                 display.show()
-                await asyncio.sleep(0.1)  # 100 ms delay between each character
+                await asyncio.sleep(0.025)  # delay between each character
         display.show()
 
     async def loop_text():
