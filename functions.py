@@ -62,24 +62,33 @@ async def updateLCD(text, display, error=False):
 
     lines = textwrap.fill(text, 21).split('\n')
     line_count = len(lines)
+    looping = True
 
-    async def display_lines(start, end):
-        display.fill_rect(0, 10, 128, 22, 0)
-        for i, line_index in enumerate(range(start, end)):
-            display.text(lines[line_index], 0, 10 + i * 10, 1)
-        display.show()
+    async def display_lines():
+        nonlocal looping
+        if line_count > 2:
+            for i in range(0, line_count - 1):
+                if not looping:  # Stop looping if speak is done
+                    break
+                display.fill_rect(0, 10, 128, 22, 0)
+                for j, line_index in enumerate(range(i, i + 2)):
+                    display.text(lines[line_index], 0, 10 + j * 10, 1)
+                display.show()
+                await asyncio.sleep(2)  # Wait for 2 seconds before scrolling
+
+    async def speak_and_query():
+        nonlocal looping
+        await speak(text)  # Speak the text
+        looping = False  # Stop looping
+        if not error: await query_openai(text)
 
     if line_count > 2:
-        start_time = time.time()
-        while time.time() - start_time < 15:
-            for i in range(0, line_count - 1):
-                await display_lines(i, i + 2)
-            await speak(text)
-            if not error: await query_openai(text)
+        await asyncio.gather(display_lines(), speak_and_query())
     else:
-        await display_lines(0, line_count)
-        await speak(text)
-        if not error: await query_openai(text)
+        await speak_and_query()
+
+    display.fill(0)  # Clear the display after speaking and looping
+    display.show()
 
 async def listen_speech(loop, display, state_task):
     def recognize_audio():
