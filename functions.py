@@ -116,7 +116,9 @@ async def query_openai(text):
             presence_penalty=0.6,
             stop=["\n"]
         )
-        await speak(response.choices[0].text)
+        message = f"Response: {response.choices[0].text}"
+        await speak(message)
+        log_event(message)
     except Exception as e:
         await speak(f"Something went wrong: {e}")
         log_event(f"Error: {traceback.format_exc()}")
