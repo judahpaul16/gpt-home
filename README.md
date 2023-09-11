@@ -28,7 +28,7 @@ python3 -m venv env
 source env/bin/activate
 
 # Install Python dependencies
-pip install -r requirements.txt
+pip install  --use-pep517 -r requirements.txt
 
 # Define the name of the systemd service
 SERVICE_NAME="gpt-home.service"
