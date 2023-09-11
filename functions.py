@@ -85,7 +85,8 @@ async def updateLCD(text, display, error=False):
         await speaking_task  # Wait for speaking to finish
 
         stop_event.set()  # Signal to stop the text loop
-        await loop_task  # Ensure loop task is stopped
+        loop_task.cancel()  # Ensure loop task is stopped
+
         
         if not error: await query_openai(text)
     else:
