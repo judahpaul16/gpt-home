@@ -2,10 +2,12 @@ from functions import *
 import asyncio
 
 async def main():
+    state_task = None
     while True:
         try:
             keyword = "computer"
-            state_task = asyncio.create_task(display_state("Listening", display))
+            if state_task is None or state_task.done():
+                state_task = asyncio.create_task(display_state("Listening", display))
             text = await listen_speech(loop, display, state_task)
             split_text = text.split(keyword)
             if keyword in text and len(split_text) > 1 and len(split_text[1].strip()) > 0:
@@ -18,15 +20,18 @@ async def main():
                     stop_event_response = asyncio.Event()
                     
                     state_task.cancel()
+
+                    # Tasks for the 'heard' message
                     heard_task_speak = asyncio.create_task(speak(heard_message, stop_event_heard))
                     heard_task_lcd = asyncio.create_task(updateLCD(heard_message, display, stop_event=stop_event_heard))
                     
                     await asyncio.gather(heard_task_speak, heard_task_lcd)
                     log_event(heard_message)
 
+                    # Tasks for the 'response' message
                     response_task_speak = asyncio.create_task(speak(response_message, stop_event_response))
                     response_task_lcd = asyncio.create_task(updateLCD(response_message, display, stop_event=stop_event_response))
-
+                    
                     await asyncio.gather(response_task_speak, response_task_lcd)
                     log_event(response_message)
                 except sr.UnknownValueError:
@@ -43,9 +48,8 @@ async def main():
 
 # Ensure network is connected before starting
 if __name__ == "__main__":
-    # Initialize LCD
     display = initLCD()
-    state_task = display_state("Initializing", display)
+    state_task = asyncio.create_task(display_state("Initializing", display))
     while not network_connected():
         time.sleep(1)
         message = "Network not connected"
@@ -55,7 +59,6 @@ if __name__ == "__main__":
         speak(message, stop_event)
         if network_connected(): break
     
-    # Start main loop
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
     loop.close()

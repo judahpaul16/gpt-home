@@ -52,7 +52,8 @@ def initLCD():
     return display
 
 async def updateLCD(text, display, error=False, stop_event=None):
-    stop_event = asyncio.Event()
+    if stop_event is None:
+        stop_event = asyncio.Event()
 
     async def display_lines(start, end):
         display.fill_rect(0, 10, 128, 22, 0)
@@ -84,8 +85,6 @@ async def updateLCD(text, display, error=False, stop_event=None):
 
     # Wait for just the loop_task to finish if an error occurred
     if error: await asyncio.gather(loop_task)
-
-    stop_event.set()
 
 async def listen_speech(loop, display, state_task):
     def recognize_audio():
@@ -140,7 +139,7 @@ def network_connected():
 
 def log_event(text):
     logging.info(text)
-    
+
 async def handle_error(message, state_task, display):
     state_task.cancel()
     stop_event = asyncio.Event()
