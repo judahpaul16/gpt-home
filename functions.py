@@ -70,19 +70,22 @@ async def updateLCD(text, display, error=False):
             display.text(lines[line_index], 0, 10 + i * 10, 1)
         display.show()
 
-    async def loop_text():
-        while True:
-            for i in range(0, line_count - 1):
-                await display_lines(i, i + 2)
-                await asyncio.sleep(2)
+    async def loop_text(stop_event):
+        i = 0
+        while not stop_event.is_set():
+            await display_lines(i, i + 2)
+            await asyncio.sleep(2)
+            i = (i + 1) % (line_count - 1)
 
     if line_count > 2:
-        loop_task = create_task(loop_text())  # Start the text loop
+        stop_event = asyncio.Event()
+        loop_task = create_task(loop_text(stop_event))  # Start the text loop
 
         speaking_task = create_task(speak(text))  # Start speaking
         await speaking_task  # Wait for speaking to finish
 
-        loop_task.cancel()  # Stop the text loop
+        stop_event.set()  # Signal to stop the text loop
+        await loop_task  # Ensure loop task is stopped
         
         if not error: await query_openai(text)
     else:
