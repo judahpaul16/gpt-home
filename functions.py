@@ -188,6 +188,7 @@ async def query_openai(text, display, retries=3):
                 return message
             else:
                 log_event(f"Retry {i+1}: Received empty response from OpenAI.")
+                await speak("I'm sorry, I don't know how to respond to that.", stop_event)
         except Exception as e:
             log_event(f"Error on try {i+1}: {e}")
             if i == retries - 1:  # If this was the last retry
