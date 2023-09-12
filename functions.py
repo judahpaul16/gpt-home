@@ -30,6 +30,12 @@ engine.setProperty('volume', 1.0)
 engine.setProperty('alsa_device', 'hw:Headphones,0')
 speak_lock = asyncio.Lock()
 
+def degree_symbol(display, x, y, radius, color):
+    for i in range(x-radius, x+radius+1):
+        for j in range(y-radius, y+radius+1):
+            if (i-x)**2 + (j-y)**2 <= radius**2:
+                display.pixel(i, j, color)
+
 def initLCD():
     # Create the I2C interface.
     i2c = busio.I2C(SCL, SDA)
@@ -50,10 +56,11 @@ def initLCD():
     # Display CPU temperature in Celsius (e.g., 39°)
     cpu_temp = int(float(subprocess.check_output(["vcgencmd", "measure_temp"]).decode("utf-8").split("=")[1].split("'")[0]))
     display.text(f"{cpu_temp}", 100, 0, 1)
-    # Shift the 'o' slightly upwards to act as a degree symbol
-    degree_x = 100 + len(f"{cpu_temp}") * 6  # Assuming each character is 6 pixels wide
-    degree_y = -3
-    display.text("o", degree_x, degree_y, 1)
+    # degree symbol
+    degree_x = 100 + len(f"{cpu_temp}") * 6 + 2  # Assuming each character is 6 pixels wide, adding 2 for a slight space
+    degree_y = -2  # Adjust this value based on how much you want to shift upwards
+    degree_symbol(display, degree_x, degree_y, 1, 1)  # 1 is the radius, the last 1 is the color (white)
+
     # Show the updated display with the text.
     display.show()
     return display
@@ -106,10 +113,10 @@ async def updateLCD(text, display, stop_event=None):
     # Display CPU temperature in Celsius (e.g., 39°)
     cpu_temp = int(float(subprocess.check_output(["vcgencmd", "measure_temp"]).decode("utf-8").split("=")[1].split("'")[0]))
     display.text(f"{cpu_temp}", 100, 0, 1)
-    # Shift the 'o' slightly upwards to act as a degree symbol
-    degree_x = 100 + len(f"{cpu_temp}") * 6  # Assuming each character is 6 pixels wide
-    degree_y = -3
-    display.text("o", degree_x, degree_y, 1)
+    # degree symbol
+    degree_x = 100 + len(f"{cpu_temp}") * 6 + 2  # Assuming each character is 6 pixels wide, adding 2 for a slight space
+    degree_y = -2  # Adjust this value based on how much you want to shift upwards
+    degree_symbol(display, degree_x, degree_y, 1, 1)  # 1 is the radius, the last 1 is the color (white)
     # Show the updated display with the text.
     display.show()
     # Line wrap the text
