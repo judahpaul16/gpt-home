@@ -47,9 +47,13 @@ def initLCD():
     # Display IP address
     ip_address = subprocess.check_output(["hostname", "-I"]).decode("utf-8").split(" ")[0]
     display.text(f"{ip_address}", 0, 0, 1)
-    # Display CPU temperature in Celsius (e.g. 39C)
+    # Display CPU temperature in Celsius (e.g., 39°)
     cpu_temp = int(float(subprocess.check_output(["vcgencmd", "measure_temp"]).decode("utf-8").split("=")[1].split("'")[0]))
     display.text(f"{cpu_temp}C", 100, 0, 1)
+    # Shift the 'o' slightly upwards to act as a degree symbol
+    degree_x = 100 + len(f"{cpu_temp}") * 6  # Assuming each character is 6 pixels wide
+    degree_y = -2  # Adjust this value based on how much you want to shift upwards
+    display.text("o", degree_x, degree_y, 1)
     # Show the updated display with the text.
     display.show()
     return display
@@ -99,9 +103,14 @@ async def updateLCD(text, display, stop_event=None):
     # Display IP address
     ip_address = subprocess.check_output(["hostname", "-I"]).decode("utf-8").split(" ")[0]
     display.text(f"{ip_address}", 0, 0, 1)
-    # Display CPU temperature in Farenheit (e.g. 39°)
-    cpu_temp = int(float(subprocess.check_output(["vcgencmd", "measure_temp"]).decode("utf-8").split("=")[1].split("'")[0]) * 9/5 + 32)
-    display.text(f"{cpu_temp}C", 100, 0, 1)
+    # Display CPU temperature in Celsius (e.g., 39°)
+    cpu_temp = int(float(subprocess.check_output(["vcgencmd", "measure_temp"]).decode("utf-8").split("=")[1].split("'")[0]))
+    display.text(f"{cpu_temp}", 100, 0, 1)
+    # Shift the 'o' slightly upwards to act as a degree symbol
+    degree_x = 100 + len(f"{cpu_temp}") * 6  # Assuming each character is 6 pixels wide
+    degree_y = -2  # Adjust this value based on how much you want to shift upwards
+    display.text("o", degree_x, degree_y, 1)
+    # Show the updated display with the text.
     display.show()
     # Line wrap the text
     lines = textwrap.fill(text, 21).split('\n')
