@@ -47,9 +47,9 @@ def initLCD():
     # Display IP address
     ip_address = subprocess.check_output(["hostname", "-I"]).decode("utf-8").split(" ")[0]
     display.text(f"IP: {ip_address}", 0, 0, 1)
-    # Display CPU temperature in Farenheit (e.g. 39°)
-    cpu_temp = int(float(subprocess.check_output(["vcgencmd", "measure_temp"]).decode("utf-8").split("=")[1].split("'")[0]) * 9/5 + 32)
-    display.text(f"{cpu_temp}\u00B0", 100, 0, 1)
+    # Display CPU temperature in Celsius (e.g. 39C)
+    cpu_temp = int(float(subprocess.check_output(["vcgencmd", "measure_temp"]).decode("utf-8").split("=")[1].split("'")[0]))
+    display.text(f"{cpu_temp}C", 100, 0, 1)
     # Show the updated display with the text.
     display.show()
     return display
