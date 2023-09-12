@@ -141,8 +141,14 @@ async def listen(loop, display, state_task):
     def recognize_audio():
         try:
             with sr.Microphone() as source:
-                audio = r.listen(source)
+                if source.stream is None:
+                    raise Exception("Microphone not initialized.")
+                audio = r.listen(source, timeout=10.0)
                 return r.recognize_google(audio)
+        except sr.WaitTimeoutError:
+            if source and source.stream:
+                source.stream.close()
+            raise asyncio.TimeoutError("Listening timed out.")
         except OSError as e:
             if "No Default Input Device Available" in str(e):
                 subprocess.run(["sudo", "systemctl", "restart", "gpt-home"])

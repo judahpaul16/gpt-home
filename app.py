@@ -11,7 +11,7 @@ async def main():
         try:
             keyword = "computer"
             try:
-                text = await asyncio.wait_for(listen(loop, display, state_task), timeout=10)  # 10 seconds timeout
+                text = await listen(loop, display, state_task)
             except asyncio.TimeoutError:
                 log_event("Listening timed out.")
                 continue  # Skip to the next iteration
