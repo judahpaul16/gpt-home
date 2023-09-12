@@ -76,6 +76,20 @@ Be sure to make the script executable to run it
 chmod +x reclone.sh
 ./reclone.sh
 ```
+(Optional) .bashrc helpers<br>
+**Put this at the end of your ~/.bashrc file**
+```bash
+# export your OpenAI API Key here to initialize it on login
+export OPENAI_API_KEY="your_openai_api_key_here"
+
+alias gpt-start="sudo systemctl start gpt-home"
+alias gpt-restart="sudo systemctl restart gpt-home"
+alias gpt-stop="sudo systemctl stop gpt-home"
+alias gpt-disable="sudo systemctl disable gpt-home"
+alias gpt-status="sudo systemctl status gpt-home"
+alias gpt-enable="sudo systemctl enable gpt-home"
+alias gpt-log="tail -n 100 -f /home/ubuntu/gpt-home/events.log"
+```
 
 ---
 
