@@ -1,5 +1,5 @@
-# ChatGPT Home
-🏠 ChatGPT at home! Basically a better G**gle Nest Hub made with Raspberry Pi and OpenAI API.
+# 🏠 ChatGPT Home
+ChatGPT at home! Basically a better G**gle Nest Hub made with Raspberry Pi and OpenAI API.
 
 ## 📜 Example Reclone script:
 First initialize an environment variable with your OpenAI API Key.
