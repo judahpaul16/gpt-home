@@ -1,6 +1,51 @@
 # 🏠 GPT Home
 GPT at home! Basically a better G**gle Nest Hub desk assistant made with Raspberry Pi and OpenAI API.
 
+## 🛠 System Dependencies
+
+Before running this project on your Raspberry Pi, you'll need to install some system-level dependencies in addition to the Python packages.
+
+### Required Dependencies
+
+1. **Python 3.x**: Required for running the Python code.  
+   Installation: `sudo apt-get install python3`
+   
+2. **PortAudio**: Required for `pyttsx3` (text-to-speech).  
+   Installation: `sudo apt-get install portaudio19-dev`
+  
+3. **ALSA Utilities**: Required for audio configuration.  
+   Installation: `sudo apt-get install alsa-utils`
+
+4. **vcgencmd**: Comes pre-installed on Raspberry Pi OS. Used for fetching CPU temperature.
+
+5. **Speech Recognition Libraries**: Required for `speech_recognition`.  
+   Installation: `sudo apt-get install libasound2-dev`
+
+6. **I2C Support**: Required for `adafruit_ssd1306` (OLED display).  
+   Enable via `raspi-config` or install packages:  
+   ```
+   sudo apt-get install -y i2c-tools
+   sudo apt-get install -y python-smbus
+   ```
+   
+7. **Git**: Required for cloning the repository.  
+   Installation: `sudo apt-get install git`
+
+8. **Subprocess Dependencies**: Required for shell commands.  
+   Installation: Usually comes pre-installed.
+
+9. **OpenAI API Key**: Required for OpenAI's GPT API.  
+   Setup: Set up as an environment variable.
+
+### Optional Dependencies
+
+1. **Virtual Environment**: Recommended for Python package management.  
+   Installation: `sudo apt-get install python3-venv`
+
+Follow the respective installation commands to set up these dependencies on your Raspberry Pi.
+
+---
+
 ## 📜 Example Reclone script:
 First initialize an environment variable with your OpenAI API Key.
 ```bash
