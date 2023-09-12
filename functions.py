@@ -9,6 +9,7 @@ import textwrap
 import logging
 import asyncio
 import pyttsx3
+import struct
 import openai
 import busio
 import time
@@ -101,16 +102,19 @@ async def updateLCD(text, display, stop_event=None):
 
     async def display_lines(start, end):
         display.fill_rect(0, 10, 128, 22, 0)
-        # typewriter effect
+        # type out the text
         for i, line_index in enumerate(range(start, end)):
             for j, char in enumerate(lines[line_index]):
                 if stop_event.is_set():
                     break
-                display.text(char, j * 6, 10 + i * 10, 1)
+                try:
+                    display.text(char, j * 6, 10 + i * 10, 1)
+                except struct.error as e:
+                    log_event(f"Struct Error: {e}, skipping character {char}")
+                    continue  # Skip the current character and continue with the next
                 display.show()
-                await asyncio.sleep(0.02) # 22ms delay between characters
-        display.show()
-    
+                await asyncio.sleep(0.02)  # 22ms delay between characters
+
     # Clear the display
     display.fill(0)
     # Display IP address
