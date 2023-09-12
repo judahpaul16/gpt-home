@@ -150,6 +150,7 @@ alias gpt-log="tail -n 100 -f /home/ubuntu/gpt-home/events.log"
 
 ---
 
+## 📸 My Build
 <div style="display: flex; justify-content: space-around; text-align: center;">
   <img src="my_build.jpg" alt="My Build" height="400px" /><br><br>
 <span style="font-size: 1em; display:block;">[click to enlarge]</span>
