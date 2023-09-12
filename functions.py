@@ -61,10 +61,10 @@ def initLCD():
     temp_text_x = 100
     display.text(f"{cpu_temp}", temp_text_x, 0, 1)
     # degree symbol
-    degree_x = 100 + len(f"{cpu_temp}") * 6  # Assuming each character is 6 pixels wide
+    degree_x = 100 + len(f"{cpu_temp}") * 7 # Assuming each character is 7 pixels wide
     degree_y = 2
     degree_symbol(display, degree_x, degree_y, 2, 1)
-    c_x = degree_x + 6  # Assuming each character is 6 pixels wide
+    c_x = degree_x + 7 # Assuming each character is 7 pixels wide
     display.text("C", c_x, 0, 1)
 
     # Show the updated display with the text.
@@ -121,10 +121,10 @@ async def updateLCD(text, display, stop_event=None):
     temp_text_x = 100
     display.text(f"{cpu_temp}", temp_text_x, 0, 1)
     # degree symbol
-    degree_x = 100 + len(f"{cpu_temp}") * 6  # Assuming each character is 6 pixels wide
+    degree_x = 100 + len(f"{cpu_temp}") * 7 # Assuming each character is 7 pixels wide
     degree_y = 2
     degree_symbol(display, degree_x, degree_y, 2, 1)
-    c_x = degree_x + 6  # Assuming each character is 6 pixels wide
+    c_x = degree_x + 7 # Assuming each character is 7 pixels wide
     display.text("C", c_x, 0, 1)
     # Show the updated display with the text.
     display.show()
