@@ -31,12 +31,13 @@ engine.setProperty('alsa_device', 'hw:Headphones,0')
 speak_lock = asyncio.Lock()
 
 def degree_symbol(display, x, y, radius, color):
-    thickness = 1
     for i in range(x-radius, x+radius+1):
         for j in range(y-radius, y+radius+1):
-            dist = (i-x)**2 + (j-y)**2
-            if radius**2 - thickness <= dist <= radius**2:
+            if (i-x)**2 + (j-y)**2 <= radius**2:
                 display.pixel(i, j, color)
+                # clear center of circle
+                if (i-x)**2 + (j-y)**2 <= (radius-1)**2:
+                    display.pixel(i, j, 0)
 
 def initLCD():
     # Create the I2C interface.
@@ -62,7 +63,7 @@ def initLCD():
     # degree symbol
     degree_x = 100 + len(f"{cpu_temp}") * 6  # Assuming each character is 6 pixels wide
     degree_y = 2
-    degree_symbol(display, degree_x, degree_y, 1, 1)  # 1 is the radius, the last 1 is the color (white)
+    degree_symbol(display, degree_x, degree_y, 2, 1)
     c_x = degree_x + 6  # Assuming each character is 6 pixels wide
     display.text("C", c_x, 0, 1)
 
@@ -122,7 +123,7 @@ async def updateLCD(text, display, stop_event=None):
     # degree symbol
     degree_x = 100 + len(f"{cpu_temp}") * 6  # Assuming each character is 6 pixels wide
     degree_y = 2
-    degree_symbol(display, degree_x, degree_y, 1, 1)  # 1 is the radius, the last 1 is the color (white)
+    degree_symbol(display, degree_x, degree_y, 2, 1)
     c_x = degree_x + 6  # Assuming each character is 6 pixels wide
     display.text("C", c_x, 0, 1)
     # Show the updated display with the text.
