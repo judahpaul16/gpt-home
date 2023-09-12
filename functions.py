@@ -55,11 +55,14 @@ def initLCD():
     display.text(f"{ip_address}", 0, 0, 1)
     # Display CPU temperature in Celsius (e.g., 39°)
     cpu_temp = int(float(subprocess.check_output(["vcgencmd", "measure_temp"]).decode("utf-8").split("=")[1].split("'")[0]))
-    display.text(f"{cpu_temp}", 100, 0, 1)
+    temp_text_x = 100
+    display.text(f"{cpu_temp}", temp_text_x, 0, 1)
     # degree symbol
     degree_x = 100 + len(f"{cpu_temp}") * 6  # Assuming each character is 6 pixels wide
-    degree_y = -2  # Adjust this value based on how much you want to shift upwards
+    degree_y = 2
     degree_symbol(display, degree_x, degree_y, 1, 1)  # 1 is the radius, the last 1 is the color (white)
+    c_x = degree_x + 6  # Assuming each character is 6 pixels wide
+    display.text("C", c_x, 0, 1)
 
     # Show the updated display with the text.
     display.show()
@@ -112,11 +115,14 @@ async def updateLCD(text, display, stop_event=None):
     display.text(f"{ip_address}", 0, 0, 1)
     # Display CPU temperature in Celsius (e.g., 39°)
     cpu_temp = int(float(subprocess.check_output(["vcgencmd", "measure_temp"]).decode("utf-8").split("=")[1].split("'")[0]))
-    display.text(f"{cpu_temp}", 100, 0, 1)
+    temp_text_x = 100
+    display.text(f"{cpu_temp}", temp_text_x, 0, 1)
     # degree symbol
-    degree_x = 100 + len(f"{cpu_temp}") * 6 # Assuming each character is 6 pixels wide
-    degree_y = -2  # Adjust this value based on how much you want to shift upwards
+    degree_x = 100 + len(f"{cpu_temp}") * 6  # Assuming each character is 6 pixels wide
+    degree_y = 2
     degree_symbol(display, degree_x, degree_y, 1, 1)  # 1 is the radius, the last 1 is the color (white)
+    c_x = degree_x + 6  # Assuming each character is 6 pixels wide
+    display.text("C", c_x, 0, 1)
     # Show the updated display with the text.
     display.show()
     # Line wrap the text
