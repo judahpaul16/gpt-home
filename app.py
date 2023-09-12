@@ -12,6 +12,10 @@ async def main():
             keyword = "computer"
             try:
                 text = await asyncio.wait_for(listen(loop, display, state_task), timeout=10)  # 10 seconds timeout
+            except asyncio.TimeoutError:
+                log_event("Listening timed out.")
+                continue  # Skip to the next iteration
+            if text:
                 split_text = text.split(keyword)
                 if keyword in text and len(split_text) > 1 and len(split_text[1].strip()) > 0:
                     stop_event.set()
@@ -41,10 +45,8 @@ async def main():
                     except sr.UnknownValueError:
                         error_message = "Sorry, I did not understand that"
                         await handle_error(error_message, state_task, display)
-            except asyncio.TimeoutError:
-                log_event("Listening timed out.")
+            else:
                 continue  # Skip to the next iteration
-        
         except sr.UnknownValueError:
             pass
         except sr.RequestError as e:
