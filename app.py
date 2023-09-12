@@ -11,7 +11,11 @@ async def main():
         
         try:
             keyword = "computer"
-            text = await listen(loop, display, state_task)
+            try:
+                text = await asyncio.wait_for(listen(loop, display, state_task), timeout=10)  # 10 seconds timeout
+            except asyncio.TimeoutError:
+                log_event("Listening timed out.")
+                continue  # Skip to the next iteration
             split_text = text.split(keyword)
             
             if keyword in text and len(split_text) > 1 and len(split_text[1].strip()) > 0:
@@ -27,10 +31,10 @@ async def main():
                     stop_event_heard = asyncio.Event()
                     stop_event_response = asyncio.Event()
 
-                    heard_task_speak = asyncio.create_task(speak(heard_message, stop_event_heard))
-                    heard_task_lcd = asyncio.create_task(updateLCD(heard_message, display, stop_event=stop_event_heard))
-                    
-                    await asyncio.gather(heard_task_speak, heard_task_lcd)
+                    await asyncio.gather(
+                        speak(heard_message, stop_event_heard),
+                        updateLCD(heard_message, display, stop_event=stop_event_heard)
+                    )
                     log_event(heard_message)
 
                     response_task_speak = asyncio.create_task(speak(response_message, stop_event_response))
