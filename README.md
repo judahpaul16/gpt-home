@@ -1,5 +1,5 @@
 # 🏠 GPT Home
-ChatGPT at home! Basically a better G**gle Nest Hub desk assistant made with Raspberry Pi and OpenAI API.
+GPT at home! Basically a better G**gle Nest Hub desk assistant made with Raspberry Pi and OpenAI API.
 
 ## 📜 Example Reclone script:
 First initialize an environment variable with your OpenAI API Key.
@@ -43,7 +43,7 @@ echo "Creating and enabling systemd service $SERVICE_NAME..."
 # Create a systemd service unit file
 cat <<EOF | sudo tee "/etc/systemd/system/$SERVICE_NAME" >/dev/null
 [Unit]
-Description=ChatGPT Home
+Description=GPT Home
 After=network.target
 
 [Service]
