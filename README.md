@@ -140,18 +140,18 @@ alias gpt-log="tail -n 100 -f /home/ubuntu/gpt-home/events.log"
 ### Caution: Battery Connection
 **IMPORTANT**: Before connecting the battery, ensure that the polarity is correct to avoid damage to your Raspberry Pi or other components. Disconnect power sources before making changes.
 
-<div style="display: flex; justify-content: space-around; text-align: center;">
-  <img src="schematic_bb.png" alt="Schematics Breadboard" height="350px" />
-  <!-- click to enlarge text -->
-  <img src="schematic_schem.png" alt="Schematics Schematic" height="350px" />
-</div>
+<table style="border-collapse: collapse; border: 0;">
+  <tr>
+    <td style="border: none;"><img src="schematic_bb.png" alt="Schematics Breadboard" height="350px" /></td>
+    <td style="border: none;"><img src="schematic_schem.png" alt="Schematics Schematic" height="350px" /></td>
+  </tr>
+</table>
 <span style="font-size: 1em; display:block;">[click to enlarge]</span>
-<br>
 
 ---
 
 <div style="display: flex; justify-content: space-around; text-align: center;">
-  <img src="my_build.jpg" alt="My Build" height="400px" /><br>
+  <img src="my_build.jpg" alt="My Build" height="400px" /><br><br>
 <span style="font-size: 1em; display:block;">[click to enlarge]</span>
 
 ---
