@@ -42,8 +42,6 @@ Before running this project on your Raspberry Pi, you'll need to install some sy
 1. **Virtual Environment**: Recommended for Python package management.  
    Installation: `sudo apt-get install python3-venv`
 
-Follow the respective installation commands to set up these dependencies on your Raspberry Pi.
-
 ---
 
 ## 📜 Example Reclone script:
@@ -142,11 +140,18 @@ alias gpt-log="tail -n 100 -f /home/ubuntu/gpt-home/events.log"
 ### Caution: Battery Connection
 **IMPORTANT**: Before connecting the battery, ensure that the polarity is correct to avoid damage to your Raspberry Pi or other components. Disconnect power sources before making changes.
 
-![Schematics](schematic_bb.png)  
----
-![Schematics](schematic_schem.png)  
+<div style="display: flex; justify-content: space-around;">
+  <img src="schematic_bb.png" alt="Schematics Breadboard" width="45%" />
+  <!-- click to enlarge text -->
+  <img src="schematic_schem.png" alt="Schematics Schematic" width="45%" />
+</div>
+<span style="font-size: 1em; text-decoration: none; display:block; float: left">[click to enlarge]</span>
+<span style="font-size: 1em; text-decoration: none; display:block; float: right;">[click to enlarge]</span>
+<br>
+
 ---
 ![My Build](my_build.jpg)  
+<span style="font-size: 1em; text-decoration: none; display:block; text-align: center;">[click to enlarge]</span>
 
 ---
 
