@@ -31,9 +31,11 @@ engine.setProperty('alsa_device', 'hw:Headphones,0')
 speak_lock = asyncio.Lock()
 
 def degree_symbol(display, x, y, radius, color):
+    thickness = 1
     for i in range(x-radius, x+radius+1):
         for j in range(y-radius, y+radius+1):
-            if (i-x)**2 + (j-y)**2 <= radius**2:
+            dist = (i-x)**2 + (j-y)**2
+            if radius**2 - thickness <= dist <= radius**2:
                 display.pixel(i, j, color)
 
 def initLCD():
