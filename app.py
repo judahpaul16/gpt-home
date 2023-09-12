@@ -8,44 +8,42 @@ async def main():
         if state_task is None:
             stop_event.clear()
             state_task = asyncio.create_task(display_state("Listening", display, stop_event))
-        
         try:
             keyword = "computer"
             try:
                 text = await asyncio.wait_for(listen(loop, display, state_task), timeout=10)  # 10 seconds timeout
                 split_text = text.split(keyword)
+                if keyword in text and len(split_text) > 1 and len(split_text[1].strip()) > 0:
+                    stop_event.set()
+                    state_task.cancel()
+                    state_task = None
+                    
+                    try:
+                        actual_text = split_text[1].strip()
+                        heard_message = f"Heard: \"{actual_text}\""
+                        response_message = await query_openai(actual_text, display)
+
+                        stop_event_heard = asyncio.Event()
+                        stop_event_response = asyncio.Event()
+
+                        await asyncio.gather(
+                            speak(heard_message, stop_event_heard),
+                            updateLCD(heard_message, display, stop_event=stop_event_heard)
+                        )
+                        log_event(heard_message)
+
+                        response_task_speak = asyncio.create_task(speak(response_message, stop_event_response))
+                        response_task_lcd = asyncio.create_task(updateLCD(response_message, display, stop_event=stop_event_response))
+                        
+                        await asyncio.gather(response_task_speak, response_task_lcd)
+                        log_event(response_message)
+                    
+                    except sr.UnknownValueError:
+                        error_message = "Sorry, I did not understand that"
+                        await handle_error(error_message, state_task, display)
             except asyncio.TimeoutError:
                 log_event("Listening timed out.")
                 continue  # Skip to the next iteration
-            
-            if keyword in text and len(split_text) > 1 and len(split_text[1].strip()) > 0:
-                stop_event.set()
-                state_task.cancel()
-                state_task = None
-                
-                try:
-                    actual_text = split_text[1].strip()
-                    heard_message = f"Heard: \"{actual_text}\""
-                    response_message = await query_openai(actual_text, display)
-
-                    stop_event_heard = asyncio.Event()
-                    stop_event_response = asyncio.Event()
-
-                    await asyncio.gather(
-                        speak(heard_message, stop_event_heard),
-                        updateLCD(heard_message, display, stop_event=stop_event_heard)
-                    )
-                    log_event(heard_message)
-
-                    response_task_speak = asyncio.create_task(speak(response_message, stop_event_response))
-                    response_task_lcd = asyncio.create_task(updateLCD(response_message, display, stop_event=stop_event_response))
-                    
-                    await asyncio.gather(response_task_speak, response_task_lcd)
-                    log_event(response_message)
-                
-                except sr.UnknownValueError:
-                    error_message = "Sorry, I did not understand that"
-                    await handle_error(error_message, state_task, display)
         
         except sr.UnknownValueError:
             pass
