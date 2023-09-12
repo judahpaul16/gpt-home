@@ -101,7 +101,7 @@ async def updateLCD(text, display, stop_event=None):
     display.text(f"{ip_address}", 0, 0, 1)
     # Display CPU temperature in Farenheit (e.g. 39°)
     cpu_temp = int(float(subprocess.check_output(["vcgencmd", "measure_temp"]).decode("utf-8").split("=")[1].split("'")[0]) * 9/5 + 32)
-    display.text(f"{cpu_temp}\u00B0", 100, 0, 1)
+    display.text(f"{cpu_temp}C", 100, 0, 1)
     display.show()
     # Line wrap the text
     lines = textwrap.fill(text, 21).split('\n')
