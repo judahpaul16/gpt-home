@@ -175,6 +175,22 @@ async def listen(loop, display, state_task):
 
 async def display_state(state, display, stop_event):
     async with display_lock:
+        # if state 'Initializing', display the 'No Internet' and CPU temperature
+        if state == "Initializing":
+            display.fill(0)
+            display.text("No Internet", 0, 0, 1)
+            # Display CPU temperature in Celsius (e.g., 39°)
+            cpu_temp = int(float(subprocess.check_output(["vcgencmd", "measure_temp"]).decode("utf-8").split("=")[1].split("'")[0]))
+            temp_text_x = 100
+            display.text(f"{cpu_temp}", temp_text_x, 0, 1)
+            # degree symbol
+            degree_x = 100 + len(f"{cpu_temp}") * 7 # Assuming each character is 7 pixels wide
+            degree_y = 2
+            degree_symbol(display, degree_x, degree_y, 2, 1)
+            c_x = degree_x + 7 # Assuming each character is 7 pixels wide
+            display.text("C", c_x, 0, 1)
+            # Show the updated display with the text.
+            display.show()
         while not stop_event.is_set():
             for i in range(4):
                 if stop_event.is_set():
