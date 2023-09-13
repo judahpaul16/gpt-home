@@ -25,7 +25,7 @@ executor = ThreadPoolExecutor()
 # Initialize the text-to-speech engine
 engine = pyttsx3.init()
 # Set properties
-engine.setProperty('rate', 150)
+engine.setProperty('rate', 140)
 engine.setProperty('volume', 1.0)
 # Direct audio to specific hardware
 engine.setProperty('alsa_device', 'hw:Headphones,0')
@@ -178,6 +178,7 @@ async def speak(text, stop_event):
         stop_event.set()
 
 async def query_openai(text, display, retries=3):
+    stop_event = asyncio.Event()
     for i in range(retries):
         try:
             response = openai.Completion.create(

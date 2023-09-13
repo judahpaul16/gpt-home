@@ -35,7 +35,7 @@ async def main():
                         time_to_speak_heard = (words_heard / rate) * 60  # in seconds
 
                         total_characters_heard = len(heard_message)
-                        delay_heard = time_to_speak_heard / total_characters_heard
+                        delay_heard = (time_to_speak_heard / (total_characters_heard / 2)) / 2 - 0.02
 
                         await asyncio.gather(
                             speak(heard_message, stop_event_heard),
@@ -47,7 +47,7 @@ async def main():
                         time_to_speak_response = (words_response / rate) * 60  # in seconds
 
                         total_characters_response = len(response_message)
-                        delay_response = time_to_speak_response / total_characters_response
+                        delay_response = (time_to_speak_response / (total_characters_response / 2)) / 2 - 0.02
 
                         response_task_speak = asyncio.create_task(speak(response_message, stop_event_response))
                         response_task_lcd = asyncio.create_task(updateLCD(response_message, display, stop_event=stop_event_response, delay=delay_response))
