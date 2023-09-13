@@ -3,6 +3,36 @@ GPT at home! Basically a better G**gle Nest Hub desk assistant made with Raspber
 
 * *This guide assumes you're using Ubuntu Server as your Raspberry Pi operating system. You may need to make certain modifications to accomodate other operating systems*
 
+## 📶 Configuring Wi-Fi via wpa_supplicant
+
+To configure Wi-Fi on your Raspberry Pi, you'll need to edit the `wpa_supplicant.conf` file.
+
+1. Open the configuration file in a text editor:
+    ```bash
+    sudo nano /etc/wpa_supplicant/wpa_supplicant.conf
+    ```
+
+2. Add the following lines at the end of the file:  
+*You can define multiple `network` blocks for multiple Wi-Fi networks*
+    ```bash
+    network={
+        ssid="Your_Wi-Fi_Name"
+        psk="Your_Wi-Fi_Password"
+        key_mgmt=WPA-PSK
+    }
+    ```
+    Replace `Your_Wi-Fi_Name` and `Your_Wi-Fi_Password` with your actual Wi-Fi credentials.
+
+3. Save and exit the editor (Ctrl+O to save, Ctrl+X to exit in nano).
+
+4. Reload the `wpa_supplicant` configuration:
+    ```bash
+    sudo wpa_cli reconfigure
+    ```
+
+Your Raspberry Pi should now connect to the Wi-Fi network. If you face issues, refer to the [official Raspberry Pi documentation on wireless connectivity](https://www.raspberrypi.com/documentation/computers/configuration.html#setting-up-a-wireless-lan-via-the-command-line).
+
+
 ## 🛠 System Dependencies
 
 Before running this project on your Raspberry Pi, you'll need to install some system-level dependencies in addition to the Python packages.
@@ -55,7 +85,7 @@ Before running this project on your Raspberry Pi, you'll need to install some sy
 
 11. **OpenAI API Key**: Required for OpenAI's GPT API.  
     Setup: Set up as an environment variable.  
-    
+
 12. **eSpeak Library**: Required for text-to-speech (`pyttsx3`).  
    Installation: `sudo apt-get install libespeak1`
 
