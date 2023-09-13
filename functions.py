@@ -233,7 +233,7 @@ async def handle_error(message, state_task, display):
     delay = await calculate_delay(message)
     stop_event = asyncio.Event()
     lcd_task = asyncio.create_task(updateLCD(message, display, stop_event=stop_event, delay=delay))
-    speak_task = asyncio.create_task(speak(message, stop_event, delay=delay))
+    speak_task = asyncio.create_task(speak(message, stop_event))
     await speak_task
     lcd_task.cancel()
     log_event(f"Error: {traceback.format_exc()}")

@@ -10,10 +10,12 @@ async def main():
         try:
             keyword = "computer"
             try:
-                text = await listen(loop, display, state_task)
+                text = await asyncio.wait_for(listen(loop, display, state_task), timeout=10.0)
             except (TimeoutError, asyncio.TimeoutError, sr.WaitTimeoutError):
                 log_event("Listening timed out.")
-                raise Exception("Sorry didn't catch that.")
+                stop_event.set()
+                state_task.cancel()
+                state_task = None
             if text:
                 split_text = text.split(keyword)
                 if keyword in text and len(split_text) > 1 and len(split_text[1].strip()) > 0:
