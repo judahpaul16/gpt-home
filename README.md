@@ -112,6 +112,7 @@ echo "Systemd service $SERVICE_NAME created and enabled."
 # Start the service
 sudo systemctl restart "$SERVICE_NAME"
 echo ""
+sleep 1
 sudo systemctl status "$SERVICE_NAME"
 ```
 Be sure to make the script executable to run it
