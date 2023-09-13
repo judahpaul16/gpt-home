@@ -10,12 +10,9 @@ async def main():
         try:
             keyword = "computer"
             try:
-                text = await asyncio.wait_for(listen(loop, display, state_task), timeout=10.0)
+                text = await listen(loop, display, state_task)
             except Exception as e:
                 log_event("Listening timed out: " + str(e))
-                stop_event.set()
-                state_task.cancel()
-                state_task = None
                 continue
             if text:
                 split_text = text.split(keyword)
