@@ -12,13 +12,19 @@ To configure Wi-Fi on your Raspberry Pi, you'll need to edit the `wpa_supplicant
    sudo apt install net-tools
    ```
 
-2. To enable the wireless interface (`wlan0` in most cases) at boot, add the following command to `/etc/rc.local` before the `exit 0` line:
+2. To enable the wireless interface (`wlan0` in most cases) at boot, add the following command to `/etc/rc.local` before the `exit 0` line:  
+    *Create the file if it doesn't exist*
     ```bash
     sudo vim /etc/rc.local
     ```
     Add the following line:
     ```bash
     sudo ifconfig wlan0 up
+    ```
+    Ensure the file has executable permissions and is enabled as a service:
+    ```
+    sudo chmod +x /etc/rc.local
+    sudo systemctl enable rc-local.service
     ```
 
 3. Open the configuration file in a text editor:
@@ -46,7 +52,7 @@ To configure Wi-Fi on your Raspberry Pi, you'll need to edit the `wpa_supplicant
     ```bash
     sudo systemctl restart wpa_supplicant.service
     ```
-    
+
 Your Raspberry Pi should now connect to the Wi-Fi network automatically on boot. If you face issues, refer to the [official Raspberry Pi documentation on wireless connectivity](https://www.raspberrypi.com/documentation/computers/configuration.html#setting-up-a-wireless-lan-via-the-command-line).
 
 ## 🛠 System Dependencies
