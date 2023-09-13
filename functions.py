@@ -56,7 +56,6 @@ async def calculate_delay(message):
 
     return base_delay + extra_delay
 
-
 def initLCD():
     # Create the I2C interface.
     i2c = busio.I2C(SCL, SDA)
@@ -90,18 +89,17 @@ def initLCD():
     return display
 
 async def initialize_system():
-    async with display_lock:
-        display = initLCD()
-        stop_event_init = asyncio.Event()
-        state_task = asyncio.create_task(display_state("Initializing", display, stop_event_init))
-        while not network_connected():
-            await asyncio.sleep(1)
-            message = "Network not connected. Retrying..."
-            log_event(f"Error: {message}")
-        stop_event_init.set()  # Signal to stop the 'Initializing' display
-        state_task.cancel()  # Cancel the display task
-        display = initLCD()  # Reinitialize the display
-        return display
+    display = initLCD()
+    stop_event_init = asyncio.Event()
+    state_task = asyncio.create_task(display_state("Initializing", display, stop_event_init))
+    while not network_connected():
+        await asyncio.sleep(1)
+        message = "Network not connected. Retrying..."
+        log_event(f"Error: {message}")
+    stop_event_init.set()  # Signal to stop the 'Initializing' display
+    state_task.cancel()  # Cancel the display task
+    display = initLCD()  # Reinitialize the display
+    return display
 
 async def updateLCD(text, display, stop_event=None, delay=0.02):
     async with display_lock:
