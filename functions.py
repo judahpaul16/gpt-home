@@ -86,7 +86,7 @@ async def initialize_system():
     display = initLCD()  # Reinitialize the display
     return display
 
-async def updateLCD(text, display, stop_event=None):
+async def updateLCD(text, display, stop_event=None, delay=0.02):
     if stop_event is None:
         stop_event = asyncio.Event()
 
@@ -100,8 +100,8 @@ async def updateLCD(text, display, stop_event=None):
                 await display_lines(0, line_count, delay)
                 break  # Exit the loop if less than or equal to 2 lines
             await asyncio.sleep(0.02)  # Delay between pages
-            
-    async def display_lines(start, end, delay=0.02):
+
+    async def display_lines(start, end, delay):
         display.fill_rect(0, 10, 128, 22, 0)
         # type out the text
         for i, line_index in enumerate(range(start, end)):
@@ -136,7 +136,7 @@ async def updateLCD(text, display, stop_event=None):
     # Line wrap the text
     lines = textwrap.fill(text, 21).split('\n')
     line_count = len(lines)
-    display_task = asyncio.create_task(display_text())
+    display_task = asyncio.create_task(display_text(delay))
 
 async def listen(loop, display, state_task):
     def recognize_audio():
