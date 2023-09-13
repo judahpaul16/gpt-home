@@ -25,7 +25,7 @@ executor = ThreadPoolExecutor()
 # Initialize the text-to-speech engine
 engine = pyttsx3.init()
 # Set properties
-engine.setProperty('rate', 140)
+engine.setProperty('rate', 142)
 engine.setProperty('volume', 1.0)
 # Direct audio to specific hardware
 engine.setProperty('alsa_device', 'hw:Headphones,0')
@@ -45,7 +45,7 @@ def calculate_delay(message, rate):
     words = len(message.split())
     time_to_speak = (words / rate) * 60  # in seconds
     total_characters = len(message)
-    return (time_to_speak / (total_characters / 2)) / 2 - 0.02
+    return (time_to_speak / (total_characters / 2)) / 2 - 0.03
 
 def initLCD():
     # Create the I2C interface.

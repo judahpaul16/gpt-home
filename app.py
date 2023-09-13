@@ -13,7 +13,7 @@ async def main():
                 text = await listen(loop, display, state_task)
             except asyncio.TimeoutError:
                 log_event("Listening timed out.")
-                continue  # Skip to the next iteration
+                raise Exception("Sorry didn't catch that.")
             if text:
                 split_text = text.split(keyword)
                 if keyword in text and len(split_text) > 1 and len(split_text[1].strip()) > 0:
