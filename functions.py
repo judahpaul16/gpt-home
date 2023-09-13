@@ -45,6 +45,7 @@ def degree_symbol(display, x, y, radius, color):
 
 async def calculate_delay(message):
     base_delay = 0.01 if len(message) > 25 else 0.02
+    if len(message) > 50: base_delay = 0.005
     extra_delay = 0.0
     
     # Patterns to look for
