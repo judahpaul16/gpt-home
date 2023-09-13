@@ -209,7 +209,6 @@ async def query_openai(text, display, retries=3):
                 stop_event = asyncio.Event()
                 await speak(error_message, stop_event)
                 log_event(f"Error: {traceback.format_exc()}")
-                return error_message
         await asyncio.sleep(0.5)  # Wait before retrying
     raise Exception("Something went wrong after {retries} retries.")
 
