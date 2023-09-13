@@ -10,11 +10,8 @@ async def main():
         try:
             keyword = "computer"
             try:
-                text = await asyncio.wait_for(listen(loop, display, state_task), timeout=10.0)
-            except TimeoutError:
-                log_event("Listening timed out.")
-                raise Exception("Sorry didn't catch that.")
-            except asyncio.TimeoutError:
+                text = await asyncio.wait_for(listen(loop, display, state_task), timeout=3.0)
+            except (TimeoutError, asyncio.TimeoutError, sr.WaitTimeoutError):
                 log_event("Listening timed out.")
                 raise Exception("Sorry didn't catch that.")
             if text:
