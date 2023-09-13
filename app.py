@@ -1,5 +1,4 @@
 from functions import *
-import asyncio
 
 async def main():
     state_task = None

@@ -31,6 +31,7 @@ engine.setProperty('volume', 1.0)
 engine.setProperty('alsa_device', 'hw:Headphones,0')
 speak_lock = asyncio.Lock()
 
+# Manually draw a degree symbol °
 def degree_symbol(display, x, y, radius, color):
     for i in range(x-radius, x+radius+1):
         for j in range(y-radius, y+radius+1):
