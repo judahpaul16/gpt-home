@@ -31,9 +31,6 @@ engine.setProperty('volume', 1.0)
 engine.setProperty('alsa_device', 'hw:Headphones,0')
 speak_lock = asyncio.Lock()
 
-display = None
-display_lock = asyncio.Lock()
-
 # Manually draw a degree symbol °
 def degree_symbol(display, x, y, radius, color):
     for i in range(x-radius, x+radius+1):
@@ -83,73 +80,69 @@ def initLCD():
     return display
 
 async def initialize_system():
-    global display  # Declare it global
-    async with display_lock:  # Acquire lock
-        display = initLCD()
-        stop_event_init = asyncio.Event()
-        state_task = asyncio.create_task(display_state("Initializing", display, stop_event_init))
-        while not network_connected():
-            await asyncio.sleep(1)
-            message = "Network not connected. Retrying..."
-            log_event(f"Error: {message}")
-        stop_event_init.set()  # Signal to stop the 'Initializing' display
-        state_task.cancel()  # Cancel the display task
-        display = initLCD()  # Reinitialize the display
-        return display
+    display = initLCD()
+    stop_event_init = asyncio.Event()
+    state_task = asyncio.create_task(display_state("Initializing", display, stop_event_init))
+    while not network_connected():
+        await asyncio.sleep(1)
+        message = "Network not connected. Retrying..."
+        log_event(f"Error: {message}")
+    stop_event_init.set()  # Signal to stop the 'Initializing' display
+    state_task.cancel()  # Cancel the display task
+    display = initLCD()  # Reinitialize the display
+    return display
 
-async def updateLCD(text, stop_event=None, delay=0.02):
-    global display  # Declare it global
-    async with display_lock:  # Acquire lock
-        if stop_event is None:
-            stop_event = asyncio.Event()
+async def updateLCD(text, display, stop_event=None, delay=0.02):
+    if stop_event is None:
+        stop_event = asyncio.Event()
 
-        async def display_text(delay):
-            i = 0
-            while not (stop_event and stop_event.is_set()) and i < line_count:
-                if line_count > 2:
-                    await display_lines(i, min(i + 2, line_count), delay)
-                    i += 2
-                else:
-                    await display_lines(0, line_count, delay)
-                    break  # Exit the loop if less than or equal to 2 lines
-                await asyncio.sleep(0.02)  # Delay between pages
+    async def display_text(delay):
+        i = 0
+        while not (stop_event and stop_event.is_set()) and i < line_count:
+            if line_count > 2:
+                await display_lines(i, min(i + 2, line_count), delay)
+                i += 2
+            else:
+                await display_lines(0, line_count, delay)
+                break  # Exit the loop if less than or equal to 2 lines
+            await asyncio.sleep(0.02)  # Delay between pages
 
-        async def display_lines(start, end, delay):
-            display.fill_rect(0, 10, 128, 22, 0)
-            # type out the text
-            for i, line_index in enumerate(range(start, end)):
-                for j, char in enumerate(lines[line_index]):
-                    if stop_event.is_set():
-                        break
-                    try:
-                        display.text(char, j * 6, 10 + i * 10, 1)
-                    except struct.error as e:
-                        log_event(f"Struct Error: {e}, skipping character {char}")
-                        continue  # Skip the current character and continue with the next
-                    display.show()
-                    await asyncio.sleep(delay)
+    async def display_lines(start, end, delay):
+        display.fill_rect(0, 10, 128, 22, 0)
+        # type out the text
+        for i, line_index in enumerate(range(start, end)):
+            for j, char in enumerate(lines[line_index]):
+                if stop_event.is_set():
+                    break
+                try:
+                    display.text(char, j * 6, 10 + i * 10, 1)
+                except struct.error as e:
+                    log_event(f"Struct Error: {e}, skipping character {char}")
+                    continue  # Skip the current character and continue with the next
+                display.show()
+                await asyncio.sleep(delay)
 
-        # Clear the display
-        display.fill(0)
-        # Display IP address
-        ip_address = subprocess.check_output(["hostname", "-I"]).decode("utf-8").split(" ")[0]
-        display.text(f"{ip_address}", 0, 0, 1)
-        # Display CPU temperature in Celsius (e.g., 39°)
-        cpu_temp = int(float(subprocess.check_output(["vcgencmd", "measure_temp"]).decode("utf-8").split("=")[1].split("'")[0]))
-        temp_text_x = 100
-        display.text(f"{cpu_temp}", temp_text_x, 0, 1)
-        # degree symbol
-        degree_x = 100 + len(f"{cpu_temp}") * 7 # Assuming each character is 7 pixels wide
-        degree_y = 2
-        degree_symbol(display, degree_x, degree_y, 2, 1)
-        c_x = degree_x + 7 # Assuming each character is 7 pixels wide
-        display.text("C", c_x, 0, 1)
-        # Show the updated display with the text.
-        display.show()
-        # Line wrap the text
-        lines = textwrap.fill(text, 21).split('\n')
-        line_count = len(lines)
-        display_task = asyncio.create_task(display_text(delay))
+    # Clear the display
+    display.fill(0)
+    # Display IP address
+    ip_address = subprocess.check_output(["hostname", "-I"]).decode("utf-8").split(" ")[0]
+    display.text(f"{ip_address}", 0, 0, 1)
+    # Display CPU temperature in Celsius (e.g., 39°)
+    cpu_temp = int(float(subprocess.check_output(["vcgencmd", "measure_temp"]).decode("utf-8").split("=")[1].split("'")[0]))
+    temp_text_x = 100
+    display.text(f"{cpu_temp}", temp_text_x, 0, 1)
+    # degree symbol
+    degree_x = 100 + len(f"{cpu_temp}") * 7 # Assuming each character is 7 pixels wide
+    degree_y = 2
+    degree_symbol(display, degree_x, degree_y, 2, 1)
+    c_x = degree_x + 7 # Assuming each character is 7 pixels wide
+    display.text("C", c_x, 0, 1)
+    # Show the updated display with the text.
+    display.show()
+    # Line wrap the text
+    lines = textwrap.fill(text, 21).split('\n')
+    line_count = len(lines)
+    display_task = asyncio.create_task(display_text(delay))
 
 async def listen(loop, display, state_task):
     def recognize_audio():
@@ -171,17 +164,15 @@ async def listen(loop, display, state_task):
     text = await loop.run_in_executor(executor, recognize_audio)
     return text
 
-async def display_state(state, stop_event):
-    global display, display_lock
-    async with display_lock:
-        while not stop_event.is_set():
-            for i in range(4):
-                if stop_event.is_set():
-                    break
-                display.fill_rect(0, 10, 128, 22, 0)
-                display.text(f"{state}" + '.' * i, 0, 20, 1)
-                display.show()
-                await asyncio.sleep(0.5)
+async def display_state(state, display, stop_event):
+    while not stop_event.is_set():
+        for i in range(4):
+            if stop_event.is_set():
+                break
+            display.fill_rect(0, 10, 128, 22, 0)
+            display.text(f"{state}" + '.' * i, 0, 20, 1)
+            display.show()
+            await asyncio.sleep(0.5)
 
 async def speak(text, stop_event):
     async with speak_lock:

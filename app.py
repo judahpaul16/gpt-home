@@ -1,13 +1,12 @@
 from functions import *
 
 async def main():
-    global display
     state_task = None
     stop_event = asyncio.Event()
     while True:
         if state_task is None:
             stop_event.clear()
-            state_task = asyncio.create_task(display_state("Listening", stop_event))
+            state_task = asyncio.create_task(display_state("Listening", display, stop_event))
         try:
             keyword = "computer"
             try:
@@ -62,18 +61,18 @@ async def main():
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
-    init_done_event = asyncio.Event()
+    init_done_event = asyncio.Event()  # Create an event to signal when initialization is done
 
     async def wrapped_initialize_system():
-        global display, display_lock 
-        async with display_lock:
-            display = await initialize_system()
-        init_done_event.set()
+        display = await initialize_system()
+        init_done_event.set()  # Signal that initialization is done
+        return display
+
+    display = loop.run_until_complete(wrapped_initialize_system())
 
     async def wrapped_main():
-        await init_done_event.wait()
+        await init_done_event.wait()  # Wait for the event to be set
         await main()
 
-    loop.run_until_complete(wrapped_initialize_system())
     loop.run_until_complete(wrapped_main())
     loop.close()
