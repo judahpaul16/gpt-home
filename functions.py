@@ -45,7 +45,7 @@ def calculate_delay(message, rate):
     words = len(message.split())
     time_to_speak = (words / rate) * 60  # in seconds
     total_characters = len(message)
-    return (time_to_speak / (total_characters / 2)) / 2 - 0.03
+    return (time_to_speak / total_characters ) - 0.05
 
 def initLCD():
     # Create the I2C interface.
