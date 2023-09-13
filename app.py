@@ -47,20 +47,17 @@ async def main():
                     
                     except sr.UnknownValueError:
                         error_message = "Sorry, I did not understand that"
-                        delay_error = calculate_delay(error_message, engine.getProperty('rate'))
-                        await handle_error(error_message, state_task, display, delay=delay_error)
+                        await handle_error(error_message, state_task, display)
             else:
                 continue  # Skip to the next iteration
         except sr.UnknownValueError:
             pass
         except sr.RequestError as e:
             error_message = f"Could not request results; {e}"
-            delay_error = calculate_delay(error_message, engine.getProperty('rate'))
-            await handle_error(error_message, state_task, display, delay=delay_error)
+            await handle_error(error_message, state_task, display)
         except Exception as e:
             error_message = f"Something Went Wrong: {e}"
-            delay_error = calculate_delay(error_message, engine.getProperty('rate'))
-            await handle_error(error_message, state_task, display, delay=delay_error)
+            await handle_error(error_message, state_task, display)
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()

@@ -25,7 +25,7 @@ executor = ThreadPoolExecutor()
 # Initialize the text-to-speech engine
 engine = pyttsx3.init()
 # Set properties
-engine.setProperty('rate', 142)
+engine.setProperty('rate', 145)
 engine.setProperty('volume', 1.0)
 # Direct audio to specific hardware
 engine.setProperty('alsa_device', 'hw:Headphones,0')
@@ -44,8 +44,8 @@ def degree_symbol(display, x, y, radius, color):
 def calculate_delay(message, rate):
     words = len(message.split())
     time_to_speak = (words / rate) * 60  # in seconds
-    total_characters = len(message)
-    return (time_to_speak / total_characters ) - 0.05
+    total_words = message.count(" ") + 1
+    return (time_to_speak / total_words ) - 0.3
 
 def initLCD():
     # Create the I2C interface.
@@ -202,7 +202,6 @@ async def query_openai(text, display, retries=3):
                 return message
             else:
                 log_event(f"Retry {i+1}: Received empty response from OpenAI.")
-                await speak("I'm sorry, I don't know how to respond to that.", stop_event)
         except Exception as e:
             log_event(f"Error on try {i+1}: {e}")
             if i == retries - 1:  # If this was the last retry
@@ -211,8 +210,8 @@ async def query_openai(text, display, retries=3):
                 await speak(error_message, stop_event)
                 log_event(f"Error: {traceback.format_exc()}")
                 return error_message
-        await asyncio.sleep(2)  # Wait before retrying
-    return "Response: No response from OpenAI after maximum retries."
+        await asyncio.sleep(0.5)  # Wait before retrying
+    raise Exception("Something went wrong after {retries} retries.")
 
 def network_connected():
     return os.system("ping -c 1 google.com") == 0
@@ -220,8 +219,9 @@ def network_connected():
 def log_event(text):
     logging.info(text)
 
-async def handle_error(message, state_task, display, delay):
-    state_task.cancel()
+async def handle_error(message, state_task, display):
+    if state_task: state_task.cancel()
+    delay = calculate_delay(message, engine.getProperty('rate'))
     stop_event = asyncio.Event()
     lcd_task = asyncio.create_task(updateLCD(message, display, stop_event=stop_event, delay=delay))
     speak_task = asyncio.create_task(speak(message, stop_event, delay=delay))
