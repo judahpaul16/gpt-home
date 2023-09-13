@@ -89,6 +89,12 @@ python3 -m venv env
 # Activate the virtual environment
 source env/bin/activate
 
+# Upgrade pip
+pip install --upgrade pip
+
+# Upgrade setuptools
+pip install --upgrade setuptools
+
 # Install Python dependencies
 pip install --use-pep517 -r requirements.txt
 
