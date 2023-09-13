@@ -41,7 +41,7 @@ def degree_symbol(display, x, y, radius, color):
                 if (i-x)**2 + (j-y)**2 <= (radius-1)**2:
                     display.pixel(i, j, 0)
 
-def calculate_delay(message, rate):
+async def calculate_delay(message, rate):
     words = len(message.split())
     time_to_speak = (words / rate) * 60  # in seconds
     total_words = message.count(" ") + 1
@@ -220,7 +220,7 @@ def log_event(text):
 
 async def handle_error(message, state_task, display):
     if state_task: state_task.cancel()
-    delay = calculate_delay(message, engine.getProperty('rate'))
+    delay = await calculate_delay(message, engine.getProperty('rate'))
     stop_event = asyncio.Event()
     lcd_task = asyncio.create_task(updateLCD(message, display, stop_event=stop_event, delay=delay))
     speak_task = asyncio.create_task(speak(message, stop_event, delay=delay))
