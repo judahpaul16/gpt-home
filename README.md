@@ -22,36 +22,36 @@ Before running this project on your Raspberry Pi, you'll need to install some sy
 
 1. **Python 3.x**: Required for running the Python code.  
    Installation: `sudo apt-get install python3`
-   
-2. **PortAudio**: Required for `pyttsx3` (text-to-speech).  
+
+2. **Python Development Headers**: Required for building certain Python packages.  
+   Installation: `sudo apt-get install python3.11-dev`
+
+3. **PortAudio**: Required for `pyttsx3` (text-to-speech).  
    Installation: `sudo apt-get install portaudio19-dev`
 
-3. **ALSA Utilities**: Required for audio configuration.  
+4. **ALSA Utilities**: Required for audio configuration.  
    Installation: `sudo apt-get install alsa-utils`
 
-4. **vcgencmd**: Comes pre-installed on Raspberry Pi OS. Used for fetching CPU temperature.
+5. **JPEG Library**: Required for Pillow.  
+   Installation: `sudo apt-get install libjpeg-dev`
 
-5. **Speech Recognition Libraries**: Required for `speech_recognition`.  
+6. **Build Essentials**: Required for building packages.  
+   Installation: `sudo apt-get install build-essential`
+
+7. **vcgencmd**: Comes pre-installed on Raspberry Pi OS. Used for fetching CPU temperature.
+
+8. **Speech Recognition Libraries**: Required for `speech_recognition`.  
    Installation: `sudo apt-get install libasound2-dev`
 
-6. **I2C Support**: Required for `adafruit_ssd1306` (OLED display).  
+9. **I2C Support**: Required for `adafruit_ssd1306` (OLED display).  
    Enable via `raspi-config` or install packages:  
    ```
    sudo apt-get install -y i2c-tools
    sudo apt-get install -y python3-smbus
    ```
 
-7. **Git**: Required for cloning the repository.  
-   Installation: `sudo apt-get install git`
-
-8. **Subprocess Dependencies**: Required for shell commands.  
-   Installation: Usually comes pre-installed.
-
-9. **zlib**: Required for Pillow.  
-   Installation: `sudo apt-get install zlib1g-dev`
-
-10. **ARM GCC Compiler**: Required for building certain Python packages.  
-    Installation: `sudo apt-get install gcc-arm-linux-gnueabihf`
+10. **Git**: Required for cloning the repository.  
+    Installation: `sudo apt-get install git`
 
 11. **OpenAI API Key**: Required for OpenAI's GPT API.  
     Setup: Set up as an environment variable.
@@ -60,7 +60,7 @@ Before running this project on your Raspberry Pi, you'll need to install some sy
 
 1. **Virtual Environment**: Recommended for Python package management.  
    Installation: `sudo apt-get install python3-venv`
-
+   
 ---
 
 ## 📜 Example Reclone script:
