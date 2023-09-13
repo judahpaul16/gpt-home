@@ -44,14 +44,14 @@ def degree_symbol(display, x, y, radius, color):
                     display.pixel(i, j, 0)
 
 async def calculate_delay(message):
-    base_delay = 0.01 if len(message) > 22 else 0.02
+    base_delay = 0.01 if len(message) > 25 else 0.02
     extra_delay = 0.0
     
     # Patterns to look for
     patterns = [r": ", r"\. ", r"\? ", r"! ", r"\.{2,}"]
     
     for pattern in patterns:
-        extra_delay += len(re.findall(pattern, message)) * 0.1  # Adding 0.1 seconds delay for each match
+        extra_delay += len(re.findall(pattern, message)) * 0.002  # Adding 0.002 seconds delay for each match
 
     return base_delay + extra_delay
 
