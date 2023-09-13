@@ -54,13 +54,16 @@ Before running this project on your Raspberry Pi, you'll need to install some sy
     Installation: `sudo apt-get install git`
 
 11. **OpenAI API Key**: Required for OpenAI's GPT API.  
-    Setup: Set up as an environment variable.
+    Setup: Set up as an environment variable.  
+    
+12. **eSpeak Library**: Required for text-to-speech (`pyttsx3`).  
+   Installation: `sudo apt-get install libespeak1`
 
 ### Optional Dependencies
 
 1. **Virtual Environment**: Recommended for Python package management.  
    Installation: `sudo apt-get install python3-venv`
-   
+
 ---
 
 ## 📜 Example Reclone script:
@@ -137,7 +140,7 @@ echo "Systemd service $SERVICE_NAME created and enabled."
 # Start the service
 sudo systemctl restart "$SERVICE_NAME"
 echo ""
-sleep 1
+sleep 3
 sudo systemctl status "$SERVICE_NAME"
 ```
 Be sure to make the script executable to run it
