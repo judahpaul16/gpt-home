@@ -41,6 +41,12 @@ def degree_symbol(display, x, y, radius, color):
                 if (i-x)**2 + (j-y)**2 <= (radius-1)**2:
                     display.pixel(i, j, 0)
 
+def calculate_delay(message, rate):
+    words = len(message.split())
+    time_to_speak = (words / rate) * 60  # in seconds
+    total_characters = len(message)
+    return (time_to_speak / (total_characters / 2)) / 2 - 0.02
+
 def initLCD():
     # Create the I2C interface.
     i2c = busio.I2C(SCL, SDA)
@@ -214,11 +220,11 @@ def network_connected():
 def log_event(text):
     logging.info(text)
 
-async def handle_error(message, state_task, display):
+async def handle_error(message, state_task, display, delay):
     state_task.cancel()
     stop_event = asyncio.Event()
-    lcd_task = asyncio.create_task(updateLCD(message, display, stop_event=stop_event))
-    speak_task = asyncio.create_task(speak(message, stop_event))
+    lcd_task = asyncio.create_task(updateLCD(message, display, stop_event=stop_event, delay=delay))
+    speak_task = asyncio.create_task(speak(message, stop_event, delay=delay))
     await speak_task
     lcd_task.cancel()
     log_event(f"Error: {traceback.format_exc()}")

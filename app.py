@@ -30,24 +30,14 @@ async def main():
                         stop_event_response = asyncio.Event()
 
                         # Calculate time to speak and display
-                        rate = engine.getProperty('rate')  # Words per minute
-                        words_heard = len(heard_message.split())
-                        time_to_speak_heard = (words_heard / rate) * 60  # in seconds
-
-                        total_characters_heard = len(heard_message)
-                        delay_heard = (time_to_speak_heard / (total_characters_heard / 2)) / 2 - 0.02
+                        delay_heard = calculate_delay(heard_message, engine.getProperty('rate'))
+                        delay_response = calculate_delay(response_message, engine.getProperty('rate'))
 
                         await asyncio.gather(
                             speak(heard_message, stop_event_heard),
                             updateLCD(heard_message, display, stop_event=stop_event_heard, delay=delay_heard)
                         )
                         log_event(heard_message)
-
-                        words_response = len(response_message.split())
-                        time_to_speak_response = (words_response / rate) * 60  # in seconds
-
-                        total_characters_response = len(response_message)
-                        delay_response = (time_to_speak_response / (total_characters_response / 2)) / 2 - 0.02
 
                         response_task_speak = asyncio.create_task(speak(response_message, stop_event_response))
                         response_task_lcd = asyncio.create_task(updateLCD(response_message, display, stop_event=stop_event_response, delay=delay_response))
@@ -57,17 +47,20 @@ async def main():
                     
                     except sr.UnknownValueError:
                         error_message = "Sorry, I did not understand that"
-                        await handle_error(error_message, state_task, display)
+                        delay_error = calculate_delay(error_message, engine.getProperty('rate'))
+                        await handle_error(error_message, state_task, display, delay=delay_error)
             else:
                 continue  # Skip to the next iteration
         except sr.UnknownValueError:
             pass
         except sr.RequestError as e:
             error_message = f"Could not request results; {e}"
-            await handle_error(error_message, state_task, display)
+            delay_error = calculate_delay(error_message, engine.getProperty('rate'))
+            await handle_error(error_message, state_task, display, delay=delay_error)
         except Exception as e:
             error_message = f"Something Went Wrong: {e}"
-            await handle_error(error_message, state_task, display)
+            delay_error = calculate_delay(error_message, engine.getProperty('rate'))
+            await handle_error(error_message, state_task, display, delay=delay_error)
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
