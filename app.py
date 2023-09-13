@@ -10,7 +10,7 @@ async def main():
         try:
             keyword = "computer"
             try:
-                text = await asyncio.wait_for(listen(loop, display, state_task), timeout=3.0)
+                text = await listen(loop, display, state_task)
             except (TimeoutError, asyncio.TimeoutError, sr.WaitTimeoutError):
                 log_event("Listening timed out.")
                 raise Exception("Sorry didn't catch that.")
@@ -24,8 +24,11 @@ async def main():
                     try:
                         actual_text = split_text[1].strip()
                         heard_message = f"Heard: \"{actual_text}\""
-                        response_message = await query_openai(actual_text, display)
-
+                        try:
+                            response_message = await asyncio.wait_for(query_openai(actual_text, display), timeout=3)
+                        except asyncio.TimeoutError:
+                            log_event("Listening timed out.")
+                            raise Exception("Sorry didn't catch that.")
                         stop_event_heard = asyncio.Event()
                         stop_event_response = asyncio.Event()
 
