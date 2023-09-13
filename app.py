@@ -30,8 +30,8 @@ async def main():
                         stop_event_response = asyncio.Event()
 
                         # Calculate time to speak and display
-                        delay_heard = await calculate_delay(heard_message, engine.getProperty('rate'))
-                        delay_response = await calculate_delay(response_message, engine.getProperty('rate'))
+                        delay_heard = await calculate_delay(heard_message)
+                        delay_response = await calculate_delay(response_message)
 
                         await asyncio.gather(
                             speak(heard_message, stop_event_heard),
