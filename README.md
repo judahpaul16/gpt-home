@@ -25,6 +25,7 @@ To configure Wi-Fi on your Raspberry Pi, you'll need to edit the `wpa_supplicant
     ```
     sudo chmod +x /etc/rc.local
     sudo systemctl enable rc-local.service
+    sudo systemctl start rc-local.service
     ```
 
 3. Open the configuration file in a text editor:
