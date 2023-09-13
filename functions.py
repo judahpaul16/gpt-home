@@ -51,7 +51,7 @@ async def calculate_delay(message):
     patterns = [r": ", r"\. ", r"\? ", r"! ", r"\.{2,}"]
     
     for pattern in patterns:
-        extra_delay += len(re.findall(pattern, message)) * 0.002  # Adding 0.002 seconds delay for each match
+        extra_delay += len(re.findall(pattern, message)) * 0.005  # Add 0.005 seconds for each match
 
     return base_delay + extra_delay
 
