@@ -29,14 +29,28 @@ async def main():
                         stop_event_heard = asyncio.Event()
                         stop_event_response = asyncio.Event()
 
+                        # Calculate time to speak and display
+                        rate = engine.getProperty('rate')  # Words per minute
+                        words_heard = len(heard_message.split())
+                        time_to_speak_heard = (words_heard / rate) * 60  # in seconds
+
+                        total_characters_heard = len(heard_message)
+                        delay_heard = time_to_speak_heard / total_characters_heard
+
                         await asyncio.gather(
                             speak(heard_message, stop_event_heard),
-                            updateLCD(heard_message, display, stop_event=stop_event_heard)
+                            updateLCD(heard_message, display, stop_event=stop_event_heard, delay=delay_heard)
                         )
                         log_event(heard_message)
 
+                        words_response = len(response_message.split())
+                        time_to_speak_response = (words_response / rate) * 60  # in seconds
+
+                        total_characters_response = len(response_message)
+                        delay_response = time_to_speak_response / total_characters_response
+
                         response_task_speak = asyncio.create_task(speak(response_message, stop_event_response))
-                        response_task_lcd = asyncio.create_task(updateLCD(response_message, display, stop_event=stop_event_response))
+                        response_task_lcd = asyncio.create_task(updateLCD(response_message, display, stop_event=stop_event_response, delay=delay_response))
                         
                         await asyncio.gather(response_task_speak, response_task_lcd)
                         log_event(response_message)

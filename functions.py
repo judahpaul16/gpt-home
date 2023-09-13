@@ -90,18 +90,18 @@ async def updateLCD(text, display, stop_event=None):
     if stop_event is None:
         stop_event = asyncio.Event()
 
-    async def display_text():
+    async def display_text(delay):
         i = 0
         while not (stop_event and stop_event.is_set()) and i < line_count:
             if line_count > 2:
-                await display_lines(i, min(i + 2, line_count))
+                await display_lines(i, min(i + 2, line_count), delay)
                 i += 2
             else:
-                await display_lines(0, line_count)
+                await display_lines(0, line_count, delay)
                 break  # Exit the loop if less than or equal to 2 lines
             await asyncio.sleep(0.02)  # Delay between pages
-
-    async def display_lines(start, end):
+            
+    async def display_lines(start, end, delay=0.02):
         display.fill_rect(0, 10, 128, 22, 0)
         # type out the text
         for i, line_index in enumerate(range(start, end)):
@@ -114,7 +114,7 @@ async def updateLCD(text, display, stop_event=None):
                     log_event(f"Struct Error: {e}, skipping character {char}")
                     continue  # Skip the current character and continue with the next
                 display.show()
-                await asyncio.sleep(0.02)  # 22ms delay between characters
+                await asyncio.sleep(delay)
 
     # Clear the display
     display.fill(0)
