@@ -37,9 +37,14 @@ To configure Wi-Fi on your Raspberry Pi, you'll need to edit the `wpa_supplicant
     ```
     Replace `Your_Wi-Fi_Name` and `Your_Wi-Fi_Password` with your actual Wi-Fi credentials.
 
-5. Reload the `wpa_supplicant` configuration:
+4. Ensure `wpa_supplicant` service starts at boot:
     ```bash
-    sudo wpa_cli reconfigure
+    sudo systemctl enable wpa_supplicant.service
+    ```
+
+5. Restart `wpa_supplicant` service:
+    ```bash
+    sudo systemctl restart wpa_supplicant.service
     ```
     
 Your Raspberry Pi should now connect to the Wi-Fi network automatically on boot. If you face issues, refer to the [official Raspberry Pi documentation on wireless connectivity](https://www.raspberrypi.com/documentation/computers/configuration.html#setting-up-a-wireless-lan-via-the-command-line).
