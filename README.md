@@ -1,9 +1,22 @@
 # 🏠 GPT Home
 GPT at home! Basically a better G**gle Nest Hub desk assistant made with Raspberry Pi and OpenAI API.
 
+* *This guide assumes you're using Ubuntu Server as your Raspberry Pi operating system. You may need to make certain modifications to accomodate other operating systems*
+
 ## 🛠 System Dependencies
 
 Before running this project on your Raspberry Pi, you'll need to install some system-level dependencies in addition to the Python packages.
+
+1. Update your package list:
+    ```bash
+    sudo apt update
+    ```
+
+2. Make sure the Universe repository is enabled:
+    ```bash
+    sudo add-apt-repository universe
+    sudo apt update
+    ```
 
 ### Required Dependencies
 
@@ -25,7 +38,7 @@ Before running this project on your Raspberry Pi, you'll need to install some sy
    Enable via `raspi-config` or install packages:  
    ```
    sudo apt-get install -y i2c-tools
-   sudo apt-get install -y python-smbus
+   sudo apt-get install -y python3-smbus
    ```
    
 7. **Git**: Required for cloning the repository.  
