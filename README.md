@@ -5,14 +5,28 @@ GPT at home! Basically a better G**gle Nest Hub desk assistant made with Raspber
 
 ## 📶 Configuring Wi-Fi via wpa_supplicant
 
-To configure Wi-Fi on your Raspberry Pi, you'll need to edit the `wpa_supplicant.conf` file.
+To configure Wi-Fi on your Raspberry Pi, you'll need to edit the `wpa_supplicant.conf` file and ensure the wireless interface is enabled at boot.
 
-1. Open the configuration file in a text editor:
+1. Install `net-tools` to get the `ifconfig` command:
+   ```bash
+   sudo apt install net-tools
+   ```
+
+2. To enable the wireless interface (`wlan0` in most cases) at boot, add the following command to `/etc/rc.local` before the `exit 0` line:
     ```bash
-    sudo nano /etc/wpa_supplicant/wpa_supplicant.conf
+    sudo vim /etc/rc.local
+    ```
+    Add the following line:
+    ```bash
+    sudo ifconfig wlan0 up
     ```
 
-2. Add the following lines at the end of the file:  
+3. Open the configuration file in a text editor:
+    ```bash
+    sudo vim /etc/wpa_supplicant/wpa_supplicant.conf
+    ```
+
+4. Add the following lines at the end of the file:  
 *You can define multiple `network` blocks for multiple Wi-Fi networks*
     ```bash
     network={
@@ -23,15 +37,12 @@ To configure Wi-Fi on your Raspberry Pi, you'll need to edit the `wpa_supplicant
     ```
     Replace `Your_Wi-Fi_Name` and `Your_Wi-Fi_Password` with your actual Wi-Fi credentials.
 
-3. Save and exit the editor (Ctrl+O to save, Ctrl+X to exit in nano).
-
-4. Reload the `wpa_supplicant` configuration:
+5. Reload the `wpa_supplicant` configuration:
     ```bash
     sudo wpa_cli reconfigure
     ```
-
-Your Raspberry Pi should now connect to the Wi-Fi network. If you face issues, refer to the [official Raspberry Pi documentation on wireless connectivity](https://www.raspberrypi.com/documentation/computers/configuration.html#setting-up-a-wireless-lan-via-the-command-line).
-
+    
+Your Raspberry Pi should now connect to the Wi-Fi network automatically on boot. If you face issues, refer to the [official Raspberry Pi documentation on wireless connectivity](https://www.raspberrypi.com/documentation/computers/configuration.html#setting-up-a-wireless-lan-via-the-command-line).
 
 ## 🛠 System Dependencies
 
