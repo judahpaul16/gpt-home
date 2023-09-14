@@ -218,7 +218,7 @@ npm run build
 setup_service "web-interface.service" "npm start --prefix /home/ubuntu/gpt-home/web_interface" "" ""
 
 # Setup fastapi service for FastAPI backend
-setup_service "fastapi-service.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && uvicorn src.backend:app --host 0.0.0.0 --port 8000'" "" ""
+setup_service "fastapi-service.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && uvicorn web_interface.src.backend:app --host 0.0.0.0 --port 8000'" "" ""
 ```
 Be sure to make the script executable to run it
 ```bash
