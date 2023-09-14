@@ -193,6 +193,7 @@ EOF
 git clone https://github.com/judahpaul16/gpt-home.git
 cd gpt-home
 
+## Setup main app
 # Create and activate a virtual environment, then install dependencies
 python3 -m venv env
 source env/bin/activate
@@ -201,6 +202,20 @@ pip install --use-pep517 -r requirements.txt
 
 # Setup gpt-home service
 setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" "" "OPENAI_API_KEY=$OPENAI_API_KEY" "LimitMEMLOCK=infinity"
+
+## Setup Web Interface
+# Navigate to web_interface and install dependencies
+cd web_interface
+npm install
+
+# Build the React App
+npm run build
+
+# Setup web_interface service for React frontend
+setup_service "web-interface.service" "npm start --prefix /home/ubuntu/gpt-home/web_interface" "" ""
+
+# Setup fastapi service for FastAPI backend
+setup_service "fastapi-service.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && uvicorn web_interface/src/backend:app --host 0.0.0.0 --port 8000'" "" ""
 ```
 Be sure to make the script executable to run it
 ```bash
