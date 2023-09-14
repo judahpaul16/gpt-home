@@ -153,19 +153,23 @@ async def updateLCD(text, display, stop_event=None, delay=0.02):
         line_count = len(lines)
         display_task = asyncio.create_task(display_text(delay))
 
-async def listen(loop, display, state_task):
+async def listen(loop, display, state_task, keyword):
     def recognize_audio():
-        try:
-            with sr.Microphone() as source:
-                if source.stream is None:
-                    raise Exception("Microphone not initialized.")
-                audio = r.listen(source, timeout=10.0)
-                return r.recognize_google(audio)
-        except sr.WaitTimeoutError:
-            if source and source.stream:
-                source.stream.close()
-            raise asyncio.TimeoutError("Listening timed out.")
-    
+        accumulated_text = ""
+        while True:
+            try:
+                with sr.Microphone() as source:
+                    if source.stream is None:
+                        raise Exception("Microphone not initialized.")
+                    audio = r.listen(source)  # No timeout for indefinite listening
+                    new_text = r.recognize_google(audio)
+                    accumulated_text += " " + new_text
+                    if f"{keyword}." in accumulated_text.lower():
+                        command_start = accumulated_text.lower().find(f"{keyword}.") + len(keyword) + 1
+                        return accumulated_text[command_start:].strip()
+            except Exception as e:
+                log_event(f"Exception in listen: {e}")
+
     text = await loop.run_in_executor(executor, recognize_audio)
     return text
 

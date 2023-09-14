@@ -10,9 +10,9 @@ async def main():
         try:
             keyword = "computer"
             try:
-                text = await listen(loop, display, state_task)
+                text = await listen(loop, display, state_task, keyword)
             except Exception as e:
-                log_event("Listening timed out: " + str(e))
+                log_event("Listening timed out: " + str(traceback.format_exc()))
                 continue
             if text:
                 split_text = text.split(keyword)
