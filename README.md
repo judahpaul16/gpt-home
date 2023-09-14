@@ -116,6 +116,10 @@ Before running this project on your Raspberry Pi, you'll need to install some sy
 12. **eSpeak Library**: Required for text-to-speech (`pyttsx3`).  
    Installation: `sudo apt-get install libespeak1`
 
+13. **JACK Audio Connection Kit**: Required for handling audio.  
+   Installation: `sudo apt-get install jackd2`  
+   Select `Yes` when prompted to enable realtime privileges.
+
 ### Optional Dependencies
 
 1. **Virtual Environment**: Recommended for Python package management.  
