@@ -90,12 +90,12 @@ def initLCD():
 async def initialize_system():
     display = initLCD()
     stop_event_init = asyncio.Event()
-    state_task = asyncio.create_task(display_state("Initializing", display, stop_event_init))
+    state_task = asyncio.create_task(display_state("Connecting", display, stop_event_init))
     while not network_connected():
         await asyncio.sleep(1)
         message = "Network not connected. Retrying..."
         log_event(f"Error: {message}")
-    stop_event_init.set()  # Signal to stop the 'Initializing' display
+    stop_event_init.set()  # Signal to stop the 'Connecting' display
     state_task.cancel()  # Cancel the display task
     display = initLCD()  # Reinitialize the display
     return display
@@ -175,8 +175,8 @@ async def listen(loop, display, state_task):
 
 async def display_state(state, display, stop_event):
     async with display_lock:
-        # if state 'Initializing', display the 'No Internet' and CPU temperature
-        if state == "Initializing":
+        # if state 'Connecting', display the 'No Internet' and CPU temperature
+        if state == "Connecting":
             display.text("No Internet", 0, 0, 1)
             # Display CPU temperature in Celsius (e.g., 39°)
             cpu_temp = int(float(subprocess.check_output(["vcgencmd", "measure_temp"]).decode("utf-8").split("=")[1].split("'")[0]))
