@@ -177,8 +177,10 @@ EOF
     sudo systemctl restart "$SERVICE_NAME"
 
     # Wait for 5 seconds and then show the service status
+    echo ""
     sleep 5
     sudo systemctl status "$SERVICE_NAME"
+    echo ""
 }
 
 # Remove existing local repo if it exists
@@ -194,12 +196,8 @@ source env/bin/activate
 pip install --upgrade pip setuptools
 pip install --use-pep517 -r requirements.txt
 
-# Setup jackd service first (as gpt-home depends on it)
-# Add environment variable to bypass device reservation issues
-setup_service "jackd.service" "/usr/bin/jackd -d alsa --device hw:1" "" "JACK_NO_AUDIO_RESERVATION=1" ""
-
-# Setup gpt-home service to start after jackd
-setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" "jackd.service" "OPENAI_API_KEY=$OPENAI_API_KEY" "LimitMEMLOCK=infinity"
+# Setup gpt-home service
+setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" "" "OPENAI_API_KEY=$OPENAI_API_KEY" "LimitMEMLOCK=infinity"
 ```
 Be sure to make the script executable to run it
 ```bash
