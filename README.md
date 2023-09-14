@@ -194,7 +194,7 @@ EOF
 
 # Setup UFW Firewall
 sudo ufw allow 80,443/tcp
-sudo ufw enable
+echo "y" | sudo ufw enable
 
 # Setup NGINX for reverse proxy
 echo "Setting up NGINX..."
