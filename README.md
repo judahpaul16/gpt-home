@@ -168,7 +168,7 @@ StartLimitBurst=10
 User=ubuntu
 WorkingDirectory=/home/ubuntu/gpt-home
 ExecStart=$EXEC_START
-Environment="$ENV"
+$ENV
 Restart=always
 Type=simple
 $LMEMLOCK
@@ -204,7 +204,7 @@ pip install --upgrade pip setuptools
 pip install --use-pep517 -r requirements.txt
 
 # Setup gpt-home service
-setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" "" "OPENAI_API_KEY=$OPENAI_API_KEY" "LimitMEMLOCK=infinity"
+setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" "" "Evironment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" "LimitMEMLOCK=infinity"
 
 ## Setup Web Interface
 # Navigate to web_interface and install dependencies
