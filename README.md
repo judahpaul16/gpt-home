@@ -126,6 +126,9 @@ Before running this project on your Raspberry Pi, you'll need to install some sy
 15. **Node.js and npm**: Required for the web interface.  
     Installation: [Follow NodeSource Installation Guide](https://github.com/nodesource/distributions#installation-instructions)
 
+16. **NGINX**: Required for reverse proxy for the web interface.
+    Installation: `sudo apt-get install nginx`
+
 ### Optional Dependencies
 
 1. **Virtual Environment**: Recommended for Python package management.  
@@ -188,6 +191,31 @@ EOF
     sudo systemctl status "$SERVICE_NAME" --no-pager
     echo ""
 }
+
+# Setup UFW Firewall
+sudo ufw allow 80,443/tcp
+sudo ufw enable
+
+# Setup NGINX for reverse proxy
+echo "Setting up NGINX..."
+sudo tee /etc/nginx/sites-available/gpt-home <<EOF
+server {
+    listen 80;
+
+    location /api/ {
+        proxy_pass http://localhost:8000/;
+    }
+
+    location / {
+        proxy_pass http://localhost:3000/;
+    }
+}
+EOF
+
+# Enable the site
+sudo ln -s /etc/nginx/sites-available/gpt-home /etc/nginx/sites-enabled
+sudo nginx -t
+sudo systemctl reload nginx
 
 # Remove existing local repo if it exists
 [ -d "gpt-home" ] && rm -rf gpt-home
@@ -306,4 +334,14 @@ alias web-log="tail -n 100 -f /home/ubuntu/gpt-home/web_interface/events.log"
 - [Requests Docs](https://pypi.org/project/requests/)
 - [PortAudio Docs](http://www.portaudio.com/docs/v19-doxydocs/index.html)
 - [Python3 Docs](https://docs.python.org/3/)
+- [Node.js Docs](https://nodejs.org/en/docs/)
+- [npm Docs](https://docs.npmjs.com/)
+- [React Docs](https://reactjs.org/docs/getting-started.html)
+- [FastAPI Docs](https://fastapi.tiangolo.com/)
+- [NGINX Docs](https://nginx.org/en/docs/)
+- [JACK Audio Connection Kit Docs](https://jackaudio.org/api/index.html)
+- [FLAC Docs](https://xiph.org/flac/documentation.html)
+- [eSpeak Docs](http://espeak.sourceforge.net/commands.html)
+- [I2C Docs](https://i2c.readthedocs.io/en/latest/)
+- [ALSA Docs](https://www.alsa-project.org/wiki/Documentation)
 - [Fritzing Schematics](https://fritzing.org/)
