@@ -32,18 +32,23 @@ async def main():
                         delay_heard = await calculate_delay(heard_message)
                         delay_response = await calculate_delay(response_message)
 
+                        # Create a task for OpenAI query, don't await it yet
+                        query_task = asyncio.create_task(query_openai(actual_text, display))
+
                         await asyncio.gather(
                             speak(heard_message, stop_event_heard),
                             updateLCD(heard_message, display, stop_event=stop_event_heard, delay=delay_heard)
                         )
                         log_event(heard_message)
 
+                        response_message = await query_task
+
                         response_task_speak = asyncio.create_task(speak(response_message, stop_event_response))
                         response_task_lcd = asyncio.create_task(updateLCD(response_message, display, stop_event=stop_event_response, delay=delay_response))
-                        
+
                         await asyncio.gather(response_task_speak, response_task_lcd)
                         log_event(response_message)
-                    
+                        
                     except sr.UnknownValueError:
                         error_message = "Sorry, I did not understand that"
                         await handle_error(error_message, state_task, display)
