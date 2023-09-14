@@ -17,9 +17,11 @@ To configure Wi-Fi on your Raspberry Pi, you'll need to edit the `wpa_supplicant
     ```bash
     sudo vim /etc/rc.local
     ```
-    Add the following line:
+    Add the following contents:
     ```bash
+    #!/bin/bash
     sudo ifconfig wlan0 up
+    exit 0
     ```
     Ensure the file has executable permissions and is enabled as a service:
     ```
@@ -49,9 +51,9 @@ To configure Wi-Fi on your Raspberry Pi, you'll need to edit the `wpa_supplicant
     sudo systemctl enable wpa_supplicant.service
     ```
 
-5. Restart `wpa_supplicant` service:
+5. Start `wpa_supplicant` service:
     ```bash
-    sudo systemctl restart wpa_supplicant.service
+    sudo systemctl start wpa_supplicant.service
     ```
 
 Your Raspberry Pi should now connect to the Wi-Fi network automatically on boot. If you face issues, refer to the [official Raspberry Pi documentation on wireless connectivity](https://www.raspberrypi.com/documentation/computers/configuration.html#setting-up-a-wireless-lan-via-the-command-line).
@@ -173,7 +175,7 @@ After=network.target
 [Service]
 User=ubuntu
 WorkingDirectory=/home/ubuntu/gpt-home
-ExecStart=/home/ubuntu/gpt-home/env/bin/python /home/ubuntu/gpt-home/app.py
+ExecStart=/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'
 Environment="OPENAI_API_KEY=$OPENAI_API_KEY"
 Restart=always
 Type=simple
