@@ -119,6 +119,9 @@ Before running this project on your Raspberry Pi, you'll need to install some sy
 13. **JACK Audio Connection Kit**: Required for handling audio.  
    Installation: `sudo apt-get install jackd2`  
    Select `Yes` when prompted to enable realtime privileges.
+   
+14. **FLAC Library**: Required for audio file support.  
+   Installation: `sudo apt-get install libflac-dev`
 
 ### Optional Dependencies
 
