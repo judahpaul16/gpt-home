@@ -123,12 +123,8 @@ Before running this project on your Raspberry Pi, you'll need to install some sy
 14. **Git**: Required for cloning the repository.  
     Installation: `sudo apt-get install git`
 
-15. **Node.js 18 and npm**: Required for the web interface.  
-    Installation: 
-    ```bash
-    curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
-    sudo apt-get install -y nodejs
-    ```
+15. **Node.js and npm**: Required for the web interface.  
+    Installation: [Follow NodeSource Installation Guide](https://github.com/nodesource/distributions#installation-instructions)
 
 ### Optional Dependencies
 
