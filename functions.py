@@ -165,10 +165,6 @@ async def listen(loop, display, state_task):
             if source and source.stream:
                 source.stream.close()
             raise asyncio.TimeoutError("Listening timed out.")
-        except OSError as e:
-            if "No Default Input Device Available" in str(e):
-                subprocess.run(["sudo", "systemctl", "restart", "gpt-home"])
-                raise Exception("Restarting gpt-home due to no default input device")
     
     text = await loop.run_in_executor(executor, recognize_audio)
     return text

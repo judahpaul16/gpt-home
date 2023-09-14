@@ -132,76 +132,74 @@ First initialize an environment variable with your OpenAI API Key.
 ```bash
 export OPENAI_API_KEY="your_openai_api_key_here"
 ```
-Then create a script outside the local repo folder to reclone the repo and start the service.
+Then create a script outside the local repo folder to reclone the repo and start the services.
 ```bash
 #!/bin/bash
 
-# Remove existing local repo if it exists
-if [ -d "gpt-home" ]; then
-    rm -rf gpt-home
-fi
+# Function to setup a systemd service
+setup_service() {
+    # Parameters
+    local SERVICE_NAME=$1
+    local EXEC_START=$2
+    local AFTER=$3
+    local ENV=$4
+    local LMEMLOCK=$5
 
-# Clone the GitHub repo
-git clone https://github.com/judahpaul16/gpt-home.git
+    # Stop the service if it's already running
+    sudo systemctl stop "$SERVICE_NAME" &>/dev/null
 
-# Navigate to root of the local repo
-cd gpt-home
+    echo "Creating and enabling $SERVICE_NAME..."
 
-# Create a virtual environment
-python3 -m venv env
-
-# Activate the virtual environment
-source env/bin/activate
-
-# Upgrade pip
-pip install --upgrade pip
-
-# Upgrade setuptools
-pip install --upgrade setuptools
-
-# Install Python dependencies
-pip install --use-pep517 -r requirements.txt
-
-# Define the name of the systemd service
-SERVICE_NAME="gpt-home.service"
-
-# Check if the systemd service already exists, recreate it if it does
-if [ -f "/etc/systemd/system/$SERVICE_NAME" ]; then
-    sudo systemctl stop "$SERVICE_NAME"
-fi
-
-echo "Creating and enabling systemd service $SERVICE_NAME..."
-
-# Create a systemd service unit file
-cat <<EOF | sudo tee "/etc/systemd/system/$SERVICE_NAME" >/dev/null
+    # Create systemd service file
+    cat <<EOF | sudo tee "/etc/systemd/system/$SERVICE_NAME" >/dev/null
 [Unit]
-Description=GPT Home
+Description=$SERVICE_NAME
+After=$AFTER
+StartLimitIntervalSec=500
+StartLimitBurst=10
 
 [Service]
 User=ubuntu
 WorkingDirectory=/home/ubuntu/gpt-home
-ExecStart=/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'
-Environment="OPENAI_API_KEY=$OPENAI_API_KEY"
+ExecStart=$EXEC_START
+Environment="$ENV"
 Restart=always
 Type=simple
+$LMEMLOCK
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# Reload systemd
-sudo systemctl daemon-reload
+    # Reload systemd to recognize the new service, then enable and restart it
+    sudo systemctl daemon-reload
+    sudo systemctl enable "$SERVICE_NAME"
+    sudo systemctl restart "$SERVICE_NAME"
 
-# Enable the service
-sudo systemctl enable "$SERVICE_NAME"
+    # Wait for 5 seconds and then show the service status
+    sleep 5
+    sudo systemctl status "$SERVICE_NAME"
+}
 
-echo "Systemd service $SERVICE_NAME created and enabled."
+# Remove existing local repo if it exists
+[ -d "gpt-home" ] && rm -rf gpt-home
 
-# Start the service
-sudo systemctl restart "$SERVICE_NAME"
-echo ""
-sleep 3
-sudo systemctl status "$SERVICE_NAME"
+# Clone gpt-home repo and navigate into its directory
+git clone https://github.com/judahpaul16/gpt-home.git
+cd gpt-home
+
+# Create and activate a virtual environment, then install dependencies
+python3 -m venv env
+source env/bin/activate
+pip install --upgrade pip setuptools
+pip install --use-pep517 -r requirements.txt
+
+# Setup jackd service first (as gpt-home depends on it)
+# Add environment variable to bypass device reservation issues
+setup_service "jackd.service" "/usr/bin/jackd -d alsa --device hw:1" "" "JACK_NO_AUDIO_RESERVATION=1" ""
+
+# Setup gpt-home service to start after jackd
+setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" "jackd.service" "OPENAI_API_KEY=$OPENAI_API_KEY" "LimitMEMLOCK=infinity"
 ```
 Be sure to make the script executable to run it
 ```bash
