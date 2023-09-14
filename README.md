@@ -238,6 +238,14 @@ alias gpt-disable="sudo systemctl disable gpt-home"
 alias gpt-status="sudo systemctl status gpt-home"
 alias gpt-enable="sudo systemctl enable gpt-home"
 alias gpt-log="tail -n 100 -f /home/ubuntu/gpt-home/events.log"
+
+alias web-start="sudo systemctl start web-interface && sudo systemctl start fastapi-service"
+alias web-restart="sudo systemctl restart web-interface && sudo systemctl restart fastapi-service"
+alias web-stop="sudo systemctl stop web-interface && sudo systemctl stop fastapi-service"
+alias web-disable="sudo systemctl disable web-interface && sudo systemctl disable fastapi-service"
+alias web-status="sudo systemctl status web-interface && sudo systemctl status fastapi-service"
+alias web-enable="sudo systemctl enable web-interface && sudo systemctl enable fastapi-service"
+alias web-log="tail -n 100 -f /home/ubuntu/gpt-home/web_interface/events.log"
 ```
 
 ---
