@@ -193,7 +193,7 @@ EOF
 }
 
 # Setup UFW Firewall
-sudo ufw allow 22/tcp
+sudo ufw allow ssh
 sudo ufw allow 80,443/tcp
 echo "y" | sudo ufw enable
 
