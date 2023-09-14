@@ -185,7 +185,7 @@ EOF
     # Wait for 5 seconds and then show the service status
     echo ""
     sleep 5
-    sudo systemctl status "$SERVICE_NAME"
+    sudo systemctl status "$SERVICE_NAME" --no-pager
     echo ""
 }
 
