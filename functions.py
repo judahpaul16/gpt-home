@@ -175,9 +175,9 @@ async def listen(loop, display, state_task):
 
 async def display_state(state, display, stop_event):
     async with display_lock:
-        # if state 'Connecting', display the 'No Internet' and CPU temperature
+        # if state 'Connecting', display the 'No Network' and CPU temperature
         if state == "Connecting":
-            display.text("No Internet", 0, 0, 1)
+            display.text("No Network", 0, 0, 1)
             # Display CPU temperature in Celsius (e.g., 39°)
             cpu_temp = int(float(subprocess.check_output(["vcgencmd", "measure_temp"]).decode("utf-8").split("=")[1].split("'")[0]))
             temp_text_x = 100

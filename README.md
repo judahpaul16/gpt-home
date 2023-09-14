@@ -20,9 +20,9 @@ To configure Wi-Fi on your Raspberry Pi, you'll need to edit the `wpa_supplicant
     Add the following contents:
     ```bash
     #!/bin/bash
-    sudo ifconfig wlan0 up
-    sudo wpa_supplicant -i wlan0 -c /etc/wpa_supplicant/wpa_supplicant.conf -B
-    sudo dhclient wlan0
+    sudo ifconfig wlan0 up &
+    sudo wpa_supplicant -i wlan0 -c /etc/wpa_supplicant/wpa_supplicant.conf -B &
+    sudo dhclient wlan0 &
     exit 0
     ```
     Ensure the file has executable permissions and is enabled as a service:
@@ -172,7 +172,6 @@ echo "Creating and enabling systemd service $SERVICE_NAME..."
 cat <<EOF | sudo tee "/etc/systemd/system/$SERVICE_NAME" >/dev/null
 [Unit]
 Description=GPT Home
-After=network.target
 
 [Service]
 User=ubuntu
