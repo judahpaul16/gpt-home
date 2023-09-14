@@ -21,6 +21,8 @@ To configure Wi-Fi on your Raspberry Pi, you'll need to edit the `wpa_supplicant
     ```bash
     #!/bin/bash
     sudo ifconfig wlan0 up
+    sudo wpa_supplicant -i wlan0 -c /etc/wpa_supplicant/wpa_supplicant.conf -B
+    sudo dhclient wlan0
     exit 0
     ```
     Ensure the file has executable permissions and is enabled as a service:
