@@ -24,11 +24,7 @@ async def main():
                     try:
                         actual_text = split_text[1].strip()
                         heard_message = f"Heard: \"{actual_text}\""
-                        try:
-                            response_message = await asyncio.wait_for(query_openai(actual_text, display), timeout=3)
-                        except asyncio.TimeoutError:
-                            log_event("Listening timed out.")
-                            raise Exception("Sorry didn't catch that.")
+                        response_message = await query_openai(actual_text, display)
                         stop_event_heard = asyncio.Event()
                         stop_event_response = asyncio.Event()
 
