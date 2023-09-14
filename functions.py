@@ -210,7 +210,7 @@ async def query_openai(text, display, retries=3):
         try:
             response = openai.Completion.create(
                 engine="davinci",
-                prompt=f"Q: {text}\nA: (But add a hint of snark and sarcasm)",
+                prompt=f"Conversation with a computer:\nHuman: {text}\nAI:",
                 temperature=0.9,
                 max_tokens=150,
                 top_p=1,
