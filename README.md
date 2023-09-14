@@ -77,51 +77,58 @@ Before running this project on your Raspberry Pi, you'll need to install some sy
 
 ### Required Dependencies
 
-1. **Python 3.x**: Required for running the Python code.  
+1. **OpenAI API Key**: Required for OpenAI's GPT API.  
+    Setup: Set up as an environment variable.  
+
+2. **Python 3.x**: Required for running the Python code.  
    Installation: `sudo apt-get install python3`
 
-2. **Python Development Headers**: Required for building certain Python packages.  
+3. **Python Development Headers**: Required for building certain Python packages.  
    Installation: `sudo apt-get install python3.11-dev`
 
-3. **PortAudio**: Required for `pyttsx3` (text-to-speech).  
+4. **PortAudio**: Required for `pyttsx3` (text-to-speech).  
    Installation: `sudo apt-get install portaudio19-dev`
 
-4. **ALSA Utilities**: Required for audio configuration.  
+5. **ALSA Utilities**: Required for audio configuration.  
    Installation: `sudo apt-get install alsa-utils`
 
-5. **JPEG Library**: Required for Pillow.  
+6. **JPEG Library**: Required for Pillow.  
    Installation: `sudo apt-get install libjpeg-dev`
 
-6. **Build Essentials**: Required for building packages.  
+7. **Build Essentials**: Required for building packages.  
    Installation: `sudo apt-get install build-essential`
 
-7. **vcgencmd**: Comes pre-installed on Raspberry Pi OS. Used for fetching CPU temperature.
+8. **vcgencmd**: Comes pre-installed on Raspberry Pi OS. Used for fetching CPU temperature.
 
-8. **Speech Recognition Libraries**: Required for `speech_recognition`.  
+9. **Speech Recognition Libraries**: Required for `speech_recognition`.  
    Installation: `sudo apt-get install libasound2-dev`
 
-9. **I2C Support**: Required for `adafruit_ssd1306` (OLED display).  
+10. **I2C Support**: Required for `adafruit_ssd1306` (OLED display).  
    Enable via `raspi-config` or install packages:  
    ```
    sudo apt-get install -y i2c-tools
    sudo apt-get install -y python3-smbus
    ```
 
-10. **Git**: Required for cloning the repository.  
-    Installation: `sudo apt-get install git`
-
-11. **OpenAI API Key**: Required for OpenAI's GPT API.  
-    Setup: Set up as an environment variable.  
-
-12. **eSpeak Library**: Required for text-to-speech (`pyttsx3`).  
+11. **eSpeak Library**: Required for text-to-speech (`pyttsx3`).  
    Installation: `sudo apt-get install libespeak1`
 
-13. **JACK Audio Connection Kit**: Required for handling audio.  
+12. **JACK Audio Connection Kit**: Required for handling audio.  
    Installation: `sudo apt-get install jackd2`  
    Select `Yes` when prompted to enable realtime privileges.
 
-14. **FLAC Libraries**: Required for handling FLAC audio formats.  
+13. **FLAC Libraries**: Required for handling FLAC audio formats.  
    Installation: `sudo apt-get install flac libflac12:armhf`
+
+14. **Git**: Required for cloning the repository.  
+    Installation: `sudo apt-get install git`
+
+15. **Node.js and npm**: Required for the web interface.  
+    Installation: 
+    ```bash
+    curl -fsSL https://deb.nodesource.com/setup_14.x | sudo -E bash -
+    sudo apt-get install -y nodejs
+    ```
 
 ### Optional Dependencies
 
