@@ -26,7 +26,7 @@ To configure Wi-Fi on your Raspberry Pi, you'll need to edit the `wpa_supplicant
     exit 0
     ```
     Ensure the file has executable permissions and is enabled as a service:
-    ```
+    ```bash
     sudo chmod +x /etc/rc.local
     sudo systemctl enable rc-local.service
     sudo systemctl start rc-local.service
@@ -105,7 +105,7 @@ Before running this project on your Raspberry Pi, you'll need to install some sy
 
 10. **I2C Support**: Required for `adafruit_ssd1306` (OLED display).  
    Enable via `raspi-config` or install packages:  
-   ```
+   ```bash
    sudo apt-get install -y i2c-tools
    sudo apt-get install -y python3-smbus
    ```
@@ -203,12 +203,8 @@ sudo tee /etc/nginx/sites-available/gpt-home <<EOF
 server {
     listen 80;
 
-    location /api/ {
-        proxy_pass http://localhost:8000/;
-    }
-
     location / {
-        proxy_pass http://localhost:3000/;
+        proxy_pass http://localhost:8000/;
     }
 }
 EOF
@@ -232,22 +228,20 @@ source env/bin/activate
 pip install --upgrade pip setuptools
 pip install --use-pep517 -r requirements.txt
 
-# Setup gpt-home service
-setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" "" "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" "LimitMEMLOCK=infinity"
-
 ## Setup Web Interface
-# Navigate to web_interface and install dependencies
-cd web_interface
+# Navigate to gpt-web and install dependencies
+cd gpt-web
 npm install
 
 # Build the React App
 npm run build
 
-# Setup web_interface service for React frontend
-setup_service "web-interface.service" "npm start --prefix /home/ubuntu/gpt-home/web_interface" "" ""
+## Setup Services
+# Setup gpt-home service
+setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" "" "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" "LimitMEMLOCK=infinity"
 
 # Setup fastapi service for FastAPI backend
-setup_service "fastapi-service.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && uvicorn web_interface.src.backend:app --host 0.0.0.0 --port 8000'" "" ""
+setup_service "gpt-web.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && uvicorn gpt-web.src.backend:app --host 0.0.0.0 --port 8000'" "" ""
 ```
 Be sure to make the script executable to run it
 ```bash
@@ -268,13 +262,13 @@ alias gpt-status="sudo systemctl status gpt-home"
 alias gpt-enable="sudo systemctl enable gpt-home"
 alias gpt-log="tail -n 100 -f /home/ubuntu/gpt-home/events.log"
 
-alias web-start="sudo systemctl start web-interface && sudo systemctl start fastapi-service"
-alias web-restart="sudo systemctl restart web-interface && sudo systemctl restart fastapi-service"
-alias web-stop="sudo systemctl stop web-interface && sudo systemctl stop fastapi-service"
-alias web-disable="sudo systemctl disable web-interface && sudo systemctl disable fastapi-service"
-alias web-status="sudo systemctl status web-interface && sudo systemctl status fastapi-service"
-alias web-enable="sudo systemctl enable web-interface && sudo systemctl enable fastapi-service"
-alias web-log="tail -n 100 -f /home/ubuntu/gpt-home/web_interface/events.log"
+alias web-start="sudo systemctl start gpt-web && sudo systemctl start fastapi-service"
+alias web-restart="sudo systemctl restart gpt-web && sudo systemctl restart fastapi-service"
+alias web-stop="sudo systemctl stop gpt-web && sudo systemctl stop fastapi-service"
+alias web-disable="sudo systemctl disable gpt-web && sudo systemctl disable fastapi-service"
+alias web-status="sudo systemctl status gpt-web && sudo systemctl status fastapi-service"
+alias web-enable="sudo systemctl enable gpt-web && sudo systemctl enable fastapi-service"
+alias web-log="tail -n 100 -f /home/ubuntu/gpt-home/gpt-web/events.log"
 ```
 
 ---
