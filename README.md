@@ -209,6 +209,15 @@ server {
 }
 EOF
 
+# Enable the site
+[ -f "/etc/nginx/sites-enabled/gpt-home" ] && sudo unlink /etc/nginx/sites-enabled/gpt-home
+[ -f "/etc/nginx/sites-available/gpt-home" ] && sudo unlink /etc/nginx/sites-available/gpt-home
+sudo ln -s /etc/nginx/sites-available/gpt-home /etc/nginx/sites-enabled
+sudo nginx -t
+# Remove default site if exists
+[ -f "/etc/nginx/sites-enabled/default" ] && sudo unlink /etc/nginx/sites-enabled/default
+sudo systemctl reload nginx
+
 # Remove existing local repo if it exists
 [ -d "gpt-home" ] && rm -rf gpt-home
 
@@ -237,16 +246,6 @@ setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env
 
 # Setup fastapi service for FastAPI backend
 setup_service "gpt-web.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && uvicorn gpt-web.backend:app --host 0.0.0.0 --port 8000'" "" ""
-
-# Enable the site
-[ -f "/etc/nginx/sites-enabled/gpt-home" ] && sudo unlink /etc/nginx/sites-enabled/gpt-home
-[ -f "/etc/nginx/sites-available/gpt-home" ] && sudo unlink /etc/nginx/sites-available/gpt-home
-sudo ln -s /etc/nginx/sites-available/gpt-home /etc/nginx/sites-enabled
-sudo nginx -t
-# Remove default site if exists
-[ -f "/etc/nginx/sites-enabled/default" ] && sudo unlink /etc/nginx/sites-enabled/default
-# Restart nginx
-sudo systemctl restart nginx
 ```
 Be sure to make the script executable to run it
 ```bash
