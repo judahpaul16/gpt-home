@@ -9,14 +9,27 @@ import textwrap
 import logging
 import asyncio
 import pyttsx3
+import string
 import struct
 import openai
 import busio
+import json
 import time
 import os
 import re
 
+# Add a new 'SUCCESS' logging level
+logging.SUCCESS = 25  # Between INFO and WARNING
+logging.addLevelName(logging.SUCCESS, "SUCCESS")
+
+def success(self, message, *args, **kws):
+    if self.isEnabledFor(logging.SUCCESS):
+        self._log(logging.SUCCESS, message, args, **kws)
+
+logging.Logger.success = success
+
 logging.basicConfig(filename='events.log', level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # Initialize the speech recognition engine
 r = sr.Recognizer()
@@ -94,11 +107,17 @@ async def initialize_system():
     while not network_connected():
         await asyncio.sleep(1)
         message = "Network not connected. Retrying..."
-        log_event(f"Error: {message}")
+        logger.info(message)
     stop_event_init.set()  # Signal to stop the 'Connecting' display
     state_task.cancel()  # Cancel the display task
     display = initLCD()  # Reinitialize the display
     return display
+
+def load_settings():
+    settings_path = "settings.json"
+    with open(settings_path, "r") as f:
+        settings = json.load(f)
+        return settings
 
 async def updateLCD(text, display, stop_event=None, delay=0.02):
     async with display_lock:
@@ -126,7 +145,7 @@ async def updateLCD(text, display, stop_event=None, delay=0.02):
                     try:
                         display.text(char, j * 6, 10 + i * 10, 1)
                     except struct.error as e:
-                        log_event(f"Struct Error: {e}, skipping character {char}")
+                        logger.error(f"Struct Error: {e}, skipping character {char}")
                         continue  # Skip the current character and continue with the next
                     display.show()
                     await asyncio.sleep(delay)
@@ -153,20 +172,47 @@ async def updateLCD(text, display, stop_event=None, delay=0.02):
         line_count = len(lines)
         display_task = asyncio.create_task(display_text(delay))
 
-async def listen(loop, display, state_task):
-    def recognize_audio():
+async def listen(display, state_task, stop_event):
+    loop = asyncio.get_running_loop()
+
+    def recognize_audio(loop, state_task, stop_event):
         try:
             with sr.Microphone() as source:
                 if source.stream is None:
                     raise Exception("Microphone not initialized.")
-                audio = r.listen(source)
-                return r.recognize_google(audio)
+                
+                listening = False  # Initialize variable for feedback
+                
+                try:
+                    audio = r.listen(source, timeout=2, phrase_time_limit=15)
+
+                    stop_event.set()
+                    state_task.cancel()
+                    state_task = None
+                    state_task = loop.create_task(display_state("Processing", display, stop_event))
+                    text = r.recognize_google(audio)
+                    
+                    if text:  # If text is found, break the loop
+                        state_task.cancel()
+                        return text
+                        
+                except sr.WaitTimeoutError:
+                    if listening:
+                        logger.info("Still listening but timed out, waiting for phrase...")
+                    else:
+                        logger.info("Timed out, waiting for phrase to start...")
+                        listening = True
+                        
+                except sr.UnknownValueError:
+                    logger.info("Could not understand audio, waiting for a new phrase...")
+                    listening = False
+                        
         except sr.WaitTimeoutError:
             if source and source.stream:
                 source.stream.close()
             raise asyncio.TimeoutError("Listening timed out.")
-    
-    text = await loop.run_in_executor(executor, recognize_audio)
+
+    text = await loop.run_in_executor(executor, recognize_audio, loop, state_task, stop_event)
     return text
 
 async def display_state(state, display, stop_event):
@@ -206,45 +252,49 @@ async def speak(text, stop_event):
 
 async def query_openai(text, display, retries=3):
     stop_event = asyncio.Event()
+
+    # Load settings from settings.json
+    settings = load_settings()
+
+    max_tokens = settings.get("max_tokens", 150)  # Default to 150 if not in settings
+    temperature = settings.get("temperature", 0.7)  # Default to 0.7 if not in settings
+
     for i in range(retries):
         try:
-            response = openai.Completion.create(
-                engine="davinci",
-                prompt=f"Conversation with a computer:\nHuman: {text}\nAI:",
-                temperature=0.9,
-                max_tokens=150,
-                top_p=1,
-                frequency_penalty=0.0,
-                presence_penalty=0.6,
-                stop=["\n"]
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": f"Human: {text}\nAI:"}
+                ],
+                max_tokens=max_tokens,
+                temperature=temperature
             )
-            if response.choices[0].text.strip():  # Check if the response is not empty
-                message = f"Response: {response.choices[0].text.strip()}"
+
+            response_content = response['choices'][0]['message']['content'].strip()
+
+            if response_content:  # Check if the response is not empty
+                message = f"Response: {response_content}"
                 return message
             else:
-                log_event(f"Retry {i+1}: Received empty response from OpenAI.")
+                logger.warning(f"Retry {i+1}: Received empty response from OpenAI.")
         except Exception as e:
-            log_event(f"Error on try {i+1}: {e}")
+            logger.error(f"Error on try {i+1}: {e}")
             if i == retries - 1:  # If this was the last retry
                 error_message = f"Something went wrong after {retries} retries: {e}"
-                stop_event = asyncio.Event()
-                await speak(error_message, stop_event)
-                log_event(f"Error: {traceback.format_exc()}")
+                handle_error(error_message, None, display)
         await asyncio.sleep(0.5)  # Wait before retrying
-    raise Exception("Something went wrong after {retries} retries.")
 
 def network_connected():
     return os.system("ping -c 1 google.com") == 0
 
-def log_event(text):
-    logging.info(text)
-
 async def handle_error(message, state_task, display):
-    if state_task: state_task.cancel()
+    if state_task: 
+        state_task.cancel()
     delay = await calculate_delay(message)
     stop_event = asyncio.Event()
     lcd_task = asyncio.create_task(updateLCD(message, display, stop_event=stop_event, delay=delay))
     speak_task = asyncio.create_task(speak(message, stop_event))
     await speak_task
     lcd_task.cancel()
-    log_event(f"Error: {traceback.format_exc()}")
+    logger.critical(f"An error occurred: {message}\n{traceback.format_exc()}")
