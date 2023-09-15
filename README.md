@@ -209,13 +209,19 @@ server {
 }
 EOF
 
-# Enable the site
-[ -f "/etc/nginx/sites-enabled/gpt-home" ] && sudo unlink /etc/nginx/sites-enabled/gpt-home
-[ -f "/etc/nginx/sites-available/gpt-home" ] && sudo unlink /etc/nginx/sites-available/gpt-home
+# Remove existing symlink if it exists
+[ -L "/etc/nginx/sites-enabled/gpt-home" ] && sudo unlink /etc/nginx/sites-enabled/gpt-home
+
+# Symlink the site configuration
 sudo ln -s /etc/nginx/sites-available/gpt-home /etc/nginx/sites-enabled
+
+# Test the NGINX configuration
 sudo nginx -t
-# Remove default site if exists
-[ -f "/etc/nginx/sites-enabled/default" ] && sudo unlink /etc/nginx/sites-enabled/default
+
+# Remove the default site if it exists
+[ -L "/etc/nginx/sites-enabled/default" ] && sudo unlink /etc/nginx/sites-enabled/default
+
+# Reload NGINX to apply changes
 sudo systemctl reload nginx
 
 # Remove existing local repo if it exists
