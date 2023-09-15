@@ -212,6 +212,7 @@ EOF
 # Enable the site
 sudo ln -s /etc/nginx/sites-available/gpt-home /etc/nginx/sites-enabled
 sudo nginx -t
+sudo unlink /etc/nginx/sites-enabled/default
 sudo systemctl reload nginx
 
 # Remove existing local repo if it exists
