@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import '../css/Integration.css';
 
 interface IntegrationProps {
   name: string;
   status: boolean;
   toggleStatus: (name: string) => void;
+  setShowOverlay: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-const Integration: React.FC<IntegrationProps> = ({ name, status, toggleStatus }) => {
+const Integration: React.FC<IntegrationProps> = ({ name, status, toggleStatus, setShowOverlay }) => {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ apiKey: '' });
   const [error, setError] = useState('');
@@ -16,38 +16,14 @@ const Integration: React.FC<IntegrationProps> = ({ name, status, toggleStatus })
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
     setFormData({ ...formData, [name]: value });
-    setError(''); // Clear error when the user types
+    setError('');
   };
 
   const connectService = async () => {
-    if (!formData.apiKey) {
+    setShowOverlay(true);
+    if (!formData.apiKey)
       setError('API Key cannot be empty');
-      return;
-    }
-
-    try {
-        const response = await axios.post(`/api/connect/${name.replace(/ /g, '-')}`, formData);
-        if (response.status === 200) {
-            toggleStatus(name);
-            setShowForm(false);
-            setError(''); // Clear error on successful connection
-        }
-    } catch (error) {
-      setError('Failed to connect');
-      console.error(`Failed to connect ${name}`, error);
-    }
-  };
-
-  const disconnectService = async () => {
-    try {
-      const response = await axios.post(`/api/disconnect/${name.replace(/ /g, '-')}`);
-      if (response.status === 200) {
-        toggleStatus(name);
-      }
-    } catch (error) {
-      setError('Failed to disconnect');
-      console.error(`Failed to disconnect ${name}`, error);
-    }
+    setShowOverlay(false);
   };
 
   return (
@@ -69,7 +45,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, status, toggleStatus })
           </div>
         </div>
       ) : (
-        <button onClick={status ? disconnectService : () => setShowForm(true)}>
+        <button onClick={status ? connectService : () => setShowForm(true)}>
           {status ? 'Disconnect' : 'Connect'}
         </button>
       )}
