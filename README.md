@@ -64,7 +64,12 @@ Your Raspberry Pi should now connect to the Wi-Fi network automatically on boot.
 
 Before running this project on your Raspberry Pi, you'll need to install some system-level dependencies in addition to the Python packages.
 
-1. Update your package list:
+1. Synchoronize your system clock:
+    ```bash
+    sudo timedatectl set-ntp on
+    ```
+
+2. Update your package list:
     ```bash
     sudo apt update
     ```
@@ -81,24 +86,24 @@ Before running this project on your Raspberry Pi, you'll need to install some sy
     Setup: Set up as an environment variable.  
 
 2. **Python 3.x**: Required for running the Python code.  
-   Installation: `sudo apt-get install python3 python3-dev`
+   Installation: `sudo apt-get install -y python3 python3-dev`
 
 3. **PortAudio**: Required for `pyttsx3` (text-to-speech).  
-   Installation: `sudo apt-get install portaudio19-dev`
+   Installation: `sudo apt-get install -y portaudio19-dev`
 
 4. **ALSA Utilities**: Required for audio configuration.  
-   Installation: `sudo apt-get install alsa-utils`
+   Installation: `sudo apt-get install -y alsa-utils`
 
 5. **JPEG Library**: Required for Pillow.  
-   Installation: `sudo apt-get install libjpeg-dev`
+   Installation: `sudo apt-get install -y libjpeg-dev`
 
 6. **Build Essentials**: Required for building packages.  
-   Installation: `sudo apt-get install build-essential`
+   Installation: `sudo apt-get install -y build-essential`
 
 7. **vcgencmd**: Comes pre-installed on Raspberry Pi OS. Used for fetching CPU temperature.
 
 8. **Speech Recognition Libraries**: Required for `speech_recognition`.  
-   Installation: `sudo apt-get install libasound2-dev`
+   Installation: `sudo apt-get install -y libasound2-dev`
 
 9. **I2C Support**: Required for `adafruit_ssd1306` (OLED display).  
    Enable via `raspi-config` or install packages:  
@@ -108,31 +113,34 @@ Before running this project on your Raspberry Pi, you'll need to install some sy
    ```
 
 10. **eSpeak Library**: Required for text-to-speech (`pyttsx3`).  
-   Installation: `sudo apt-get install libespeak1`
+   Installation: `sudo apt-get install -y libespeak1`
 
 11. **JACK Audio Connection Kit**: Required for handling audio.  
-   Installation: `sudo apt-get install jackd2`  
+   Installation: `sudo apt-get install -y jackd2`  
    Select `Yes` when prompted to enable realtime privileges.
 
 12. **FLAC Libraries**: Required for handling FLAC audio formats.  
-   Installation: `sudo apt-get install flac libflac12:armhf`
+   Installation: `sudo apt-get install -y flac libflac12:armhf`
 
-13. **Cmake**: Required for building `pocketsphinx`.  
-   Installation: `sudo apt-get install cmake`
+13. **Cmake**: Required for `pocketsphinx`.  
+    Installation: `sudo apt-get install -y cmake`
 
-14. **Git**: Required for cloning the repository.  
-    Installation: `sudo apt-get install git`
+14. **OpenSSL**: Required for `pocketsphinx`.  
+    Installation: `sudo apt-get install -y openssl`
 
-15. **Node.js and npm**: Required for the web interface.  
+15. **Git**: Required for cloning the repository.  
+    Installation: `sudo apt-get install -y git`
+
+16. **Node.js and npm**: Required for the web interface.  
     Installation: [Follow NodeSource Installation Guide](https://github.com/nodesource/distributions#installation-instructions)
 
-16. **NGINX**: Required for reverse proxy for the web interface.
-    Installation: `sudo apt-get install nginx`
+17. **NGINX**: Required for reverse proxy for the web interface.
+    Installation: `sudo apt-get install -y nginx`
 
 ### Optional Dependencies
 
 1. **Virtual Environment**: Recommended for Python package management.  
-   Installation: `sudo apt-get install python3-venv`
+   Installation: `sudo apt-get install -y python3-venv`
 
 ---
 
@@ -261,7 +269,7 @@ chmod +x reclone.sh
 (Optional) .bashrc helpers<br>
 **Put this at the end of your ~/.bashrc file**
 ```bash
-# export your OpenAI API Key here to initialize it on login
+# export your OpenAI API Key in here to initialize it at boot
 export OPENAI_API_KEY="your_openai_api_key_here"
 
 alias gpt-start="sudo systemctl start gpt-home"
