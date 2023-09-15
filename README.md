@@ -80,7 +80,9 @@ Before running this project on your Raspberry Pi, you'll need to install some sy
     sudo apt update
     ```
 
-### Required Dependencies
+### Installing Dependencies  
+If you want to use the example setup script, you can skip this section.
+
 
 1. **OpenAI API Key**: Required for OpenAI's GPT API.  
     Setup: Set up as an environment variable.  
@@ -137,21 +139,53 @@ Before running this project on your Raspberry Pi, you'll need to install some sy
 17. **NGINX**: Required for reverse proxy for the web interface.
     Installation: `sudo apt-get install -y nginx`
 
-### Optional Dependencies
-
-1. **Virtual Environment**: Recommended for Python package management.  
+18. **Virtual Environment**: Recommended for Python package management.  
    Installation: `sudo apt-get install -y python3-venv`
 
 ---
 
-## 📜 Example Reclone script:
-First initialize an environment variable with your OpenAI API Key.
+## 📜 Example Setup script:
+First initialize an environment variable with your OpenAI API Key.  
+*Note: Does not persist after reboot.*  
+*If you want to set up the variable in .bashrc you can ignore this part.*  
 ```bash
 export OPENAI_API_KEY="your_openai_api_key_here"
 ```
-Then create a script outside the local repo folder to reclone the repo and start the services.
+Create a script outside the local repo folder with `vim setup.sh`
 ```bash
 #!/bin/bash
+
+# Function to check and install a package if it's not installed
+check_and_install() {
+    package=$1
+    install_cmd=$2
+
+    if ! dpkg -l | grep -q $package; then
+        echo "Installing $package..."
+        eval $install_cmd
+    else
+        echo "$package is already installed."
+    fi
+}
+
+# Check and install missing dependencies
+check_and_install "python3" "sudo apt-get install -y python3 python3-dev"
+check_and_install "portaudio19-dev" "sudo apt-get install -y portaudio19-dev"
+check_and_install "alsa-utils" "sudo apt-get install -y alsa-utils"
+check_and_install "libjpeg-dev" "sudo apt-get install -y libjpeg-dev"
+check_and_install "build-essential" "sudo apt-get install -y build-essential"
+check_and_install "libasound2-dev" "sudo apt-get install -y libasound2-dev"
+check_and_install "i2c-tools" "sudo apt-get install -y i2c-tools"
+check_and_install "python3-smbus" "sudo apt-get install -y python3-smbus"
+check_and_install "libespeak1" "sudo apt-get install -y libespeak1"
+check_and_install "jackd2" "sudo apt-get install -y jackd2"
+check_and_install "flac" "sudo apt-get install -y flac"
+check_and_install "libflac12:armhf" "sudo apt-get install -y libflac12:armhf"
+check_and_install "cmake" "sudo apt-get install -y cmake"
+check_and_install "openssl" "sudo apt-get install -y openssl"
+check_and_install "git" "sudo apt-get install -y git"
+check_and_install "nginx" "sudo apt-get install -y nginx"
+check_and_install "python3-venv" "sudo apt-get install -y python3-venv"
 
 # Function to setup a systemd service
 setup_service() {
@@ -263,8 +297,8 @@ setup_service "gpt-web.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/
 ```
 Be sure to make the script executable to run it
 ```bash
-chmod +x reclone.sh
-./reclone.sh
+chmod +x setup.sh
+./setup.sh
 ```
 (Optional) .bashrc helpers<br>
 **Put this at the end of your ~/.bashrc file**
