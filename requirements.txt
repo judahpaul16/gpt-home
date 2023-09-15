@@ -14,6 +14,7 @@ attrs==23.1.0
 certifi==2023.7.22
 charset-normalizer==3.2.0
 frozenlist==1.4.0
+fastapi==0.103.1
 idna==3.4
 multidict==6.0.4
 openai==0.28.0
@@ -30,4 +31,5 @@ spidev==3.6
 tqdm==4.66.1
 typing_extensions==4.7.1
 urllib3==2.0.4
+uvicorn==0.23.2
 yarl==1.9.2

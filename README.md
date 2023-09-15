@@ -26,7 +26,7 @@ To configure Wi-Fi on your Raspberry Pi, you'll need to edit the `wpa_supplicant
     exit 0
     ```
     Ensure the file has executable permissions and is enabled as a service:
-    ```
+    ```bash
     sudo chmod +x /etc/rc.local
     sudo systemctl enable rc-local.service
     sudo systemctl start rc-local.service
@@ -77,51 +77,57 @@ Before running this project on your Raspberry Pi, you'll need to install some sy
 
 ### Required Dependencies
 
-1. **Python 3.x**: Required for running the Python code.  
-   Installation: `sudo apt-get install python3`
+1. **OpenAI API Key**: Required for OpenAI's GPT API.  
+    Setup: Set up as an environment variable.  
 
-2. **Python Development Headers**: Required for building certain Python packages.  
+2. **Python 3.x**: Required for running the Python code.  
+   Installation: `sudo apt-get install python3 python3-dev`
+
+3. **Python Development Headers**: Required for building certain Python packages.  
    Installation: `sudo apt-get install python3.11-dev`
 
-3. **PortAudio**: Required for `pyttsx3` (text-to-speech).  
+4. **PortAudio**: Required for `pyttsx3` (text-to-speech).  
    Installation: `sudo apt-get install portaudio19-dev`
 
-4. **ALSA Utilities**: Required for audio configuration.  
+5. **ALSA Utilities**: Required for audio configuration.  
    Installation: `sudo apt-get install alsa-utils`
 
-5. **JPEG Library**: Required for Pillow.  
+6. **JPEG Library**: Required for Pillow.  
    Installation: `sudo apt-get install libjpeg-dev`
 
-6. **Build Essentials**: Required for building packages.  
+7. **Build Essentials**: Required for building packages.  
    Installation: `sudo apt-get install build-essential`
 
-7. **vcgencmd**: Comes pre-installed on Raspberry Pi OS. Used for fetching CPU temperature.
+8. **vcgencmd**: Comes pre-installed on Raspberry Pi OS. Used for fetching CPU temperature.
 
-8. **Speech Recognition Libraries**: Required for `speech_recognition`.  
+9. **Speech Recognition Libraries**: Required for `speech_recognition`.  
    Installation: `sudo apt-get install libasound2-dev`
 
-9. **I2C Support**: Required for `adafruit_ssd1306` (OLED display).  
+10. **I2C Support**: Required for `adafruit_ssd1306` (OLED display).  
    Enable via `raspi-config` or install packages:  
-   ```
+   ```bash
    sudo apt-get install -y i2c-tools
    sudo apt-get install -y python3-smbus
    ```
 
-10. **Git**: Required for cloning the repository.  
-    Installation: `sudo apt-get install git`
-
-11. **OpenAI API Key**: Required for OpenAI's GPT API.  
-    Setup: Set up as an environment variable.  
-
-12. **eSpeak Library**: Required for text-to-speech (`pyttsx3`).  
+11. **eSpeak Library**: Required for text-to-speech (`pyttsx3`).  
    Installation: `sudo apt-get install libespeak1`
 
-13. **JACK Audio Connection Kit**: Required for handling audio.  
+12. **JACK Audio Connection Kit**: Required for handling audio.  
    Installation: `sudo apt-get install jackd2`  
    Select `Yes` when prompted to enable realtime privileges.
 
-14. **FLAC Libraries**: Required for handling FLAC audio formats.  
+13. **FLAC Libraries**: Required for handling FLAC audio formats.  
    Installation: `sudo apt-get install flac libflac12:armhf`
+
+14. **Git**: Required for cloning the repository.  
+    Installation: `sudo apt-get install git`
+
+15. **Node.js and npm**: Required for the web interface.  
+    Installation: [Follow NodeSource Installation Guide](https://github.com/nodesource/distributions#installation-instructions)
+
+16. **NGINX**: Required for reverse proxy for the web interface.
+    Installation: `sudo apt-get install nginx`
 
 ### Optional Dependencies
 
@@ -165,7 +171,7 @@ StartLimitBurst=10
 User=ubuntu
 WorkingDirectory=/home/ubuntu/gpt-home
 ExecStart=$EXEC_START
-Environment="$ENV"
+$ENV
 Restart=always
 Type=simple
 $LMEMLOCK
@@ -182,9 +188,41 @@ EOF
     # Wait for 5 seconds and then show the service status
     echo ""
     sleep 5
-    sudo systemctl status "$SERVICE_NAME"
+    sudo systemctl status "$SERVICE_NAME" --no-pager
     echo ""
 }
+
+# Setup UFW Firewall
+sudo ufw allow ssh
+sudo ufw allow 80,443/tcp
+echo "y" | sudo ufw enable
+
+# Setup NGINX for reverse proxy
+echo "Setting up NGINX..."
+sudo tee /etc/nginx/sites-available/gpt-home <<EOF
+server {
+    listen 80;
+
+    location / {
+        proxy_pass http://localhost:8000/;
+    }
+}
+EOF
+
+# Remove existing symlink if it exists
+[ -L "/etc/nginx/sites-enabled/gpt-home" ] && sudo unlink /etc/nginx/sites-enabled/gpt-home
+
+# Symlink the site configuration
+sudo ln -s /etc/nginx/sites-available/gpt-home /etc/nginx/sites-enabled
+
+# Test the NGINX configuration
+sudo nginx -t
+
+# Remove the default site if it exists
+[ -L "/etc/nginx/sites-enabled/default" ] && sudo unlink /etc/nginx/sites-enabled/default
+
+# Reload NGINX to apply changes
+sudo systemctl reload nginx
 
 # Remove existing local repo if it exists
 [ -d "gpt-home" ] && rm -rf gpt-home
@@ -193,14 +231,27 @@ EOF
 git clone https://github.com/judahpaul16/gpt-home.git
 cd gpt-home
 
+## Setup main app
 # Create and activate a virtual environment, then install dependencies
 python3 -m venv env
 source env/bin/activate
 pip install --upgrade pip setuptools
 pip install --use-pep517 -r requirements.txt
 
+## Setup Web Interface
+# Navigate to gpt-web and install dependencies
+cd gpt-web
+npm install
+
+# Build the React App
+npm run build
+
+## Setup Services
 # Setup gpt-home service
-setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" "" "OPENAI_API_KEY=$OPENAI_API_KEY" "LimitMEMLOCK=infinity"
+setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" "" "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" "LimitMEMLOCK=infinity"
+
+# Setup fastapi service for FastAPI backend
+setup_service "gpt-web.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && uvicorn gpt-web.backend:app --host 0.0.0.0 --port 8000'" "" ""
 ```
 Be sure to make the script executable to run it
 ```bash
@@ -220,6 +271,15 @@ alias gpt-disable="sudo systemctl disable gpt-home"
 alias gpt-status="sudo systemctl status gpt-home"
 alias gpt-enable="sudo systemctl enable gpt-home"
 alias gpt-log="tail -n 100 -f /home/ubuntu/gpt-home/events.log"
+
+alias web-start="sudo systemctl start gpt-web"
+alias web-restart="sudo systemctl restart gpt-web"
+alias web-stop="sudo systemctl stop gpt-web"
+alias web-disable="sudo systemctl disable gpt-web"
+alias web-status="sudo systemctl status gpt-web"
+alias web-enable="sudo systemctl enable gpt-web"
+alias web-log="tail -n 100 -f /var/log/nginx/access.log"
+alias web-error="tail -n 100 -f /var/log/nginx/error.log"
 ```
 
 ---
@@ -280,4 +340,14 @@ alias gpt-log="tail -n 100 -f /home/ubuntu/gpt-home/events.log"
 - [Requests Docs](https://pypi.org/project/requests/)
 - [PortAudio Docs](http://www.portaudio.com/docs/v19-doxydocs/index.html)
 - [Python3 Docs](https://docs.python.org/3/)
+- [Node.js Docs](https://nodejs.org/en/docs/)
+- [npm Docs](https://docs.npmjs.com/)
+- [React Docs](https://reactjs.org/docs/getting-started.html)
+- [FastAPI Docs](https://fastapi.tiangolo.com/)
+- [NGINX Docs](https://nginx.org/en/docs/)
+- [JACK Audio Connection Kit Docs](https://jackaudio.org/api/index.html)
+- [FLAC Docs](https://xiph.org/flac/documentation.html)
+- [eSpeak Docs](http://espeak.sourceforge.net/commands.html)
+- [I2C Docs](https://i2c.readthedocs.io/en/latest/)
+- [ALSA Docs](https://www.alsa-project.org/wiki/Documentation)
 - [Fritzing Schematics](https://fritzing.org/)
