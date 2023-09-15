@@ -332,22 +332,34 @@ alias web-error="tail -n 100 -f /var/log/nginx/error.log"
 ---
 
 ## 📚 Useful Documentation
+
+<table>
+<tr>
+<td>
+
 - [Raspberry Pi Docs](https://www.raspberrypi.com/documentation)
 - [GPIO Pinout](https://www.raspberrypi.com/documentation/computers/images/GPIO-Pinout-Diagram-2.png)
 - [OpenAI API Docs](https://beta.openai.com/docs/introduction)
-- [SpeechRecognition Docs](https://pypi.org/project/SpeechRecognition/)
-- [pyttsx3 Docs](https://pypi.org/project/pyttsx3/)
 - [Requests Docs](https://pypi.org/project/requests/)
 - [PortAudio Docs](http://www.portaudio.com/docs/v19-doxydocs/index.html)
 - [Python3 Docs](https://docs.python.org/3/)
 - [Node.js Docs](https://nodejs.org/en/docs/)
 - [npm Docs](https://docs.npmjs.com/)
+- [Fritzing Schematics](https://fritzing.org/)
+
+</td>
+<td>
+
 - [React Docs](https://reactjs.org/docs/getting-started.html)
 - [FastAPI Docs](https://fastapi.tiangolo.com/)
 - [NGINX Docs](https://nginx.org/en/docs/)
 - [JACK Audio Connection Kit Docs](https://jackaudio.org/api/index.html)
-- [FLAC Docs](https://xiph.org/flac/documentation.html)
+- [SpeechRecognition Docs](https://pypi.org/project/SpeechRecognition/)
+- [pyttsx3 Docs](https://pypi.org/project/pyttsx3/)
 - [eSpeak Docs](http://espeak.sourceforge.net/commands.html)
 - [I2C Docs](https://i2c.readthedocs.io/en/latest/)
 - [ALSA Docs](https://www.alsa-project.org/wiki/Documentation)
-- [Fritzing Schematics](https://fritzing.org/)
+
+</td>
+</tr>
+</table>
