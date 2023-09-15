@@ -117,13 +117,16 @@ Before running this project on your Raspberry Pi, you'll need to install some sy
 12. **FLAC Libraries**: Required for handling FLAC audio formats.  
    Installation: `sudo apt-get install flac libflac12:armhf`
 
-13. **Git**: Required for cloning the repository.  
+13. **Cmake**: Required for building `pocketsphinx`.  
+   Installation: `sudo apt-get install cmake`
+
+14. **Git**: Required for cloning the repository.  
     Installation: `sudo apt-get install git`
 
-14. **Node.js and npm**: Required for the web interface.  
+15. **Node.js and npm**: Required for the web interface.  
     Installation: [Follow NodeSource Installation Guide](https://github.com/nodesource/distributions#installation-instructions)
 
-15. **NGINX**: Required for reverse proxy for the web interface.
+16. **NGINX**: Required for reverse proxy for the web interface.
     Installation: `sudo apt-get install nginx`
 
 ### Optional Dependencies

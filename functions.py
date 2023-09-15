@@ -160,7 +160,7 @@ async def listen(loop, display, state_task):
                 if source.stream is None:
                     raise Exception("Microphone not initialized.")
                 audio = r.listen(source)
-                return r.recognize_google(audio)
+                return r.recognize_sphinx(audio)
         except sr.WaitTimeoutError:
             if source and source.stream:
                 source.stream.close()
