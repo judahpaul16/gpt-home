@@ -83,50 +83,47 @@ Before running this project on your Raspberry Pi, you'll need to install some sy
 2. **Python 3.x**: Required for running the Python code.  
    Installation: `sudo apt-get install python3 python3-dev`
 
-3. **Python Development Headers**: Required for building certain Python packages.  
-   Installation: `sudo apt-get install python3.11-dev`
-
-4. **PortAudio**: Required for `pyttsx3` (text-to-speech).  
+3. **PortAudio**: Required for `pyttsx3` (text-to-speech).  
    Installation: `sudo apt-get install portaudio19-dev`
 
-5. **ALSA Utilities**: Required for audio configuration.  
+4. **ALSA Utilities**: Required for audio configuration.  
    Installation: `sudo apt-get install alsa-utils`
 
-6. **JPEG Library**: Required for Pillow.  
+5. **JPEG Library**: Required for Pillow.  
    Installation: `sudo apt-get install libjpeg-dev`
 
-7. **Build Essentials**: Required for building packages.  
+6. **Build Essentials**: Required for building packages.  
    Installation: `sudo apt-get install build-essential`
 
-8. **vcgencmd**: Comes pre-installed on Raspberry Pi OS. Used for fetching CPU temperature.
+7. **vcgencmd**: Comes pre-installed on Raspberry Pi OS. Used for fetching CPU temperature.
 
-9. **Speech Recognition Libraries**: Required for `speech_recognition`.  
+8. **Speech Recognition Libraries**: Required for `speech_recognition`.  
    Installation: `sudo apt-get install libasound2-dev`
 
-10. **I2C Support**: Required for `adafruit_ssd1306` (OLED display).  
+9. **I2C Support**: Required for `adafruit_ssd1306` (OLED display).  
    Enable via `raspi-config` or install packages:  
    ```bash
    sudo apt-get install -y i2c-tools
    sudo apt-get install -y python3-smbus
    ```
 
-11. **eSpeak Library**: Required for text-to-speech (`pyttsx3`).  
+10. **eSpeak Library**: Required for text-to-speech (`pyttsx3`).  
    Installation: `sudo apt-get install libespeak1`
 
-12. **JACK Audio Connection Kit**: Required for handling audio.  
+11. **JACK Audio Connection Kit**: Required for handling audio.  
    Installation: `sudo apt-get install jackd2`  
    Select `Yes` when prompted to enable realtime privileges.
 
-13. **FLAC Libraries**: Required for handling FLAC audio formats.  
+12. **FLAC Libraries**: Required for handling FLAC audio formats.  
    Installation: `sudo apt-get install flac libflac12:armhf`
 
-14. **Git**: Required for cloning the repository.  
+13. **Git**: Required for cloning the repository.  
     Installation: `sudo apt-get install git`
 
-15. **Node.js and npm**: Required for the web interface.  
+14. **Node.js and npm**: Required for the web interface.  
     Installation: [Follow NodeSource Installation Guide](https://github.com/nodesource/distributions#installation-instructions)
 
-16. **NGINX**: Required for reverse proxy for the web interface.
+15. **NGINX**: Required for reverse proxy for the web interface.
     Installation: `sudo apt-get install nginx`
 
 ### Optional Dependencies
