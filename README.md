@@ -212,7 +212,8 @@ EOF
 # Enable the site
 sudo ln -s /etc/nginx/sites-available/gpt-home /etc/nginx/sites-enabled
 sudo nginx -t
-sudo unlink /etc/nginx/sites-enabled/default
+# Remove default site if exists
+[ -f "/etc/nginx/sites-enabled/default" ] && sudo unlink /etc/nginx/sites-enabled/default
 sudo systemctl reload nginx
 
 # Remove existing local repo if it exists
@@ -242,7 +243,7 @@ npm run build
 setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" "" "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" "LimitMEMLOCK=infinity"
 
 # Setup fastapi service for FastAPI backend
-setup_service "gpt-web.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && uvicorn gpt-web.src.backend:app --host 0.0.0.0 --port 8000'" "" ""
+setup_service "gpt-web.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && uvicorn gpt-web.backend:app --host 0.0.0.0 --port 8000'" "" ""
 ```
 Be sure to make the script executable to run it
 ```bash
@@ -263,13 +264,14 @@ alias gpt-status="sudo systemctl status gpt-home"
 alias gpt-enable="sudo systemctl enable gpt-home"
 alias gpt-log="tail -n 100 -f /home/ubuntu/gpt-home/events.log"
 
-alias web-start="sudo systemctl start gpt-web && sudo systemctl start fastapi-service"
-alias web-restart="sudo systemctl restart gpt-web && sudo systemctl restart fastapi-service"
-alias web-stop="sudo systemctl stop gpt-web && sudo systemctl stop fastapi-service"
-alias web-disable="sudo systemctl disable gpt-web && sudo systemctl disable fastapi-service"
-alias web-status="sudo systemctl status gpt-web && sudo systemctl status fastapi-service"
-alias web-enable="sudo systemctl enable gpt-web && sudo systemctl enable fastapi-service"
-alias web-log="tail -n 100 -f /home/ubuntu/gpt-home/gpt-web/events.log"
+alias web-start="sudo systemctl start gpt-web"
+alias web-restart="sudo systemctl restart gpt-web"
+alias web-stop="sudo systemctl stop gpt-web"
+alias web-disable="sudo systemctl disable gpt-web"
+alias web-status="sudo systemctl status gpt-web"
+alias web-enable="sudo systemctl enable gpt-web"
+alias web-log="tail -n 100 -f /var/log/nginx/access.log"
+alias web-error="tail -n 100 -f /var/log/nginx/error.log"
 ```
 
 ---

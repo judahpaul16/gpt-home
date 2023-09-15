@@ -7,7 +7,10 @@ from pathlib import Path
 app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="build/static"), name="static")
-app.mount("/favicon.ico", FileResponse(Path("build/favicon.ico")), name="favicon")
+
+@app.get("/favicon.ico")
+def read_favicon():
+    return FileResponse(Path("build/favicon.ico"))
 
 @app.get("/")
 def read_root():
