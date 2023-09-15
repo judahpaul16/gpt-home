@@ -26,12 +26,12 @@ const Integration: React.FC<IntegrationProps> = ({ name, status, toggleStatus })
     }
 
     try {
-      const response = await axios.post(`/api/connect/${name}`, formData);
-      if (response.status === 200) {
-        toggleStatus(name);
-        setShowForm(false);
-        setError(''); // Clear error on successful connection
-      }
+        const response = await axios.post(`/api/connect/${name.replace(/ /g, '-')}`, formData);
+        if (response.status === 200) {
+            toggleStatus(name);
+            setShowForm(false);
+            setError(''); // Clear error on successful connection
+        }
     } catch (error) {
       setError('Failed to connect');
       console.error(`Failed to connect ${name}`, error);
@@ -40,7 +40,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, status, toggleStatus })
 
   const disconnectService = async () => {
     try {
-      const response = await axios.post(`/api/disconnect/${name}`);
+      const response = await axios.post(`/api/disconnect/${name.replace(/ /g, '-')}`);
       if (response.status === 200) {
         toggleStatus(name);
       }

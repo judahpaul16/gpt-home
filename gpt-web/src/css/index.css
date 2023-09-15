@@ -12,12 +12,19 @@ code {
     monospace;
 }
 
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Roboto', sans-serif;
+  margin-top: 0;
+  margin-bottom: 0.5em;
+}
+
 button {
   background-color: #007bff;
   color: white;
   border: none;
   padding: 12px 24px;
-  margin: 8px 0.5em;
+  margin-inline: 0.5em;
+  margin-top: 1em;
   cursor: pointer;
   border-radius: 4px;
 }
@@ -29,7 +36,6 @@ button:hover {
 input[type="text"] {
   width: 100%;
   padding: 12px 20px;
-  margin: 8px 0;
   box-sizing: border-box;
   border: 2px solid #ccc;
   border-radius: 4px;

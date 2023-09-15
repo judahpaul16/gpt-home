@@ -1,9 +1,9 @@
 .integration {
     text-align: center;
     border: 1px solid #ccc;
-    padding: 1em;
+    padding: 1.5em;
     width: 200px;
-    border-radius: 5px;
+    border-radius: 10px;
   }
   
   .overlay {
@@ -21,7 +21,7 @@
   .form-container {
     background: #fff;
     padding: 1em;
-    border-radius: 5px;
+    border-radius: 10px;
     width: 300px;
     text-align: center;
   }
