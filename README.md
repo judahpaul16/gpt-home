@@ -81,7 +81,7 @@ Before running this project on your Raspberry Pi, you'll need to install some sy
     Setup: Set up as an environment variable.  
 
 2. **Python 3.x**: Required for running the Python code.  
-   Installation: `sudo apt-get install python3`
+   Installation: `sudo apt-get install python3 python3-dev`
 
 3. **Python Development Headers**: Required for building certain Python packages.  
    Installation: `sudo apt-get install python3.11-dev`
