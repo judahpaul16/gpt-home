@@ -1,84 +1,82 @@
 from functions import *
-import contextlib
 
 async def main():
     state_task = None
     stop_event = asyncio.Event()
-
-    async def manage_task(task):
-        nonlocal state_task
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            log_event(f"Task error: {e}")
-        finally:
-            if task is state_task:
-                state_task = None
-
     while True:
         if state_task is None:
             stop_event.clear()
             state_task = asyncio.create_task(display_state("Listening", display, stop_event))
-            asyncio.create_task(manage_task(state_task))
-
         try:
-            text = await listen(loop, display, state_task)
-            if not text:
-                continue
-
             keyword = "computer"
-            if keyword not in text:
+            try:
+                text = await listen(loop, display, state_task)
+            except Exception as e:
+                log_event("Listening timed out: " + str(e))
                 continue
+            if text:
+                split_text = text.split(keyword)
+                if keyword in text and len(split_text) > 1 and len(split_text[1].strip()) > 0:
+                    stop_event.set()
+                    state_task.cancel()
+                    state_task = None
+                    
+                    try:
+                        actual_text = split_text[1].strip()
+                        heard_message = f"Heard: \"{actual_text}\""
+                        response_message = await query_openai(actual_text, display)
+                        stop_event_heard = asyncio.Event()
+                        stop_event_response = asyncio.Event()
 
-            split_text = text.split(keyword, 1)
-            actual_text = split_text[1].strip()
+                        # Calculate time to speak and display
+                        delay_heard = await calculate_delay(heard_message)
+                        delay_response = await calculate_delay(response_message)
 
-            if not actual_text:
-                continue
+                        # Create a task for OpenAI query, don't await it yet
+                        query_task = asyncio.create_task(query_openai(actual_text, display))
 
-            stop_event.set()
-            state_task.cancel()
+                        await asyncio.gather(
+                            speak(heard_message, stop_event_heard),
+                            updateLCD(heard_message, display, stop_event=stop_event_heard, delay=delay_heard)
+                        )
+                        log_event(heard_message)
 
-            # Reset state_task and stop_event
-            state_task = None
-            stop_event = asyncio.Event()
+                        response_message = await query_task
 
-            query_task = asyncio.create_task(query_openai(actual_text, display))
-            heard_message = f"Heard: \"{actual_text}\""
-            response_message = await query_task
-            stop_event_heard = asyncio.Event()
-            stop_event_response = asyncio.Event()
+                        response_task_speak = asyncio.create_task(speak(response_message, stop_event_response))
+                        response_task_lcd = asyncio.create_task(updateLCD(response_message, display, stop_event=stop_event_response, delay=delay_response))
 
-            delay_heard = await calculate_delay(heard_message)
-            delay_response = await calculate_delay(response_message)
-
-            await asyncio.gather(
-                speak(heard_message, stop_event_heard),
-                updateLCD(heard_message, display, stop_event=stop_event_heard, delay=delay_heard)
-            )
-            log_event(heard_message)
-
-            await asyncio.gather(
-                speak(response_message, stop_event_response),
-                updateLCD(response_message, display, stop_event=stop_event_response, delay=delay_response)
-            )
-            log_event(response_message)
-
+                        await asyncio.gather(response_task_speak, response_task_lcd)
+                        log_event(response_message)
+                        
+                    except sr.UnknownValueError:
+                        error_message = "Sorry, I did not understand that"
+                        await handle_error(error_message, state_task, display)
+            else:
+                continue  # Skip to the next iteration
         except sr.UnknownValueError:
-            await handle_error("Sorry, I did not understand that", state_task, display)
-
+            pass
         except sr.RequestError as e:
-            await handle_error(f"Could not request results; {e}", state_task, display)
-
-        except asyncio.TimeoutError:
-            log_event("Listening timed out")
-
+            error_message = f"Could not request results; {e}"
+            await handle_error(error_message, state_task, display)
         except Exception as e:
-            await handle_error(f"Something Went Wrong: {e}", state_task, display)
+            error_message = f"Something Went Wrong: {e}"
+            await handle_error(error_message, state_task, display)
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
-    display = loop.run_until_complete(initialize_system())
-    loop.run_until_complete(main())
+    init_done_event = asyncio.Event()  # Create an event to signal when initialization is done
+
+    async def wrapped_initialize_system():
+        display = await initialize_system()
+        init_done_event.set()  # Signal that initialization is done
+        return display
+
+    display = loop.run_until_complete(wrapped_initialize_system())
+
+    async def wrapped_main():
+        await init_done_event.wait()  # Wait for the event to be set
+        await main()
+
+    loop.run_until_complete(wrapped_main())
+    loop.close()
