@@ -210,6 +210,8 @@ server {
 EOF
 
 # Enable the site
+[ -f "/etc/nginx/sites-enabled/gpt-home" ] && sudo unlink /etc/nginx/sites-enabled/gpt-home
+[ -f "/etc/nginx/sites-available/gpt-home" ] && sudo unlink /etc/nginx/sites-available/gpt-home
 sudo ln -s /etc/nginx/sites-available/gpt-home /etc/nginx/sites-enabled
 sudo nginx -t
 # Remove default site if exists
