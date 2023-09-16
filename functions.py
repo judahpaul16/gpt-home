@@ -155,11 +155,7 @@ async def updateLCD(text, display, stop_event=None, delay=0.02):
         display_task = asyncio.create_task(display_text(delay))
 
 async def listen(display, state_task, stop_event):
-    loop = asyncio.get_running_loop()  # Get the running loop
-    
-    if not loop.is_running():
-        logging.error("Event loop is not running")
-        return
+    loop = asyncio.get_running_loop()
 
     def recognize_audio(loop, state_task, stop_event):
         try:
@@ -171,15 +167,16 @@ async def listen(display, state_task, stop_event):
                 
                 while True:  # Infinite loop for continuous feedback
                     try:
-                        audio = r.listen(source, timeout=1, phrase_time_limit=10)
+                        audio = r.listen(source, timeout=2, phrase_time_limit=15)
 
                         stop_event.set()
                         state_task.cancel()
                         state_task = None
-                        state_task = asyncio.create_task(display_state("Processing", display, stop_event))
+                        state_task = loop.create_task(display_state("Processing", display, stop_event))
                         text = r.recognize_google(audio)
                         
                         if text:  # If text is found, break the loop
+                            state_task.cancel()
                             return text
                             
                     except sr.WaitTimeoutError:
@@ -259,9 +256,7 @@ async def query_openai(text, display, retries=3):
             logging.info(f"Error on try {i+1}: {e}")
             if i == retries - 1:  # If this was the last retry
                 error_message = f"Something went wrong after {retries} retries: {e}"
-                stop_event = asyncio.Event()
-                await speak(error_message, stop_event)
-                logging.error(traceback.format_exc())
+                handle_error(error_message, None, display)
         await asyncio.sleep(0.5)  # Wait before retrying
     raise Exception("Something went wrong after {retries} retries.")
 
