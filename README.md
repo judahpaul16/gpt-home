@@ -124,22 +124,16 @@ If you want to use the example setup script, you can skip this section.
 12. **FLAC Libraries**: Required for handling FLAC audio formats.  
    Installation: `sudo apt-get install -y flac libflac12:armhf`
 
-13. **Cmake**: Required for `pocketsphinx`.  
-    Installation: `sudo apt-get install -y cmake`
-
-14. **OpenSSL**: Required for `pocketsphinx`.  
-    Installation: `sudo apt-get install -y openssl`
-
-15. **Git**: Required for cloning the repository.  
+13. **Git**: Required for cloning the repository.  
     Installation: `sudo apt-get install -y git`
 
-16. **Node.js and npm**: Required for the web interface.  
+14. **Node.js and npm**: Required for the web interface.  
     Installation: [Follow NodeSource Installation Guide](https://github.com/nodesource/distributions#installation-instructions)
 
-17. **NGINX**: Required for reverse proxy for the web interface.
+15. **NGINX**: Required for reverse proxy for the web interface.
     Installation: `sudo apt-get install -y nginx`
 
-18. **Virtual Environment**: Recommended for Python package management.  
+16. **Virtual Environment**: Recommended for Python package management.  
    Installation: `sudo apt-get install -y python3-venv`
 
 ---

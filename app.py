@@ -2,56 +2,57 @@ from functions import *
 
 async def main():
     state_task = None
-    stop_event = asyncio.Event()
     while True:
-        if state_task is None:
-            stop_event.clear()
-            state_task = asyncio.create_task(display_state("Listening", display, stop_event))
         try:
             keyword = "computer"
+            
+            # Start displaying 'Listening'
+            stop_event = asyncio.Event()
+            state_task = asyncio.create_task(display_state("Listening", display, stop_event))
+
             try:
                 text = await listen(loop, display, state_task)
             except Exception as e:
                 log_event("Listening timed out: " + str(e))
                 continue
+
+            # Stop displaying 'Listening'
+            stop_event.set()
+            state_task.cancel()
+            
             if text:
                 split_text = text.split(keyword)
                 if keyword in text and len(split_text) > 1 and len(split_text[1].strip()) > 0:
-                    stop_event.set()
-                    state_task.cancel()
-                    state_task = None
+                    actual_text = split_text[1].strip()
+                    heard_message = f"Heard: \"{actual_text}\""
+                    stop_event_heard = asyncio.Event()
+                    stop_event_response = asyncio.Event()
+
+                    # Calculate time to speak and display
+                    delay_heard = await calculate_delay(heard_message)
+
+                    # Create a task for OpenAI query, don't await it yet
+                    query_task = asyncio.create_task(query_openai(actual_text, display))
+
+                    await asyncio.gather(
+                        speak(heard_message, stop_event_heard),
+                        updateLCD(heard_message, display, stop_event=stop_event_heard, delay=delay_heard)
+                    )
+                    log_event(heard_message)
+
+                    response_message = await query_task
                     
-                    try:
-                        actual_text = split_text[1].strip()
-                        heard_message = f"Heard: \"{actual_text}\""
-                        response_message = await query_openai(actual_text, display)
-                        stop_event_heard = asyncio.Event()
-                        stop_event_response = asyncio.Event()
+                    # Calculate time to speak and display
+                    delay_response = await calculate_delay(response_message)
 
-                        # Calculate time to speak and display
-                        delay_heard = await calculate_delay(heard_message)
-                        delay_response = await calculate_delay(response_message)
+                    response_task_speak = asyncio.create_task(speak(response_message, stop_event_response))
+                    response_task_lcd = asyncio.create_task(updateLCD(response_message, display, stop_event=stop_event_response, delay=delay_response))
 
-                        # Create a task for OpenAI query, don't await it yet
-                        query_task = asyncio.create_task(query_openai(actual_text, display))
-
-                        await asyncio.gather(
-                            speak(heard_message, stop_event_heard),
-                            updateLCD(heard_message, display, stop_event=stop_event_heard, delay=delay_heard)
-                        )
-                        log_event(heard_message)
-
-                        response_message = await query_task
-
-                        response_task_speak = asyncio.create_task(speak(response_message, stop_event_response))
-                        response_task_lcd = asyncio.create_task(updateLCD(response_message, display, stop_event=stop_event_response, delay=delay_response))
-
-                        await asyncio.gather(response_task_speak, response_task_lcd)
-                        log_event(response_message)
-                        
-                    except sr.UnknownValueError:
-                        error_message = "Sorry, I did not understand that"
-                        await handle_error(error_message, state_task, display)
+                    await asyncio.gather(response_task_speak, response_task_lcd)
+                    log_event(response_message)
+                    
+                else:
+                    continue  # Skip to the next iteration
             else:
                 continue  # Skip to the next iteration
         except sr.UnknownValueError:
