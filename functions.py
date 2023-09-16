@@ -1,5 +1,4 @@
 from concurrent.futures import ThreadPoolExecutor
-from vosk import Model, KaldiRecognizer
 import speech_recognition as sr
 from asyncio import create_task
 from board import SCL, SDA
@@ -10,11 +9,10 @@ import textwrap
 import logging
 import asyncio
 import pyttsx3
-import pyaudio
+import string
 import struct
 import openai
 import busio
-import json
 import time
 import os
 import re
@@ -25,9 +23,6 @@ logging.basicConfig(filename='events.log', level=logging.DEBUG)
 r = sr.Recognizer()
 openai.api_key = os.environ['OPENAI_API_KEY']
 executor = ThreadPoolExecutor()
-
-model = Model("vosk-model")
-kr = KaldiRecognizer(model, 16000)
 
 # Initialize the text-to-speech engine
 engine = pyttsx3.init()
@@ -159,31 +154,41 @@ async def updateLCD(text, display, stop_event=None, delay=0.02):
         line_count = len(lines)
         display_task = asyncio.create_task(display_text(delay))
 
-async def listen_for_wake_word(key):
-    p = pyaudio.PyAudio()
-    stream = p.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=8000)
-    stream.start_stream()
-
-    while True:
-        data = stream.read(4000)
-        if len(data) == 0:
-            break
-        if kr.AcceptWaveform(data):
-            result = kr.Result()
-            result_json = json.loads(result)
-            if 'text' in result_json:
-                text = result_json['text']
-                if key in text.lower():
-                    return await listen()
-
-async def listen(loop, display, state_task):
+async def listen(loop, display, state_task, stop_event):
     def recognize_audio():
         try:
             with sr.Microphone() as source:
                 if source.stream is None:
                     raise Exception("Microphone not initialized.")
-                audio = r.listen(source)
-                return r.recognize_google(audio)
+                
+                # Initialize variables for feedback
+                listening = False
+                
+                while True:  # Infinite loop for continuous feedback
+                    try:
+                        # Try to recognize the audio
+                        audio = r.listen(source, timeout=1, phrase_time_limit=10)
+                        stop_event.set()
+                        state_task.cancel()
+                        state_task = asyncio.create_task(display_state("Processing", display, stop_event))
+                        text = r.recognize_google(audio)
+                        
+                        if text:  # If text is found, break the loop
+                            return text
+                            
+                    except sr.WaitTimeoutError:
+                        # Timeout exception, update display or log
+                        if listening:
+                            log_event("Still listening but timed out, waiting for phrase...")
+                        else:
+                            log_event("Timed out, waiting for phrase to start...")
+                            listening = True
+                            
+                    except sr.UnknownValueError:
+                        # Could not understand audio, update display or log
+                        log_event("Could not understand audio, waiting for a new phrase...")
+                        listening = False
+                        
         except sr.WaitTimeoutError:
             if source and source.stream:
                 source.stream.close()
