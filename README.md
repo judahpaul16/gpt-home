@@ -168,35 +168,28 @@ check_and_install() {
     fi
 }
 
-# Add deadsnakes PPA and update package list if Python 3.9 is not found
-add_deadsnakes_ppa() {
+# Function to manually install Python 3.9 if not found
+install_python39() {
     if ! dpkg -l | grep -q python3.9; then
-        echo "Adding deadsnakes PPA..."
-        sudo add-apt-repository ppa:deadsnakes/ppa -y
+        echo "Installing Python 3.9 manually..."
         sudo apt update
+        sudo apt install -y software-properties-common
+        sudo add-apt-repository ppa:deadsnakes/ppa
+        sudo apt update
+        sudo apt install -y python3.9 python3.9-venv python3.9-dev
     fi
 }
 
-# Function to update Python to 3.9 if another version is being used
-update_python_to_39() {
-    python_version=$(python3 --version | cut -d ' ' -f 2 | cut -d '.' -f 1-2)
-    if [[ "$python_version" != "3.9" ]]; then
-        echo "Updating Python to 3.9..."
-        sudo apt-get install -y python3.9 python3.9-venv python3.9-dev
-        sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1
-    fi
+# Function to switch to Python 3.9 if not default
+switch_to_python39() {
+    sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1
+    sudo update-alternatives --config python3
 }
-
-# Add deadsnakes PPA and update package list
-add_deadsnakes_ppa
 
 # Update package list
 sudo apt update
 
 # Check and install missing dependencies
-check_and_install "python3.9" "sudo apt-get install -y python3.9"
-check_and_install "python3.9-dev" "sudo apt-get install -y python3.9-dev"
-check_and_install "python3.9-venv" "sudo apt-get install -y python3.9-venv"
 check_and_install "portaudio19-dev" "sudo apt-get install -y portaudio19-dev"
 check_and_install "alsa-utils" "sudo apt-get install -y alsa-utils"
 check_and_install "libjpeg-dev" "sudo apt-get install -y libjpeg-dev"
@@ -213,8 +206,11 @@ check_and_install "openssl" "sudo apt-get install -y openssl"
 check_and_install "git" "sudo apt-get install -y git"
 check_and_install "nginx" "sudo apt-get install -y nginx"
 
-# Update Python to 3.9
-update_python_to_39
+# Manually install Python 3.9
+[ -z "$(python3 --version | grep '3.9')" ] && install_python39
+
+# Switch to Python 3.9
+switch_to_python39
 
 # Function to setup a systemd service
 setup_service() {
