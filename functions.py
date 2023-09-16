@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from vosk import Model, KaldiRecognizer
 import speech_recognition as sr
 from asyncio import create_task
 from board import SCL, SDA
@@ -9,9 +10,11 @@ import textwrap
 import logging
 import asyncio
 import pyttsx3
+import pyaudio
 import struct
 import openai
 import busio
+import json
 import time
 import os
 import re
@@ -22,6 +25,9 @@ logging.basicConfig(filename='events.log', level=logging.DEBUG)
 r = sr.Recognizer()
 openai.api_key = os.environ['OPENAI_API_KEY']
 executor = ThreadPoolExecutor()
+
+model = Model("vosk-model")
+kr = KaldiRecognizer(model, 16000)
 
 # Initialize the text-to-speech engine
 engine = pyttsx3.init()
@@ -152,6 +158,23 @@ async def updateLCD(text, display, stop_event=None, delay=0.02):
         lines = textwrap.fill(text, 21).split('\n')
         line_count = len(lines)
         display_task = asyncio.create_task(display_text(delay))
+
+async def listen_for_wake_word(key):
+    p = pyaudio.PyAudio()
+    stream = p.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=8000)
+    stream.start_stream()
+
+    while True:
+        data = stream.read(4000)
+        if len(data) == 0:
+            break
+        if kr.AcceptWaveform(data):
+            result = kr.Result()
+            result_json = json.loads(result)
+            if 'text' in result_json:
+                text = result_json['text']
+                if key in text.lower():
+                    return await listen()
 
 async def listen(loop, display, state_task):
     def recognize_audio():
