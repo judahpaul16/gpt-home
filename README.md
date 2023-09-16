@@ -168,16 +168,20 @@ check_and_install() {
     fi
 }
 
-# Function to manually install Python 3.9 if not found
+# Function to manually compile and install Python 3.9 if not found
 install_python39() {
-    if ! dpkg -l | grep -q python3.9; then
-        echo "Installing Python 3.9 manually..."
-        sudo apt update
-        sudo apt install -y software-properties-common
-        sudo add-apt-repository ppa:deadsnakes/ppa
-        sudo apt update
-        sudo apt install -y python3.9 python3.9-venv python3.9-dev
-    fi
+    echo "Installing Python 3.9 from source..."
+    sudo apt update
+    sudo apt install -y build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev wget
+    wget https://www.python.org/ftp/python/3.9.7/Python-3.9.7.tgz
+    tar -xf Python-3.9.7.tgz
+    cd Python-3.9.7
+    ./configure --enable-optimizations
+    make -j 4
+    sudo make altinstall
+    cd ..
+    rm -rf Python-3.9.7
+    rm Python-3.9.7.tgz
 }
 
 # Function to switch to Python 3.9 if not default
@@ -189,6 +193,12 @@ switch_to_python39() {
 # Update package list
 sudo apt update
 
+# Manually install Python 3.9
+[ -z "$(python3 --version | grep '3.9')" ] && install_python39
+
+# Switch to Python 3.9
+switch_to_python39
+
 # Check and install missing dependencies
 check_and_install "portaudio19-dev" "sudo apt-get install -y portaudio19-dev"
 check_and_install "alsa-utils" "sudo apt-get install -y alsa-utils"
@@ -196,7 +206,7 @@ check_and_install "libjpeg-dev" "sudo apt-get install -y libjpeg-dev"
 check_and_install "build-essential" "sudo apt-get install -y build-essential"
 check_and_install "libasound2-dev" "sudo apt-get install -y libasound2-dev"
 check_and_install "i2c-tools" "sudo apt-get install -y i2c-tools"
-check_and_install "python3.9-smbus" "sudo apt-get install -y python3.9-smbus"
+check_and_install "python3-smbus" "sudo apt-get install -y python3-smbus"
 check_and_install "libespeak1" "sudo apt-get install -y libespeak1"
 check_and_install "jackd2" "sudo apt-get install -y jackd2"
 check_and_install "flac" "sudo apt-get install -y flac"
@@ -205,12 +215,6 @@ check_and_install "cmake" "sudo apt-get install -y cmake"
 check_and_install "openssl" "sudo apt-get install -y openssl"
 check_and_install "git" "sudo apt-get install -y git"
 check_and_install "nginx" "sudo apt-get install -y nginx"
-
-# Manually install Python 3.9
-[ -z "$(python3 --version | grep '3.9')" ] && install_python39
-
-# Switch to Python 3.9
-switch_to_python39
 
 # Function to setup a systemd service
 setup_service() {
