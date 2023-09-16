@@ -154,12 +154,12 @@ async def updateLCD(text, display, stop_event=None, delay=0.02):
         line_count = len(lines)
         display_task = asyncio.create_task(display_text(delay))
 
-async def listen(loop, display, state_task_container, stop_event):
+async def listen(loop, display, stop_event):
     if not loop.is_running():
         logging.error("Event loop is not running")
         return
 
-    def recognize_audio(loop, state_task_container, stop_event):
+    def recognize_audio(loop, stop_event):
         try:
             with sr.Microphone() as source:
                 if source.stream is None:
@@ -170,18 +170,12 @@ async def listen(loop, display, state_task_container, stop_event):
                 while True:  # Infinite loop for continuous feedback
                     try:
                         audio = r.listen(source, timeout=1, phrase_time_limit=10)
-                        stop_event.set()
-                        state_task_container[0].cancel()
-                        
-                        # Check if the loop is running
-                        if loop.is_running():
-                            state_task_container[0] = asyncio.create_task(display_state("Processing", display, stop_event))
-                        else:
-                            logging.error("Event loop is not running, can't create a new task for display_state.")
 
+                        rtask = asyncio.create_task(display_state("Processing", display, stop_event))
                         text = r.recognize_google(audio)
                         
                         if text:  # If text is found, break the loop
+                            rtask.cancel()
                             return text
                             
                     except sr.WaitTimeoutError:
@@ -200,7 +194,7 @@ async def listen(loop, display, state_task_container, stop_event):
                 source.stream.close()
             raise asyncio.TimeoutError("Listening timed out.")
 
-    text = await loop.run_in_executor(executor, recognize_audio, loop, state_task_container, stop_event)
+    text = await loop.run_in_executor(executor, recognize_audio, loop, stop_event)
     return text
 
 async def display_state(state, display, stop_event):

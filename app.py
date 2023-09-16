@@ -12,7 +12,7 @@ async def main():
 
             try:
                 state_task_container = [state_task]
-                text = await listen(loop, display, state_task_container, stop_event)
+                text = await listen(loop, display, stop_event)
             except Exception as e:
                 logging.error("Listening timed out: " + str(e))
                 continue
