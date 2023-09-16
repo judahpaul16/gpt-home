@@ -154,30 +154,28 @@ async def updateLCD(text, display, stop_event=None, delay=0.02):
         line_count = len(lines)
         display_task = asyncio.create_task(display_text(delay))
 
-async def listen(loop, display, state_task, stop_event):
+async def listen(loop, display, state_task_container, stop_event):
     def recognize_audio():
+        nonlocal state_task_container  # Declare it nonlocal so you can modify it
         try:
             with sr.Microphone() as source:
                 if source.stream is None:
                     raise Exception("Microphone not initialized.")
                 
-                # Initialize variables for feedback
-                listening = False
+                listening = False  # Initialize variable for feedback
                 
                 while True:  # Infinite loop for continuous feedback
                     try:
-                        # Try to recognize the audio
                         audio = r.listen(source, timeout=1, phrase_time_limit=10)
                         stop_event.set()
-                        state_task.cancel()
-                        state_task = asyncio.create_task(display_state("Processing", display, stop_event))
+                        state_task_container[0].cancel()
+                        state_task_container[0] = asyncio.create_task(display_state("Processing", display, stop_event))
                         text = r.recognize_google(audio)
                         
                         if text:  # If text is found, break the loop
                             return text
                             
                     except sr.WaitTimeoutError:
-                        # Timeout exception, update display or log
                         if listening:
                             log_event("Still listening but timed out, waiting for phrase...")
                         else:
@@ -185,7 +183,6 @@ async def listen(loop, display, state_task, stop_event):
                             listening = True
                             
                     except sr.UnknownValueError:
-                        # Could not understand audio, update display or log
                         log_event("Could not understand audio, waiting for a new phrase...")
                         listening = False
                         
@@ -193,7 +190,9 @@ async def listen(loop, display, state_task, stop_event):
             if source and source.stream:
                 source.stream.close()
             raise asyncio.TimeoutError("Listening timed out.")
-    
+
+    # Wrap state_task in a list to make it mutable
+    state_task_container = [state_task_container[0]]
     text = await loop.run_in_executor(executor, recognize_audio)
     return text
 
