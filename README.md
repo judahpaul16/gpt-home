@@ -168,36 +168,24 @@ check_and_install() {
     fi
 }
 
-# Function to manually compile and install Python 3.9 if not found
+# Function to install Python 3.9 using pyenv
 install_python39() {
-    echo "Installing Python 3.9 from source..."
-    sudo apt update
-    sudo apt install -y build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev wget
-    wget https://www.python.org/ftp/python/3.9.7/Python-3.9.7.tgz
-    tar -xf Python-3.9.7.tgz
-    cd Python-3.9.7
-    ./configure --enable-optimizations
-    make -j 4
-    sudo make altinstall
-    cd ..
-    rm -rf Python-3.9.7
-    rm Python-3.9.7.tgz
-}
-
-# Function to switch to Python 3.9 if not default
-switch_to_python39() {
-    sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1
-    sudo update-alternatives --config python3
+    echo "Installing Python 3.9 using pyenv..."
+    sudo apt-get install -y build-essential libssl-dev zlib1g-dev libbz2-dev \
+    libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev \
+    xz-utils tk-dev libffi-dev liblzma-dev python3-openssl git
+    curl https://pyenv.run | bash
+    export PATH="$HOME/.pyenv/bin:$PATH"
+    eval "$(pyenv init --path)"
+    pyenv install 3.9.7
+    pyenv global 3.9.7
 }
 
 # Update package list
 sudo apt update
 
-# Manually install Python 3.9
+# Install Python 3.9 using pyenv if it's not already 3.9
 [ -z "$(python3 --version | grep '3.9')" ] && install_python39
-
-# Switch to Python 3.9
-switch_to_python39
 
 # Check and install missing dependencies
 check_and_install "portaudio19-dev" "sudo apt-get install -y portaudio19-dev"
@@ -229,7 +217,6 @@ setup_service() {
     sudo systemctl stop "$SERVICE_NAME" &>/dev/null
 
     echo "Creating and enabling $SERVICE_NAME..."
-
     # Create systemd service file
     cat <<EOF | sudo tee "/etc/systemd/system/$SERVICE_NAME" >/dev/null
 [Unit]
