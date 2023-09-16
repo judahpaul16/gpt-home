@@ -165,30 +165,29 @@ async def listen(display, state_task, stop_event):
                 
                 listening = False  # Initialize variable for feedback
                 
-                while True:  # Infinite loop for continuous feedback
-                    try:
-                        audio = r.listen(source, timeout=2, phrase_time_limit=15)
+                try:
+                    audio = r.listen(source, timeout=2, phrase_time_limit=15)
 
-                        stop_event.set()
+                    stop_event.set()
+                    state_task.cancel()
+                    state_task = None
+                    state_task = loop.create_task(display_state("Processing", display, stop_event))
+                    text = r.recognize_google(audio)
+                    
+                    if text:  # If text is found, break the loop
                         state_task.cancel()
-                        state_task = None
-                        state_task = loop.create_task(display_state("Processing", display, stop_event))
-                        text = r.recognize_google(audio)
+                        return text
                         
-                        if text:  # If text is found, break the loop
-                            state_task.cancel()
-                            return text
-                            
-                    except sr.WaitTimeoutError:
-                        if listening:
-                            logging.error("Still listening but timed out, waiting for phrase...")
-                        else:
-                            logging.error("Timed out, waiting for phrase to start...")
-                            listening = True
-                            
-                    except sr.UnknownValueError:
-                        logging.error("Could not understand audio, waiting for a new phrase...")
-                        listening = False
+                except sr.WaitTimeoutError:
+                    if listening:
+                        logging.error("Still listening but timed out, waiting for phrase...")
+                    else:
+                        logging.error("Timed out, waiting for phrase to start...")
+                        listening = True
+                        
+                except sr.UnknownValueError:
+                    logging.error("Could not understand audio, waiting for a new phrase...")
+                    listening = False
                         
         except sr.WaitTimeoutError:
             if source and source.stream:
