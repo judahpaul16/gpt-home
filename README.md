@@ -164,6 +164,14 @@ check_and_install() {
 
 # Function to install Python 3.9 using pyenv
 install_python39() {
+    if [ -d "/home/ubuntu/.pyenv/versions/3.9.7" ]; then
+        echo "Python 3.9.7 is already installed."
+        return
+    fi
+    if [ -d "/home/ubuntu/.pyenv" ]; then
+        echo "Removing existing pyenv directory..."
+        rm -rf /home/ubuntu/.pyenv
+    fi
     echo "Installing Python 3.9 using pyenv..."
     sudo apt-get install -y build-essential libssl-dev zlib1g-dev libbz2-dev \
     libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev \
