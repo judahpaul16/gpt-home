@@ -5,21 +5,20 @@ async def main():
     while True:
         try:
             keyword = "computer"
-            
             # Start displaying 'Listening'
             stop_event = asyncio.Event()
             state_task = asyncio.create_task(display_state("Listening", display, stop_event))
-
+            
             try:
-                state_task_container = [state_task]
-                text = await listen(loop, display, stop_event)
+                text = await listen(display, state_task, stop_event)  # Removed 'loop'
             except Exception as e:
-                logging.error("Listening timed out: " + str(e))
+                logging.error(f"Listening timed out: {e}")
                 continue
-
+            
             # Stop displaying 'Listening'
             stop_event.set()
-            state_task.cancel()
+            if state_task:
+                state_task.cancel()
             
             if text:
                 clean_text = text.lower().translate(str.maketrans('', '', string.punctuation))

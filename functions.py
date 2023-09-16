@@ -154,12 +154,14 @@ async def updateLCD(text, display, stop_event=None, delay=0.02):
         line_count = len(lines)
         display_task = asyncio.create_task(display_text(delay))
 
-async def listen(loop, display, stop_event):
+async def listen(display, state_task, stop_event):
+    loop = asyncio.get_running_loop()  # Get the running loop
+    
     if not loop.is_running():
         logging.error("Event loop is not running")
         return
 
-    def recognize_audio(loop, stop_event):
+    def recognize_audio(loop, state_task, stop_event):
         try:
             with sr.Microphone() as source:
                 if source.stream is None:
@@ -171,11 +173,13 @@ async def listen(loop, display, stop_event):
                     try:
                         audio = r.listen(source, timeout=1, phrase_time_limit=10)
 
-                        rtask = asyncio.create_task(display_state("Processing", display, stop_event))
+                        stop_event.set()
+                        state_task.cancel()
+                        state_task = None
+                        state_task = asyncio.create_task(display_state("Processing", display, stop_event))
                         text = r.recognize_google(audio)
                         
                         if text:  # If text is found, break the loop
-                            rtask.cancel()
                             return text
                             
                     except sr.WaitTimeoutError:
@@ -194,7 +198,7 @@ async def listen(loop, display, stop_event):
                 source.stream.close()
             raise asyncio.TimeoutError("Listening timed out.")
 
-    text = await loop.run_in_executor(executor, recognize_audio, loop, stop_event)
+    text = await loop.run_in_executor(executor, recognize_audio, loop, state_task, stop_event)
     return text
 
 async def display_state(state, display, stop_event):
@@ -265,11 +269,12 @@ def network_connected():
     return os.system("ping -c 1 google.com") == 0
 
 async def handle_error(message, state_task, display):
-    if state_task: state_task.cancel()
+    if state_task: 
+        state_task.cancel()
     delay = await calculate_delay(message)
     stop_event = asyncio.Event()
     lcd_task = asyncio.create_task(updateLCD(message, display, stop_event=stop_event, delay=delay))
     speak_task = asyncio.create_task(speak(message, stop_event))
     await speak_task
     lcd_task.cancel()
-    logging.error(traceback.format_exc())
+    logging.error(f"An error occurred: {message}\n{traceback.format_exc()}")
