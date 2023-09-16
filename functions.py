@@ -95,7 +95,7 @@ async def initialize_system():
     while not network_connected():
         await asyncio.sleep(1)
         message = "Network not connected. Retrying..."
-        log_event(f"Error: {message}")
+        logging.info(message)
     stop_event_init.set()  # Signal to stop the 'Connecting' display
     state_task.cancel()  # Cancel the display task
     display = initLCD()  # Reinitialize the display
@@ -127,7 +127,7 @@ async def updateLCD(text, display, stop_event=None, delay=0.02):
                     try:
                         display.text(char, j * 6, 10 + i * 10, 1)
                     except struct.error as e:
-                        log_event(f"Struct Error: {e}, skipping character {char}")
+                        logging.error(f"Struct Error: {e}, skipping character {char}")
                         continue  # Skip the current character and continue with the next
                     display.show()
                     await asyncio.sleep(delay)
@@ -155,8 +155,11 @@ async def updateLCD(text, display, stop_event=None, delay=0.02):
         display_task = asyncio.create_task(display_text(delay))
 
 async def listen(loop, display, state_task_container, stop_event):
-    def recognize_audio():
-        nonlocal state_task_container
+    if not loop.is_running():
+        logging.error("Event loop is not running")
+        return
+
+    def recognize_audio(loop, state_task_container, stop_event):
         try:
             with sr.Microphone() as source:
                 if source.stream is None:
@@ -174,9 +177,7 @@ async def listen(loop, display, state_task_container, stop_event):
                         if loop.is_running():
                             state_task_container[0] = asyncio.create_task(display_state("Processing", display, stop_event))
                         else:
-                            new_loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(new_loop)
-                            state_task_container[0] = asyncio.create_task(display_state("Processing", display, stop_event))
+                            logging.error("Event loop is not running, can't create a new task for display_state.")
 
                         text = r.recognize_google(audio)
                         
@@ -185,13 +186,13 @@ async def listen(loop, display, state_task_container, stop_event):
                             
                     except sr.WaitTimeoutError:
                         if listening:
-                            log_event("Still listening but timed out, waiting for phrase...")
+                            logging.error("Still listening but timed out, waiting for phrase...")
                         else:
-                            log_event("Timed out, waiting for phrase to start...")
+                            logging.error("Timed out, waiting for phrase to start...")
                             listening = True
                             
                     except sr.UnknownValueError:
-                        log_event("Could not understand audio, waiting for a new phrase...")
+                        logging.error("Could not understand audio, waiting for a new phrase...")
                         listening = False
                         
         except sr.WaitTimeoutError:
@@ -199,9 +200,7 @@ async def listen(loop, display, state_task_container, stop_event):
                 source.stream.close()
             raise asyncio.TimeoutError("Listening timed out.")
 
-    # Wrap state_task in a list to make it mutable
-    state_task_container = [state_task_container[0]]
-    text = await loop.run_in_executor(executor, recognize_audio)
+    text = await loop.run_in_executor(executor, recognize_audio, loop, state_task_container, stop_event)
     return text
 
 async def display_state(state, display, stop_event):
@@ -257,22 +256,19 @@ async def query_openai(text, display, retries=3):
                 message = f"Response: {response.choices[0].text.strip()}"
                 return message
             else:
-                log_event(f"Retry {i+1}: Received empty response from OpenAI.")
+                logging.warning(f"Retry {i+1}: Received empty response from OpenAI.")
         except Exception as e:
-            log_event(f"Error on try {i+1}: {e}")
+            logging.info(f"Error on try {i+1}: {e}")
             if i == retries - 1:  # If this was the last retry
                 error_message = f"Something went wrong after {retries} retries: {e}"
                 stop_event = asyncio.Event()
                 await speak(error_message, stop_event)
-                log_event(f"Error: {traceback.format_exc()}")
+                logging.error(traceback.format_exc())
         await asyncio.sleep(0.5)  # Wait before retrying
     raise Exception("Something went wrong after {retries} retries.")
 
 def network_connected():
     return os.system("ping -c 1 google.com") == 0
-
-def log_event(text):
-    logging.info(text)
 
 async def handle_error(message, state_task, display):
     if state_task: state_task.cancel()
@@ -282,4 +278,4 @@ async def handle_error(message, state_task, display):
     speak_task = asyncio.create_task(speak(message, stop_event))
     await speak_task
     lcd_task.cancel()
-    log_event(f"Error: {traceback.format_exc()}")
+    logging.error(traceback.format_exc())
