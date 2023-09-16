@@ -168,7 +168,16 @@ check_and_install() {
     fi
 }
 
-# Update Python to 3.9 if another version is being used
+# Add deadsnakes PPA and update package list if Python 3.9 is not found
+add_deadsnakes_ppa() {
+    if ! dpkg -l | grep -q python3.9; then
+        echo "Adding deadsnakes PPA..."
+        sudo add-apt-repository ppa:deadsnakes/ppa -y
+        sudo apt update
+    fi
+}
+
+# Function to update Python to 3.9 if another version is being used
 update_python_to_39() {
     python_version=$(python3 --version | cut -d ' ' -f 2 | cut -d '.' -f 1-2)
     if [[ "$python_version" != "3.9" ]]; then
@@ -177,6 +186,9 @@ update_python_to_39() {
         sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1
     fi
 }
+
+# Add deadsnakes PPA and update package list
+add_deadsnakes_ppa
 
 # Update package list
 sudo apt update
