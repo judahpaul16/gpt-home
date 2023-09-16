@@ -87,8 +87,8 @@ If you want to use the example setup script, you can skip this section.
 1. **OpenAI API Key**: Required for OpenAI's GPT API.  
     Setup: Set up as an environment variable.  
 
-2. **Python 3.9**: Required for running the Python code.  
-   Installation: `sudo apt-get install -y python3.9 python3.9-dev`
+2. **Python 3.x**: Required for running the Python code.  
+   Installation: `sudo apt-get install -y python3 python3-dev`
 
 3. **PortAudio**: Required for `pyttsx3` (text-to-speech).  
    Installation: `sudo apt-get install -y portaudio19-dev`
@@ -162,34 +162,11 @@ check_and_install() {
     fi
 }
 
-# Function to install Python 3.9 using pyenv
-install_python39() {
-    if [ -d "/home/ubuntu/.pyenv/versions/3.9.7" ]; then
-        echo "Python 3.9.7 is already installed."
-        return
-    fi
-    if [ -d "/home/ubuntu/.pyenv" ]; then
-        echo "Removing existing pyenv directory..."
-        rm -rf /home/ubuntu/.pyenv
-    fi
-    echo "Installing Python 3.9 using pyenv..."
-    sudo apt-get install -y build-essential libssl-dev zlib1g-dev libbz2-dev \
-    libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev \
-    xz-utils tk-dev libffi-dev liblzma-dev python3-openssl git
-    curl https://pyenv.run | bash
-    export PATH="$HOME/.pyenv/bin:$PATH"
-    eval "$(pyenv init --path)"
-    pyenv install 3.9.7
-    pyenv global 3.9.7
-}
-
 # Update package list
 sudo apt update
 
-# Install Python 3.9 using pyenv if it's not already 3.9
-[ -z "$(python3 --version | grep '3.9')" ] && install_python39
-
 # Check and install missing dependencies
+check_and_install "python3" "sudo apt-get install -y python3 python3-dev"
 check_and_install "portaudio19-dev" "sudo apt-get install -y portaudio19-dev"
 check_and_install "alsa-utils" "sudo apt-get install -y alsa-utils"
 check_and_install "libjpeg-dev" "sudo apt-get install -y libjpeg-dev"
