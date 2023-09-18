@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import '../css/EventLogs.css'
 
 const EventLogs: React.FC = () => {
   const [logs, setLogs] = useState<string>('');
