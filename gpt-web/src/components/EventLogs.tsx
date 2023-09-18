@@ -5,9 +5,9 @@ const EventLogs: React.FC = () => {
 
   useEffect(() => {
     const fetchLogs = async () => {
-      const response = await fetch('/logs');
-      const data = await response.text();
-      setLogs(data);
+      const response = await fetch('/logs', { method: 'POST' });
+      const data = await response.json();
+      setLogs(data.log_data);
     };
 
     fetchLogs();
