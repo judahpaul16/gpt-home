@@ -17,8 +17,8 @@ const EventLogs: React.FC = () => {
     // Fetch logs initially
     fetchLogs();
 
-    // Set an interval to fetch logs every 5 seconds
-    const intervalId = setInterval(fetchLogs, 5000);
+    // Set an interval to fetch logs every 1 seconds
+    const intervalId = setInterval(fetchLogs, 1000);
 
     // Clear the interval when the component is unmounted
     return () => clearInterval(intervalId);
