@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { Route, Routes, Link, Navigate } from 'react-router-dom';
 import './css/App.css';
-import Integration from './components/Integration';
+import EventLogs from './components/EventLogs';
+import Integrations from './components/Integrations';
 import Drawer from '@mui/material/Drawer';
 import ButtonBase from '@mui/material/ButtonBase';
 import List from '@mui/material/List';
@@ -13,11 +15,6 @@ import InfoIcon from '@mui/icons-material/Info';
 import IntegrationIcon from '@mui/icons-material/IntegrationInstructions';
 import IconButton from '@mui/material/IconButton';
 import MenuIcon from '@mui/icons-material/Menu';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
 
 interface IntegrationStatus {
   [key: string]: boolean;
@@ -36,6 +33,10 @@ const App: React.FC = () => {
     setIntegrations({ ...integrations, [name]: !integrations[name] });
   };
 
+  const toggleOverlay = (visible: boolean) => {
+    setShowOverlay(visible);
+  };
+
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 768) {
@@ -44,9 +45,7 @@ const App: React.FC = () => {
         setSidebarVisible(true);
       }
     };
-
     window.addEventListener('resize', handleResize);
-
     // Clean up the event listener when the component unmounts
     return () => {
       window.removeEventListener('resize', handleResize);
@@ -58,6 +57,15 @@ const App: React.FC = () => {
       {showOverlay && <div className="overlay"></div>}
       <header className="App-header">
         <div className="dashboard-container">
+          <IconButton
+            edge="start"
+            color="inherit"
+            aria-label="menu"
+            className="menu-toggle"
+            onClick={() => setSidebarVisible(!sidebarVisible)}
+          >
+            <MenuIcon />
+          </IconButton>
           <Drawer
             variant="persistent"
             open={sidebarVisible}
@@ -66,82 +74,54 @@ const App: React.FC = () => {
             <div className={sidebarVisible ? 'MuiPaper-root open' : 'MuiPaper-root closed'}>
               <h1 className="sidebar-title">GPT Home</h1>
               <List>
-                <ButtonBase>
-                  <ListItem key="Integrations">
-                    <ListItemIcon>
-                      <IntegrationIcon />
-                    </ListItemIcon>
-                    <ListItemText primary="Integrations" />
-                  </ListItem>
-                </ButtonBase>
-                <ButtonBase>
-                  <ListItem key="Chat Logs">
-                    <ListItemIcon>
-                      <ChatIcon />
-                    </ListItemIcon>
-                    <ListItemText primary="Chat Logs" />
-                  </ListItem>
-                </ButtonBase>
-                <ButtonBase>
-                  <ListItem key="Settings">
-                    <ListItemIcon>
-                      <SettingsIcon />
-                    </ListItemIcon>
-                    <ListItemText primary="Settings" />
-                  </ListItem>
-                </ButtonBase>
-                <ButtonBase>
-                  <ListItem key="About">
-                    <ListItemIcon>
-                      <InfoIcon />
-                    </ListItemIcon>
-                    <ListItemText primary="About" />
-                  </ListItem>
-                </ButtonBase>
+                <Link to="/integrations">
+                  <ButtonBase>
+                    <ListItem key="Integrations">
+                      <ListItemIcon>
+                        <IntegrationIcon />
+                      </ListItemIcon>
+                      <ListItemText primary="Integrations" />
+                    </ListItem>
+                  </ButtonBase>
+                </Link>
+                <Link to="/event-logs">
+                  <ButtonBase>
+                    <ListItem key="Event Logs">
+                      <ListItemIcon>
+                        <ChatIcon />
+                      </ListItemIcon>
+                      <ListItemText primary="Event Logs" />
+                    </ListItem>
+                  </ButtonBase>
+                </Link>
+                <Link to="/settings">
+                  <ButtonBase>
+                    <ListItem key="Settings">
+                      <ListItemIcon>
+                        <SettingsIcon />
+                      </ListItemIcon>
+                      <ListItemText primary="Settings" />
+                    </ListItem>
+                  </ButtonBase>
+                </Link>
+                <Link to="/about">
+                  <ButtonBase>
+                    <ListItem key="About">
+                      <ListItemIcon>
+                        <InfoIcon />
+                      </ListItemIcon>
+                      <ListItemText primary="About" />
+                    </ListItem>
+                  </ButtonBase>
+                </Link>
               </List>
             </div>
           </Drawer>
-          <div className="integrations-dashboard">
-            <h2>Integrations Dashboard</h2>
-            <IconButton
-              className="menu-toggle"
-              edge="start"
-              color="inherit"
-              aria-label="menu"
-              onClick={() => setSidebarVisible(!sidebarVisible)}
-            >
-              <MenuIcon />
-            </IconButton>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Action</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {Object.keys(integrations).map((name) => (
-                  <TableRow key={name}>
-                    <TableCell>{name}</TableCell>
-                    <TableCell>
-                      {integrations[name as keyof IntegrationStatus]
-                        ? 'Connected'
-                        : 'Disconnected'}
-                    </TableCell>
-                    <TableCell>
-                      <Integration
-                        name={name}
-                        status={integrations[name as keyof IntegrationStatus]}
-                        toggleStatus={toggleStatus}
-                        setShowOverlay={setShowOverlay}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <Routes>
+            <Route path="/event-logs" element={<EventLogs />} />
+            <Route path="/integrations" element={<Integrations toggleStatus={toggleStatus} toggleOverlay={toggleOverlay} />} />
+            <Route index element={<Navigate to="/integrations" />} />
+          </Routes>
         </div>
       </header>
     </div>

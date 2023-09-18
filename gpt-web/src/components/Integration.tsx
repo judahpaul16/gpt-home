@@ -5,7 +5,7 @@ interface IntegrationProps {
   name: string;
   status: boolean;
   toggleStatus: (name: string) => void;
-  setShowOverlay: React.Dispatch<React.SetStateAction<boolean>>;
+  setShowOverlay: (visible: boolean) => void;
 }
 
 const Integration: React.FC<IntegrationProps> = ({ name, status, toggleStatus, setShowOverlay }) => {
