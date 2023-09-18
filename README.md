@@ -149,6 +149,13 @@ Create a script outside the local repo folder with `vim setup.sh`
 ```bash
 #!/bin/bash
 
+# Function to update the system time
+update_system_time() {
+    echo "Updating system time..."
+    sudo apt-get install -y ntpdate
+    sudo ntpdate -u ntp.ubuntu.com
+}
+
 # Function to check and install a package if it's not installed
 check_and_install() {
     package=$1
@@ -161,6 +168,9 @@ check_and_install() {
         echo "$package is already installed."
     fi
 }
+
+# Update system time
+update_system_time
 
 # Update package list
 sudo apt update
