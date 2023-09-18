@@ -289,6 +289,9 @@ setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env
 
 # Setup fastapi service for FastAPI backend
 setup_service "gpt-web.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && uvicorn gpt-web.backend:app --host 0.0.0.0 --port 8000'" "" ""
+
+# Mask systemd-networkd-wait-online.service to prevent boot delays
+sudo systemctl mask systemd-networkd-wait-online.service
 ```
 Be sure to make the script executable to run it
 ```bash
