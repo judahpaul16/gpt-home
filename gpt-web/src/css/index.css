@@ -12,7 +12,7 @@ body {
   background-color: #F4F4F4;
 }
 
-code {
+code, pre {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }

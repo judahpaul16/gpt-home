@@ -1,7 +1,39 @@
 pre {
     background: #ececec;
-    text-align: left;
-    padding: 1em 1.5em;
-    border: 5px solid lightgray;
+    border: 5px solid #d3d3d3;
     border-radius: 10px;
+    padding: 1em 1.5em;
+    text-align: left;
+    max-width: 100%;
+    text-wrap: balance;
+    font-size: 16pt;
+}
+
+.log-container {
+    background: #ececec;
+    border: 5px solid #d3d3d3;
+    border-radius: 10px;
+    padding: 1em 1.5em;
+    text-align: left;
+    max-width: 100%;
+    text-wrap: balance;
+    font-size: 16pt;
+  }
+  
+  .new-entry {
+    animation: flash 2s ease-in-out;
+    background-color: yellow;
+  }
+  
+  .old-entry {
+    background-color: transparent;
+  }
+  
+  @keyframes flash {
+    0% {
+      background-color: yellow;
+    }
+    100% {
+      background-color: transparent;
+    }
 }
