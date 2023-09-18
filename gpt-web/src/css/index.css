@@ -1,10 +1,15 @@
+* {
+  transition: all ease-in-out 0.2s;
+}
+
 body {
   margin: 0;
-  font-family: source-code-pro, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: #F4F4F4;
 }
 
 code {
@@ -38,5 +43,4 @@ input[type="text"] {
   padding: 12px 20px;
   box-sizing: border-box;
   border: 2px solid #ccc;
-  border-radius: 4px;
 }

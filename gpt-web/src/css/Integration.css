@@ -3,6 +3,8 @@
   border: 1px solid #ccc;
   padding: 1.5em;
   border-radius: 10px;
+  background-color: #FFFFFF;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .form-container {
@@ -11,6 +13,11 @@
   border-radius: 10px;
   width: 300px;
   text-align: center;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 
 .error-text {
