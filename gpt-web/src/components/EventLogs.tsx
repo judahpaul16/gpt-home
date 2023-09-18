@@ -1,10 +1,9 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import '../css/EventLogs.css';
 
 const EventLogs: React.FC = () => {
   const [logs, setLogs] = useState<string[]>([]);
-  const [newEntries, setNewEntries] = useState<number>(0);
-  const lastLogRef = useRef<string | null>(null);
+  const [isNew, setIsNew] = useState<boolean[]>([]);
 
   useEffect(() => {
     const fetchLogs = async () => {
@@ -13,23 +12,12 @@ const EventLogs: React.FC = () => {
         const data = await response.json();
         const newLogs = data.log_data.split('\n');
 
-        if (!lastLogRef.current) {
-          lastLogRef.current = newLogs[0];
-          setLogs(newLogs);
-        } else {
-          const lastLogIndex = newLogs.indexOf(lastLogRef.current);
+        // Mark new logs
+        const newFlags = newLogs.map((_: any, index: any) => index >= logs.length);
 
-          if (lastLogIndex !== -1) {
-            const logsToAdd = newLogs.slice(0, lastLogIndex);
-            setNewEntries(logsToAdd.length);
-            setLogs(prevLogs => [...logsToAdd, ...prevLogs]);
-            lastLogRef.current = newLogs[0];
-          } else {
-            setNewEntries(newLogs.length);
-            setLogs(newLogs);
-            lastLogRef.current = newLogs[0];
-          }
-        }
+        setLogs(newLogs);
+        setIsNew(newFlags);
+
       } catch (error) {
         console.error('Error fetching logs:', error);
       }
@@ -43,12 +31,12 @@ const EventLogs: React.FC = () => {
 
     // Clear the interval when the component is unmounted
     return () => clearInterval(intervalId);
-  }, []);
+  }, [logs]);
 
   return (
     <pre className="log-container">
       {logs.map((log, index) => (
-        <div className={index < newEntries ? 'new-entry' : 'old-entry'} key={index}>
+        <div className={isNew[index] ? 'new-entry' : 'old-entry'} key={index}>
           {log}
         </div>
       ))}
