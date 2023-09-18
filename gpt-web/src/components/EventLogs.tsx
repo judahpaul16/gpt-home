@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import '../css/EventLogs.css';
 
 const EventLogs: React.FC = () => {
   const [logs, setLogs] = useState<string[]>([]);
   const [newEntries, setNewEntries] = useState<number>(0);
+  const lastLogRef = useRef<string | null>(null);
 
   useEffect(() => {
     const fetchLogs = async () => {
@@ -12,19 +13,21 @@ const EventLogs: React.FC = () => {
         const data = await response.json();
         const newLogs = data.log_data.split('\n');
 
-        if (logs.length === 0) {
+        if (!lastLogRef.current) {
+          lastLogRef.current = newLogs[0];
           setLogs(newLogs);
         } else {
-          const lastLog = logs[0];
-          const lastLogIndex = newLogs.indexOf(lastLog);
+          const lastLogIndex = newLogs.indexOf(lastLogRef.current);
 
           if (lastLogIndex !== -1) {
             const logsToAdd = newLogs.slice(0, lastLogIndex);
             setNewEntries(logsToAdd.length);
             setLogs(prevLogs => [...logsToAdd, ...prevLogs]);
+            lastLogRef.current = newLogs[0];
           } else {
             setNewEntries(newLogs.length);
             setLogs(newLogs);
+            lastLogRef.current = newLogs[0];
           }
         }
       } catch (error) {
@@ -40,7 +43,7 @@ const EventLogs: React.FC = () => {
 
     // Clear the interval when the component is unmounted
     return () => clearInterval(intervalId);
-  }, [logs]);
+  }, []);
 
   return (
     <pre className="log-container">
