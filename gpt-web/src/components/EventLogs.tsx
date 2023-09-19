@@ -10,8 +10,7 @@ interface Log {
 
 const EventLogs: React.FC = () => {
   const [logs, setLogs] = useState<Log[]>([]);
-  const [seenTimestamps, setSeenTimestamps] = useState<Set<string>>(new Set());
-  const [prevLogLength, setPrevLogLength] = useState<number | null>(null);
+  const prevLogLengthRef = useRef<number | null>(null);
   const logContainerRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
@@ -25,7 +24,7 @@ const EventLogs: React.FC = () => {
         timestamp: ''
       }));
       setLogs(allLogs);
-      setPrevLogLength(allLogs.length);
+      prevLogLengthRef.current = allLogs.length;
     };
 
     fetchAllLogs();
@@ -39,9 +38,9 @@ const EventLogs: React.FC = () => {
         const allLogs = data.log_data.split('\n');
         const currentLogLength = allLogs.length;
 
-        if (prevLogLength !== null && prevLogLength < currentLogLength) {
+        if (prevLogLengthRef.current !== null && prevLogLengthRef.current < currentLogLength) {
           const lastLog = allLogs[allLogs.length - 1];
-          const timestamp = new Date().toISOString(); // You can keep this or remove it
+          const timestamp = new Date().toISOString();
 
           setLogs(prevLogs => [...prevLogs, {
             content: lastLog,
@@ -54,7 +53,7 @@ const EventLogs: React.FC = () => {
             setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
           }, 2000);
 
-          setPrevLogLength(currentLogLength);
+          prevLogLengthRef.current = currentLogLength;
         }
 
         if (logContainerRef.current) {
@@ -69,7 +68,7 @@ const EventLogs: React.FC = () => {
       const intervalId = setInterval(fetchLastLog, 2000);
       return () => clearInterval(intervalId);
     }
-  }, [logs, prevLogLength]);
+  }, [logs]);
 
   const renderLogs = () => {
     return logs.map((log, index) => {
