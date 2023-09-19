@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Route, Routes, Link, Navigate } from 'react-router-dom';
+import { Route, Routes, Link, Navigate, useLocation } from 'react-router-dom';
 import './css/App.css';
 import EventLogs from './components/EventLogs';
 import Integrations from './components/Integrations';
@@ -21,6 +21,7 @@ interface IntegrationStatus {
 }
 
 const App: React.FC = () => {
+  const location = useLocation();
   const [integrations, setIntegrations] = useState<IntegrationStatus>({
     Spotify: false,
     GoogleCalendar: false,
@@ -86,7 +87,7 @@ const App: React.FC = () => {
               <List>
                 <Link to="/integrations">
                   <ButtonBase>
-                    <ListItem key="Integrations">
+                    <ListItem key="Integrations" className={location.pathname === "/integrations" ? "active" : ""}>
                       <ListItemIcon>
                         <IntegrationIcon />
                       </ListItemIcon>
@@ -96,7 +97,7 @@ const App: React.FC = () => {
                 </Link>
                 <Link to="/event-logs">
                   <ButtonBase>
-                    <ListItem key="Event Logs">
+                    <ListItem key="Event Logs" className={location.pathname === "/event-logs" ? "active" : ""}>
                       <ListItemIcon>
                         <ChatIcon />
                       </ListItemIcon>
@@ -106,7 +107,7 @@ const App: React.FC = () => {
                 </Link>
                 <Link to="/settings">
                   <ButtonBase>
-                    <ListItem key="Settings">
+                    <ListItem key="Settings" className={location.pathname === "/settings" ? "active" : ""}>
                       <ListItemIcon>
                         <SettingsIcon />
                       </ListItemIcon>
@@ -116,7 +117,7 @@ const App: React.FC = () => {
                 </Link>
                 <Link to="/about">
                   <ButtonBase>
-                    <ListItem key="About">
+                    <ListItem key="About" className={location.pathname === "/about" ? "active" : ""}>
                       <ListItemIcon>
                         <InfoIcon />
                       </ListItemIcon>

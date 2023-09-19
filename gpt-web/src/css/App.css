@@ -103,12 +103,21 @@ th, td {
   }
 }
 
+.active {
+  background-color: #f4f4f4;
+}
+
 .MuiButtonBase-root {
   width: 100%;
 }
 
+.MuiButtonBase-root li {
+  border-radius: 10px;
+}
+
 .MuiButtonBase-root:hover {
   background-color: #F4F4F4;
+  border-radius: 10px;
 }
 
 .MuiTypography-root {
