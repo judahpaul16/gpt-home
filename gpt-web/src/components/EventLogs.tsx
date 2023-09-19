@@ -9,9 +9,25 @@ interface Log {
 
 const EventLogs: React.FC = () => {
   const [logs, setLogs] = useState<Log[]>([]);
-  const [currentLogLength, setCurrentLogLength] = useState<number | null>(null);
+  const [_, setCurrentLogLength] = useState<number | null>(null);
   const logContainerRef = useRef<HTMLPreElement>(null);
   const [lastLineNumber, setLastLineNumber] = useState<number>(0);
+
+  useEffect(() => {
+    const fetchAllLogs = async () => {
+      const response = await fetch('/logs', { method: 'POST' });
+      const data = await response.json();
+      const allLogs = data.log_data.split('\n').map((log: string) => ({
+        content: log,
+        isNew: false,
+        type: log.split(":")[0].toLowerCase(),
+      }));
+      setLogs(allLogs);
+      setCurrentLogLength(allLogs.length);
+    };
+
+    fetchAllLogs();
+  }, []);
 
   useEffect(() => {
     const fetchLastLog = async () => {

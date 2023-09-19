@@ -20,6 +20,17 @@ def read_root(path: str):
     return FileResponse(ROOT_DIRECTORY / "build" / "index.html")
 
 @app.post("/logs")
+def logs(request: Request):
+    log_file_path = PARENT_DIRECTORY / "events.log"
+
+    if log_file_path.exists() and log_file_path.is_file():
+        with log_file_path.open("r") as f:
+            log_data = f.read()
+        return JSONResponse(content={"log_data": log_data})
+    else:
+        return Response(status_code=status.HTTP_404_NOT_FOUND, content="Log file not found")
+    
+@app.post("/last-logs")
 def last_logs(request: Request, last_line_number: Optional[int] = 0):
     log_file_path = PARENT_DIRECTORY / "events.log"
 
