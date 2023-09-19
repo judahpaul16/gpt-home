@@ -1,37 +1,43 @@
 import React, { useEffect, useState, useRef } from 'react';
 import '../css/EventLogs.css';
 
-interface LogEntry {
+interface Log {
   content: string;
   isNew: boolean;
   type: string;
 }
 
 const EventLogs: React.FC = () => {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [logs, setLogs] = useState<Log[]>([]);
   const logContainerRef = useRef<HTMLPreElement>(null);
+  const lastLog = useRef<string | null>(null);  // Keep track of the last log
 
   useEffect(() => {
     const fetchLogs = async () => {
       try {
         const response = await fetch('/logs', { method: 'POST' });
         const data = await response.json();
-        const fetchedLogs = data.log_data.split('\n');
+        const allLogs = data.log_data.split('\n');
+        const newLogs: Log[] = [];
 
-        // Identify new logs
-        const newLogs: LogEntry[] = fetchedLogs.filter(
-          (fetchedLog: string) => !logs.some((existingLog: LogEntry) => existingLog.content === fetchedLog)
-        ).map((log: string) => {
-          const type = log.split(":")[0]; // Extract log type
-          return { content: log, isNew: true, type: type.toLowerCase() };
-        });
+        for (let log of allLogs.reverse()) {
+          if (log === lastLog.current) {
+            break;
+          }
+          const type = log.split(":")[0].toLowerCase();
+          newLogs.unshift({ content: log, isNew: true, type });
+        }
 
-        setLogs(prevLogs => [...prevLogs, ...newLogs]);
+        if (newLogs.length > 0) {
+          lastLog.current = newLogs[newLogs.length - 1].content;  // Update the last log
 
-        // Remove the 'new' flag after 2 seconds
-        setTimeout(() => {
-          setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
-        }, 2000);
+          setLogs(prevLogs => [...prevLogs, ...newLogs]);
+
+          // Remove the 'new' flag after 2 seconds
+          setTimeout(() => {
+            setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
+          }, 2000);
+        }
 
         if (logContainerRef.current) {
           logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
@@ -41,22 +47,16 @@ const EventLogs: React.FC = () => {
       }
     };
 
-    // Initial fetch
     fetchLogs();
-
-    // Set up interval
     const intervalId = setInterval(fetchLogs, 2000);
-
-    // Cleanup
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [logs]);
+    return () => clearInterval(intervalId);
+  }, []);
 
   const renderLogs = () => {
     return logs.map((log, index) => {
       const key = `${log.content}-${index}`;
       const classes = [log.isNew ? 'new-entry' : 'old-entry', log.type].join(' ');
+
       return (
         <div className={classes} key={key}>
           {log.content}
