@@ -8,7 +8,7 @@ interface Log {
 }
 
 const EventLogs: React.FC = () => {
-  const [logs, setLogs] = useState<Log[]>([]);
+  const [logs, setLogs] = useState<Map<string, Log>>(new Map());
   const logContainerRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
@@ -17,30 +17,34 @@ const EventLogs: React.FC = () => {
         const response = await fetch('/logs', { method: 'POST' });
         const data = await response.json();
         const allLogs = data.log_data.split('\n');
-        setLogs(prevLogs => {
-          const existingLogContents = new Set(prevLogs.map(log => log.content));
 
-          const newLogs = allLogs
-            .filter((log: string) => !existingLogContents.has(log))
-            .map((log: string) => ({
-              content: log,
-              isNew: true,
-              type: log.split(":")[0].toLowerCase(),
-            }));
+        // Clone the existing Map
+        const updatedLogs = new Map(logs);
 
-          if (newLogs.length > 0) {
-            // Remove the 'new' flag after 2 seconds
-            setTimeout(() => {
-              setLogs(logs => logs.map(log => ({ ...log, isNew: false })));
-            }, 2000);
+        allLogs.forEach((logContent: string) => {
+          if (!updatedLogs.has(logContent)) {
+            const type = logContent.split(":")[0].toLowerCase();
+            updatedLogs.set(logContent, { content: logContent, isNew: true, type });
           }
-
-          return [...prevLogs, ...newLogs];
         });
+
+        setLogs(updatedLogs);
+
+        // Remove the 'new' flag after 2 seconds
+        setTimeout(() => {
+          setLogs(prevLogs => {
+            const newMap = new Map(prevLogs);
+            newMap.forEach((log, key) => {
+              newMap.set(key, { ...log, isNew: false });
+            });
+            return newMap;
+          });
+        }, 2000);
 
         if (logContainerRef.current) {
           logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
         }
+
       } catch (error) {
         console.error('Error fetching logs:', error);
       }
@@ -49,10 +53,10 @@ const EventLogs: React.FC = () => {
     fetchLogs();
     const intervalId = setInterval(fetchLogs, 2000);
     return () => clearInterval(intervalId);
-  }, []);
+  }, [logs]);
 
   const renderLogs = () => {
-    return logs.map((log, index) => {
+    return Array.from(logs.values()).map((log, index) => {
       const key = `${log.content}-${index}`;
       const classes = [log.isNew ? 'new-entry' : 'old-entry', log.type].join(' ');
 
