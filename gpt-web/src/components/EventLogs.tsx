@@ -1,8 +1,14 @@
 import React, { useEffect, useState, useRef } from 'react';
 import '../css/EventLogs.css';
 
+interface LogEntry {
+  content: string;
+  isNew: boolean;
+}
+
 const EventLogs: React.FC = () => {
-  const [logs, setLogs] = useState<Array<{content: string, isNew: boolean}>>([]);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [newLogs, setNewLogs] = useState<LogEntry[]>([]);
   const logContainerRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
@@ -10,14 +16,18 @@ const EventLogs: React.FC = () => {
       try {
         const response = await fetch('/logs', { method: 'POST' });
         const data = await response.json();
-        const newLogs = data.log_data.split('\n').map((log: string) => ({ content: log, isNew: true }));
-        
-        // Set old logs to not be "new"
-        const updatedOldLogs = logs.map(log => ({ ...log, isNew: false }));
-        
+        const fetchedLogs: LogEntry[] = data.log_data.split('\n').map((log: string) => ({ content: log, isNew: false }));
+
+        // Identify new logs
+        const newEntries: LogEntry[] = fetchedLogs.filter(
+          (fetchedLog: LogEntry) => !logs.some((existingLog: LogEntry) => existingLog.content === fetchedLog.content)
+        ).map((log: LogEntry) => ({ ...log, isNew: true }));
+
+        setNewLogs(newEntries);
+
         // Combine old logs with new logs
-        const combinedLogs = [...updatedOldLogs, ...newLogs];
-        
+        const combinedLogs: LogEntry[] = [...logs, ...newEntries];
+
         setLogs(combinedLogs);
 
         if (logContainerRef.current) {
@@ -36,8 +46,9 @@ const EventLogs: React.FC = () => {
   const renderLogs = () => {
     return logs.map((log, index) => {
       const key = `${log.content}-${index}`;
+      const isNewEntry = newLogs.some((newLog: LogEntry) => newLog.content === log.content);
       return (
-        <div className={log.isNew ? 'new-entry' : 'old-entry'} key={key}>
+        <div className={isNewEntry ? 'new-entry' : 'old-entry'} key={key}>
           {log.content}
         </div>
       );
