@@ -81,7 +81,7 @@ th, td {
   visibility: hidden;
   width: fit-content !important;
   position: absolute !important;
-  padding: 1em !important;
+  padding: 1.4em !important;
   top: 0;
   right: 0;
 }
@@ -111,6 +111,11 @@ th, td {
 
 .MuiTypography-root {
   color: #404040;
+}
+
+.MuiTable-root {
+  width: 90%;
+  margin: 1.5em auto 0;
 }
 
 .overlay {
