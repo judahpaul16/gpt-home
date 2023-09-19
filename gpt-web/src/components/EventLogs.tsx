@@ -12,45 +12,54 @@ const EventLogs: React.FC = () => {
   const logContainerRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
+    let isCancelled = false; // Flag to keep track of component unmount
+
     const fetchLogs = async () => {
       try {
         const response = await fetch('/logs', { method: 'POST' });
+        if (isCancelled) return; // Check if component unmounted
+
         const data = await response.json();
-        const fetchedLogs = data.log_data.split('\n').filter((log: string) => log.trim() !== '');
+        if (isCancelled) return; // Check if component unmounted
 
-        setLogs(prevLogs => {
-          const existingLogContents = new Set(prevLogs.map(log => log.content));
-          const newLogs = fetchedLogs
-            .filter((log: any) => !existingLogContents.has(log))
-            .map((log: any) => ({
-              content: log,
-              isNew: true,
-              type: log.split(":")[0].toLowerCase(),
-            }));
+        const allLogs = data.log_data.split('\n');
+        const existingLogContents = new Set(logs.map(log => log.content));
 
-          if (newLogs.length > 0) {
-            // Remove the 'new' flag from old logs
-            const updatedOldLogs = prevLogs.map(log => ({ ...log, isNew: false }));
+        const newLogs = allLogs
+          .filter((log: any) => !existingLogContents.has(log))
+          .map((log: any) => ({
+            content: log,
+            isNew: true,
+            type: log.split(":")[0].toLowerCase(),
+          }));
 
-            // Scroll to the bottom
-            if (logContainerRef.current) {
-              logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
-            }
+        if (newLogs.length > 0) {
+          setLogs([...logs, ...newLogs]);
 
-            return [...updatedOldLogs, ...newLogs];
-          }
+          // Remove the 'new' flag after 2 seconds
+          setTimeout(() => {
+            setLogs(logs.map(log => ({ ...log, isNew: false })));
+          }, 2000);
+        }
 
-          return prevLogs;
-        });
+        if (logContainerRef.current) {
+          logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+        }
       } catch (error) {
-        console.error('Error fetching logs:', error);
+        if (!isCancelled) {
+          console.error('Error fetching logs:', error);
+        }
       }
     };
 
     fetchLogs();
     const intervalId = setInterval(fetchLogs, 2000);
-    return () => clearInterval(intervalId);
-  }, []); // Empty dependency array
+
+    return () => {
+      isCancelled = true; // Update the flag when component unmounts
+      clearInterval(intervalId); // Clear the interval
+    };
+  }, []); // Empty dependency array ensures this runs once when component mounts and cleans up when it unmounts
 
   const renderLogs = () => {
     return logs.map((log, index) => {
