@@ -247,18 +247,19 @@ async def query_openai(text, display, retries=3):
     stop_event = asyncio.Event()
     for i in range(retries):
         try:
-            response = openai.Completion.create(
-                engine="davinci",
-                prompt=f"Conversation with a computer:\nHuman: {text}\nAI:",
-                temperature=0.9,
-                max_tokens=150,
-                top_p=1,
-                frequency_penalty=0.0,
-                presence_penalty=0.6,
-                stop=["\n"]
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": f"Human: {text}\nAI:"}
+                ],
+                max_tokens=150
             )
-            if response.choices[0].text.strip():  # Check if the response is not empty
-                message = f"Response: {response.choices[0].text.strip()}"
+            
+            response_content = response['choices'][0]['message']['content'].strip()
+            
+            if response_content:  # Check if the response is not empty
+                message = f"Response: {response_content}"
                 return message
             else:
                 logger.warning(f"Retry {i+1}: Received empty response from OpenAI.")
@@ -268,7 +269,7 @@ async def query_openai(text, display, retries=3):
                 error_message = f"Something went wrong after {retries} retries: {e}"
                 handle_error(error_message, None, display)
         await asyncio.sleep(0.5)  # Wait before retrying
-    raise Exception("Something went wrong after {retries} retries.")
+    raise Exception(f"Something went wrong after {retries} retries.")
 
 def network_connected():
     return os.system("ping -c 1 google.com") == 0

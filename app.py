@@ -35,11 +35,11 @@ async def main():
                         # Create a task for OpenAI query, don't await it yet
                         query_task = asyncio.create_task(query_openai(actual_text, display))
 
+                        logger.success(heard_message)
                         await asyncio.gather(
                             speak(heard_message, stop_event_heard),
                             updateLCD(heard_message, display, stop_event=stop_event_heard, delay=delay_heard)
                         )
-                        logger.success(heard_message)
 
                         response_message = await query_task
                         
@@ -49,8 +49,8 @@ async def main():
                         response_task_speak = asyncio.create_task(speak(response_message, stop_event_response))
                         response_task_lcd = asyncio.create_task(updateLCD(response_message, display, stop_event=stop_event_response, delay=delay_response))
 
-                        await asyncio.gather(response_task_speak, response_task_lcd)
                         logger.success(response_message)
+                        await asyncio.gather(response_task_speak, response_task_lcd)
                         
                 else:
                     continue  # Skip to the next iteration
