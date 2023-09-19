@@ -14,26 +14,10 @@ const EventLogs: React.FC = () => {
   const [lastLineNumber, setLastLineNumber] = useState<number>(0);
 
   useEffect(() => {
-    const fetchAllLogs = async () => {
-      const response = await fetch('/logs', { method: 'POST' });
-      const data = await response.json();
-      const allLogs = data.log_data.split('\n').map((log: string) => ({
-        content: log,
-        isNew: false,
-        type: log.split(":")[0].toLowerCase(),
-      }));
-      setLogs(allLogs);
-      setCurrentLogLength(allLogs.length);
-    };
-
-    fetchAllLogs();
-  }, []);
-
-  useEffect(() => {
     const fetchLastLog = async () => {
       try {
         // Send last line number as a parameter
-        const response = await fetch(`/last-logs?last_line_number=${lastLineNumber}`, { method: 'POST' });
+        const response = await fetch(`/logs?last_line_number=${lastLineNumber}`, { method: 'POST' });
         const data = await response.json();
         const newLogs = data.last_logs;
         const newLastLineNumber = data.new_last_line_number;
