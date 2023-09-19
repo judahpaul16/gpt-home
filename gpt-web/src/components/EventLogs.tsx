@@ -10,7 +10,6 @@ interface Log {
 const EventLogs: React.FC = () => {
   const [logs, setLogs] = useState<Log[]>([]);
   const logContainerRef = useRef<HTMLPreElement>(null);
-  const lastLogLine = useRef<string | null>(null);
 
   useEffect(() => {
     const fetchLogs = async () => {
@@ -18,20 +17,17 @@ const EventLogs: React.FC = () => {
         const response = await fetch('/logs', { method: 'POST' });
         const data = await response.json();
         const allLogs = data.log_data.split('\n');
+        const existingLogContents = logs.map(log => log.content);
 
-        const newLogs: Log[] = [];
-
-        for (let log of allLogs) {
-          if (log === lastLogLine.current) {
-            break;
-          }
-          const type = log.split(":")[0].toLowerCase();
-          newLogs.unshift({ content: log, isNew: true, type });
-        }
+        const newLogs = allLogs.filter((log: any) => !existingLogContents.includes(log))
+                                .map((log: any) => ({
+                                  content: log,
+                                  isNew: true,
+                                  type: log.split(":")[0].toLowerCase()
+                                }));
 
         if (newLogs.length > 0) {
-          lastLogLine.current = allLogs[0];
-          setLogs(prevLogs => [...newLogs.reverse(), ...prevLogs]);
+          setLogs(prevLogs => [...prevLogs, ...newLogs]);
 
           // Remove the 'new' flag after 2 seconds
           setTimeout(() => {
@@ -50,7 +46,7 @@ const EventLogs: React.FC = () => {
     fetchLogs();
     const intervalId = setInterval(fetchLogs, 2000);
     return () => clearInterval(intervalId);
-  }, []);
+  }, [logs]);
 
   const renderLogs = () => {
     return logs.map((log, index) => {
