@@ -16,7 +16,7 @@ pre {
     padding: 1em 1.5em;
     text-align: left;
     max-width: 100%;
-    text-wrap: balance;
+    text-wrap: wrap;
     font-size: 16pt;
   }
   

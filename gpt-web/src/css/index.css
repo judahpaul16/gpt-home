@@ -1,5 +1,8 @@
 * {
-  transition: all ease-in-out 0.2s;
+  transition:
+    scroll-behavior 0.2s ease-in-out,
+    transform 0.2s ease-in-out,
+    background-color 0.2s ease-in-out;
 }
 
 body {

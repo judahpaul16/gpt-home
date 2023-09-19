@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Route, Routes, Link, Navigate } from 'react-router-dom';
 import './css/App.css';
 import EventLogs from './components/EventLogs';
@@ -37,6 +37,14 @@ const App: React.FC = () => {
     setShowOverlay(visible);
   };
 
+  const sidebarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (sidebarRef.current && sidebarVisible) {
+      sidebarRef.current.scrollTop = sidebarRef.current.scrollHeight;
+    }
+  }, [sidebarVisible]);
+
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 768) {
@@ -71,7 +79,9 @@ const App: React.FC = () => {
             open={sidebarVisible}
             className={sidebarVisible ? 'sidebar open' : 'sidebar closed'}
           >
-            <div className={sidebarVisible ? 'MuiPaper-root open' : 'MuiPaper-root closed'}>
+            <div 
+              ref={sidebarRef}
+              className={sidebarVisible ? 'MuiPaper-root open' : 'MuiPaper-root closed'}>
               <h1 className="sidebar-title">GPT Home</h1>
               <List>
                 <Link to="/integrations">

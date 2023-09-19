@@ -34,13 +34,15 @@ const EventLogs: React.FC = () => {
   }, []);
 
   return (
-    <pre className="log-container" ref={logContainerRef}>
-      {logs.map((log, index, arr) => (
-        <div className={index === arr.length - 1 ? 'new-entry' : 'old-entry'} key={index}>
-          {log}
-        </div>
-      ))}
-    </pre>
+    <div className="dashboard log-dashboard">
+      <pre className="log-container" ref={logContainerRef}>
+        {logs.map((log, index, arr) => (
+          <div className={index === arr.length - 1 ? 'new-entry' : 'old-entry'} key={index}>
+            {log}
+          </div>
+        ))}
+      </pre>
+    </div>
   );
 };
 

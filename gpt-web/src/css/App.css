@@ -11,18 +11,22 @@
   justify-content: center;
   font-size: calc(10px + 2vmin);
   color: #333333;
-  padding-top: 1em;
 }
 
 .dashboard-container {
   display: flex;
   flex-direction: row;
-  width: 75%;
 }
 
-.integrations-dashboard {
+.dashboard {
   flex: 3;
   padding: 20px;
+}
+
+@media (min-width: 768px) {
+  .dashboard {
+    width: 60vw;
+  }
 }
 
 /* Table styling */
@@ -38,15 +42,28 @@ th, td {
   border-bottom: 1px solid #ccc;
 }
 
+.MuiPaper-root {
+  width: 200px;
+  display: contents !important;
+}
+
 .sidebar {
-  transition: width 0.3s cubic-bezier(0.785, 0.135, 0.15, 0.86), overflow 0.3s step-end;
   overflow-x: hidden;
   width: 200px;
+  flex: 1;
+  background: white;
+  border-radius: 10px;
+  padding: 0.5em;
+  margin-right: 1em;
+  transition: width 0.2s ease-in-out, visibility 0.2s ease-in-out;
 }
 
 .sidebar.closed {
   width: 0;
-  overflow-x: hidden;
+  height: 100%;
+  overflow: hidden;
+  visibility: hidden;
+  position: absolute;
 }
 
 .sidebar.open {
@@ -57,11 +74,6 @@ th, td {
 .sidebar-title {
   padding: 16px;
   font-size: 1.2em;
-}
-
-.MuiPaper-root {
-  width: 200px;
-  transition: width 0.3s cubic-bezier(0.785, 0.135, 0.15, 0.86);
 }
 
 .menu-toggle {
@@ -77,6 +89,15 @@ th, td {
 @media (max-width: 768px) {
   .menu-toggle {
     visibility: visible;
+  }
+
+  .sidebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    z-index: 9999;
+    transition: width 0.2s ease-in-out, visibility 0.2s ease-in-out;
   }
 }
 
