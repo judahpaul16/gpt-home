@@ -35,11 +35,11 @@ async def main():
                         # Create a task for OpenAI query, don't await it yet
                         query_task = asyncio.create_task(query_openai(actual_text, display))
 
-                        logger.success(heard_message)
                         await asyncio.gather(
                             speak(heard_message, stop_event_heard),
                             updateLCD(heard_message, display, stop_event=stop_event_heard, delay=delay_heard)
                         )
+                        logger.success(heard_message)
 
                         response_message = await query_task
                         
