@@ -23,7 +23,7 @@ const Integrations: React.FC<IntegrationsProps> = ({ toggleStatus, toggleOverlay
   });
 
   return (
-    <div className="dashboard integrations-dashboard">
+    <div className="dashboard integrations">
       <h2>Integrations Dashboard</h2>
       <Table>
         <TableHead>
