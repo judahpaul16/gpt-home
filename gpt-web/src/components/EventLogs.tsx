@@ -1,3 +1,12 @@
+import React, { useEffect, useState, useRef } from 'react';
+import '../css/EventLogs.css';
+
+interface Log {
+  content: string;
+  isNew: boolean;
+  type: string;
+}
+
 const EventLogs: React.FC = () => {
   const [logs, setLogs] = useState<Array<{ content: string, isNew: boolean, type: string }>>([]);
   const logContainerRef = useRef<HTMLPreElement>(null);
