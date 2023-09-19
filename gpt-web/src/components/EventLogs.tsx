@@ -17,23 +17,26 @@ const EventLogs: React.FC = () => {
         const response = await fetch('/logs', { method: 'POST' });
         const data = await response.json();
         const allLogs = data.log_data.split('\n');
-        const existingLogContents = logs.map(log => log.content);
+        setLogs(prevLogs => {
+          const existingLogContents = new Set(prevLogs.map(log => log.content));
 
-        const newLogs = allLogs.filter((log: any) => !existingLogContents.includes(log))
-                                .map((log: any) => ({
-                                  content: log,
-                                  isNew: true,
-                                  type: log.split(":")[0].toLowerCase()
-                                }));
+          const newLogs = allLogs
+            .filter((log: string) => !existingLogContents.has(log))
+            .map((log: string) => ({
+              content: log,
+              isNew: true,
+              type: log.split(":")[0].toLowerCase(),
+            }));
 
-        if (newLogs.length > 0) {
-          setLogs(prevLogs => [...prevLogs, ...newLogs]);
+          if (newLogs.length > 0) {
+            // Remove the 'new' flag after 2 seconds
+            setTimeout(() => {
+              setLogs(logs => logs.map(log => ({ ...log, isNew: false })));
+            }, 2000);
+          }
 
-          // Remove the 'new' flag after 2 seconds
-          setTimeout(() => {
-            setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
-          }, 2000);
-        }
+          return [...prevLogs, ...newLogs];
+        });
 
         if (logContainerRef.current) {
           logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
@@ -46,7 +49,7 @@ const EventLogs: React.FC = () => {
     fetchLogs();
     const intervalId = setInterval(fetchLogs, 2000);
     return () => clearInterval(intervalId);
-  }, [logs]);
+  }, []);
 
   const renderLogs = () => {
     return logs.map((log, index) => {
