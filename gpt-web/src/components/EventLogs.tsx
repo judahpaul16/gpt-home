@@ -3,8 +3,8 @@ import '../css/EventLogs.css';
 
 const EventLogs: React.FC = () => {
   const [logs, setLogs] = useState<string[]>([]);
-  const [newEntryIndex, setNewEntryIndex] = useState<number | null>(null);
   const logContainerRef = useRef<HTMLPreElement>(null);
+  const [isNew, setIsNew] = useState<boolean>(false); // State to track if a new log entry is added
 
   useEffect(() => {
     const fetchLogs = async () => {
@@ -12,12 +12,12 @@ const EventLogs: React.FC = () => {
         const response = await fetch('/logs', { method: 'POST' });
         const data = await response.json();
         const newLogs = data.log_data.split('\n');
-        
-        if (newLogs.length !== logs.length) {
-          setNewEntryIndex(newLogs.length - 1);
-          setTimeout(() => setNewEntryIndex(null), 2000);  // Reset after 2 seconds
+
+        if (newLogs.length > logs.length) {
+          setIsNew(true);
+          setTimeout(() => setIsNew(false), 2000); // Reset flag after 2 seconds
         }
-        
+
         setLogs(newLogs);
 
         // Scroll to the bottom
@@ -43,7 +43,7 @@ const EventLogs: React.FC = () => {
     <div className="dashboard log-dashboard">
       <pre className="log-container" ref={logContainerRef}>
         {logs.map((log, index) => (
-          <div className={index === newEntryIndex ? 'new-entry' : 'old-entry'} key={index}>
+          <div className={isNew && index === logs.length - 1 ? 'new-entry' : 'old-entry'} key={index}>
             {log}
           </div>
         ))}
