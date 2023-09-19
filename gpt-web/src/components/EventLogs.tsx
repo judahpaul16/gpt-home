@@ -1,14 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import '../css/EventLogs.css';
 
-interface LogEntry {
-  content: string;
-  isNew: boolean;
-}
-
 const EventLogs: React.FC = () => {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [newLogs, setNewLogs] = useState<LogEntry[]>([]);
+  const [logs, setLogs] = useState<Array<{ content: string, isNew: boolean }>>([]);
+  const [newLogs, setNewLogs] = useState<Array<{ content: string, isNew: boolean }>>([]);
   const logContainerRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
@@ -16,17 +11,17 @@ const EventLogs: React.FC = () => {
       try {
         const response = await fetch('/logs', { method: 'POST' });
         const data = await response.json();
-        const fetchedLogs: LogEntry[] = data.log_data.split('\n').map((log: string) => ({ content: log, isNew: false }));
+        const fetchedLogs = data.log_data.split('\n').map((log: string) => ({ content: log, isNew: false }));
 
         // Identify new logs
-        const newEntries: LogEntry[] = fetchedLogs.filter(
-          (fetchedLog: LogEntry) => !logs.some((existingLog: LogEntry) => existingLog.content === fetchedLog.content)
-        ).map((log: LogEntry) => ({ ...log, isNew: true }));
+        const newEntries = fetchedLogs.filter(
+          (fetchedLog: any) => !logs.some(existingLog => existingLog.content === fetchedLog.content)
+        ).map((log: any) => ({ ...log, isNew: true }));
 
         setNewLogs(newEntries);
 
         // Combine old logs with new logs
-        const combinedLogs: LogEntry[] = [...logs, ...newEntries];
+        const combinedLogs = [...logs, ...newEntries];
 
         setLogs(combinedLogs);
 
@@ -46,7 +41,7 @@ const EventLogs: React.FC = () => {
   const renderLogs = () => {
     return logs.map((log, index) => {
       const key = `${log.content}-${index}`;
-      const isNewEntry = newLogs.some((newLog: LogEntry) => newLog.content === log.content);
+      const isNewEntry = newLogs.some(newLog => newLog.content === log.content);
       return (
         <div className={isNewEntry ? 'new-entry' : 'old-entry'} key={key}>
           {log.content}
