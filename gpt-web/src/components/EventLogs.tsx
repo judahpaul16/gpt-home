@@ -39,18 +39,21 @@ const EventLogs: React.FC = () => {
         const data2 = await response2.json();
         const fullLog = data2.log_data.split('\n');
 
-        if (lastLog && fullLog.length > (currentLogLength || 0)) {
+        if (currentLogLength !== null && fullLog.length > currentLogLength) {
+          const newLogs = fullLog.slice(currentLogLength).map((log: string) => ({
+            content: log,
+            isNew: true,
+            type: log.split(":")[0].toLowerCase(),
+          }));
           setCurrentLogLength(fullLog.length);
 
-          setLogs(prevLogs => [...prevLogs, {
-            content: lastLog,
-            isNew: true,
-            type: lastLog.split(":")[0].toLowerCase(),
-          }]);
+          setLogs(prevLogs => [...prevLogs, ...newLogs]);
 
           setTimeout(() => {
             setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
-          }, 1000);
+          }, 2000);
+        } else if (currentLogLength === null) {
+          setCurrentLogLength(fullLog.length);
         }
 
         if (logContainerRef.current) {
