@@ -28,3 +28,14 @@ def logs(request: Request):
         return JSONResponse(content={"log_data": log_data})
     else:
         return Response(status_code=status.HTTP_404_NOT_FOUND, content="Log file not found")
+    
+@app.post("/last-log")
+def last_log(request: Request):
+    log_file_path = PARENT_DIRECTORY / "events.log"
+
+    if log_file_path.exists() and log_file_path.is_file():
+        with log_file_path.open("r") as f:
+            last_line = f.readlines()[-1].strip()
+        return JSONResponse(content={"last_log": last_line})
+    else:
+        return Response(status_code=status.HTTP_404_NOT_FOUND, content="Log file not found")

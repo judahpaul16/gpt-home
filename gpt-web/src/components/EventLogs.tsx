@@ -12,49 +12,47 @@ const EventLogs: React.FC = () => {
   const logContainerRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
-    let existingLogContents = new Set(logs.map(log => log.content));
-
-    const fetchLogs = async () => {
+    const fetchLastLog = async () => {
       try {
-        const response = await fetch('/logs', { method: 'POST' });
+        const response = await fetch('/last-log', { method: 'POST' });
         const data = await response.json();
-        const allLogs = data.log_data.split('\n');
+        const lastLog = data.last_log;
 
-        // Filter out the logs that already exist
-        const newLogs = allLogs
-          .filter((log: string) => !existingLogContents.has(log))
-          .map((log: string) => ({
-            content: log,
-            isNew: true,
-            type: log.split(":")[0].toLowerCase(),
-          }));
+        setLogs(prevLogs => {
+          const existingLogContents = new Set(prevLogs.map(log => log.content));
 
-        if (newLogs.length > 0) {
-          // Update existingLogContents
-          newLogs.forEach((log: Log) => existingLogContents.add(log.content));
+          if (!existingLogContents.has(lastLog)) {
+            return [...prevLogs, {
+              content: lastLog,
+              isNew: true,
+              type: lastLog.split(":")[0].toLowerCase(),
+            }];
+          }
 
-          setLogs(prevLogs => [...newLogs.reverse(), ...prevLogs]);
+          return prevLogs;
+        });
 
-          // Remove the 'new' flag after 2 seconds
-          setTimeout(() => {
-            setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
-          }, 2000);
-        }
+        // Remove the 'new' flag after 2 seconds
+        setTimeout(() => {
+          setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
+        }, 2000);
 
+        // Scroll to the bottom
         if (logContainerRef.current) {
           logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
         }
+
       } catch (error) {
         console.error('Error fetching logs:', error);
       }
     };
 
-    const intervalId = setInterval(fetchLogs, 2000);
+    const intervalId = setInterval(fetchLastLog, 2000);
 
     return () => {
       clearInterval(intervalId);
     };
-  }, []);
+  }, []);  
 
   const renderLogs = () => {
     return logs.map((log, index) => {
