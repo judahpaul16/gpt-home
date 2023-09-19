@@ -33,28 +33,21 @@ const EventLogs: React.FC = () => {
         const response = await fetch('/last-log', { method: 'POST' });
         const data = await response.json();
         const lastLog = data.last_log;
-  
+    
         if (lastLog) {
-          setLogs(prevLogs => {
-            const existingLogContents = new Set(prevLogs.map(log => log.content));
-  
-            if (!existingLogContents.has(lastLog)) {
-              return [...prevLogs, {
-                content: lastLog,
-                isNew: true,
-                type: lastLog.split(":")[0].toLowerCase(),
-              }];
-            }
-  
-            return prevLogs;
-          });
-
+          // Always append the last log
+          setLogs(prevLogs => [...prevLogs, {
+            content: lastLog,
+            isNew: true,
+            type: lastLog.split(":")[0].toLowerCase(),
+          }]);
+    
           // Remove the 'new' flag after 2 seconds
           setTimeout(() => {
             setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
           }, 2000);
         }
-  
+    
         // Scroll to the bottom
         if (logContainerRef.current) {
           logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
@@ -62,7 +55,7 @@ const EventLogs: React.FC = () => {
       } catch (error) {
         console.error('Error fetching last log:', error);
       }
-    };
+    };    
   
     // Fetch the last log every 2 seconds, only after the initial logs are fetched
     if (logs.length > 0) {
