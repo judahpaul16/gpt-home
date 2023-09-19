@@ -31,11 +31,15 @@ pre {
   background-color: transparent;
 }
 
-.old-entry {
+.old-entry, .info {
   background-color: transparent;
 }
 
 /* Log types */
+.success {
+  background-color: #ccffcc;
+}
+
 .warning {
   background-color: #ffffcc;
 }
@@ -44,8 +48,8 @@ pre {
   background-color: #ffcccc;
 }
 
-.success {
-  background-color: #ccffcc;
+.critical {
+  background-color: #ff9999;
 }
 
 @keyframes flash {

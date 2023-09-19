@@ -39,7 +39,7 @@ async def main():
                             speak(heard_message, stop_event_heard),
                             updateLCD(heard_message, display, stop_event=stop_event_heard, delay=delay_heard)
                         )
-                        logging.warning(heard_message)
+                        logging.success(heard_message)
 
                         response_message = await query_task
                         
@@ -50,7 +50,7 @@ async def main():
                         response_task_lcd = asyncio.create_task(updateLCD(response_message, display, stop_event=stop_event_response, delay=delay_response))
 
                         await asyncio.gather(response_task_speak, response_task_lcd)
-                        logging.warning(response_message)
+                        logging.success(response_message)
                         
                 else:
                     continue  # Skip to the next iteration

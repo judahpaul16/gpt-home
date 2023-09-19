@@ -271,4 +271,4 @@ async def handle_error(message, state_task, display):
     speak_task = asyncio.create_task(speak(message, stop_event))
     await speak_task
     lcd_task.cancel()
-    logging.error(f"An error occurred: {message}\n{traceback.format_exc()}")
+    logging.critical(f"An error occurred: {message}\n{traceback.format_exc()}")
