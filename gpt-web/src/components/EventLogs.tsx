@@ -3,6 +3,7 @@ import '../css/EventLogs.css';
 
 const EventLogs: React.FC = () => {
   const [logs, setLogs] = useState<string[]>([]);
+  const [newEntryIndex, setNewEntryIndex] = useState<number | null>(null);
   const logContainerRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
@@ -11,7 +12,12 @@ const EventLogs: React.FC = () => {
         const response = await fetch('/logs', { method: 'POST' });
         const data = await response.json();
         const newLogs = data.log_data.split('\n');
-
+        
+        if (newLogs.length !== logs.length) {
+          setNewEntryIndex(newLogs.length - 1);
+          setTimeout(() => setNewEntryIndex(null), 2000);  // Reset after 2 seconds
+        }
+        
         setLogs(newLogs);
 
         // Scroll to the bottom
@@ -26,18 +32,18 @@ const EventLogs: React.FC = () => {
     // Fetch logs initially
     fetchLogs();
 
-    // Set an interval to fetch logs every 1 second
-    const intervalId = setInterval(fetchLogs, 1000);
+    // Set an interval to fetch logs every 2 seconds
+    const intervalId = setInterval(fetchLogs, 2000);
 
     // Clear the interval when the component is unmounted
     return () => clearInterval(intervalId);
-  }, []);
+  }, [logs]);
 
   return (
     <div className="dashboard log-dashboard">
       <pre className="log-container" ref={logContainerRef}>
-        {logs.map((log, index, arr) => (
-          <div className={index === arr.length - 1 ? 'new-entry' : 'old-entry'} key={index}>
+        {logs.map((log, index) => (
+          <div className={index === newEntryIndex ? 'new-entry' : 'old-entry'} key={index}>
             {log}
           </div>
         ))}
