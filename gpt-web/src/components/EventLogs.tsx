@@ -8,9 +8,9 @@ interface Log {
 }
 
 const EventLogs: React.FC = () => {
-  const [logs, setLogs] = useState<Array<{ content: string, isNew: boolean, type: string }>>([]);
+  const [logs, setLogs] = useState<Log[]>([]);
   const logContainerRef = useRef<HTMLPreElement>(null);
-  const lastLog = useRef<string | null>(null);  // Keep track of the last log
+  const lastLogLine = useRef<string | null>(null);
 
   useEffect(() => {
     const fetchLogs = async () => {
@@ -18,10 +18,11 @@ const EventLogs: React.FC = () => {
         const response = await fetch('/logs', { method: 'POST' });
         const data = await response.json();
         const allLogs = data.log_data.split('\n');
+
         const newLogs: Log[] = [];
 
-        for (let log of allLogs.reverse()) {
-          if (log === lastLog.current) {
+        for (let log of allLogs) {
+          if (log === lastLogLine.current) {
             break;
           }
           const type = log.split(":")[0].toLowerCase();
@@ -29,14 +30,13 @@ const EventLogs: React.FC = () => {
         }
 
         if (newLogs.length > 0) {
-          lastLog.current = newLogs[newLogs.length - 1].content;  // Update the last log
+          lastLogLine.current = allLogs[0];
+          setLogs(prevLogs => [...newLogs.reverse(), ...prevLogs]);
 
-          setLogs(prevLogs => [...prevLogs, ...newLogs]);
-
-          // Remove the 'new' flag after 1 second
+          // Remove the 'new' flag after 2 seconds
           setTimeout(() => {
             setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
-          }, 1000);
+          }, 2000);
         }
 
         if (logContainerRef.current) {
@@ -50,11 +50,11 @@ const EventLogs: React.FC = () => {
     fetchLogs();
     const intervalId = setInterval(fetchLogs, 2000);
     return () => clearInterval(intervalId);
-  }, []); // Removed dependency on logs
+  }, []);
 
   const renderLogs = () => {
     return logs.map((log, index) => {
-      const key = `${log.content}-${Date.now()}-${index}`; // added Date.now() for uniqueness
+      const key = `${log.content}-${index}`;
       const classes = [log.isNew ? 'new-entry' : 'old-entry', log.type].join(' ');
 
       return (
