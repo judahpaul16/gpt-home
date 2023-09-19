@@ -18,24 +18,27 @@ const EventLogs: React.FC = () => {
         const data = await response.json();
         const lastLog = data.last_log;
 
-        setLogs(prevLogs => {
-          const existingLogContents = new Set(prevLogs.map(log => log.content));
+        if (lastLog) {
+          setLogs(prevLogs => {
+            // Check if the last log already exists in state
+            const existingLogContents = new Set(prevLogs.map(log => log.content));
+  
+            if (!existingLogContents.has(lastLog)) {
+              return [...prevLogs, {
+                content: lastLog,
+                isNew: true,
+                type: lastLog.split(":")[0].toLowerCase(),
+              }];
+            }
+  
+            return prevLogs;
+          });
 
-          if (!existingLogContents.has(lastLog)) {
-            return [...prevLogs, {
-              content: lastLog,
-              isNew: true,
-              type: lastLog.split(":")[0].toLowerCase(),
-            }];
-          }
-
-          return prevLogs;
-        });
-
-        // Remove the 'new' flag after 2 seconds
-        setTimeout(() => {
-          setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
-        }, 2000);
+          // Remove the 'new' flag after 2 seconds
+          setTimeout(() => {
+            setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
+          }, 2000);
+        }
 
         // Scroll to the bottom
         if (logContainerRef.current) {
@@ -43,14 +46,15 @@ const EventLogs: React.FC = () => {
         }
 
       } catch (error) {
-        console.error('Error fetching logs:', error);
+        console.error('Error fetching last log:', error);
       }
     };
 
+    // Fetch the last log every 2 seconds
     const intervalId = setInterval(fetchLastLog, 2000);
 
     return () => {
-      clearInterval(intervalId);
+      clearInterval(intervalId);  // Clear the interval when the component is unmounted
     };
   }, []);  
 
