@@ -25,33 +25,35 @@ const Integrations: React.FC<IntegrationsProps> = ({ toggleStatus, toggleOverlay
   return (
     <div className="dashboard integrations-dashboard">
       <h2>Integrations Dashboard</h2>
-      <Table>
-        <TableHead>
-          <TableRow>
-            <TableCell>Name</TableCell>
-            <TableCell>Status</TableCell>
-            <TableCell>Action</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {Object.keys(integrations).map((name) => (
-            <TableRow key={name}>
-              <TableCell>{name}</TableCell>
-              <TableCell>
-                {integrations[name as keyof IntegrationStatus] ? 'Connected' : 'Disconnected'}
-              </TableCell>
-              <TableCell>
-              <Integration
-                name={name}
-                status={integrations[name as keyof IntegrationStatus]}
-                toggleStatus={toggleStatus}
-                setShowOverlay={(visible) => toggleOverlay(visible)}
-                />
-              </TableCell>
+      <div className="table-container">
+        <Table>
+          <TableHead className="TableHead">
+            <TableRow>
+              <TableCell>Name</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell>Action</TableCell>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHead>
+          <TableBody>
+            {Object.keys(integrations).map((name) => (
+              <TableRow key={name}>
+                <TableCell>{name}</TableCell>
+                <TableCell>
+                  {integrations[name as keyof IntegrationStatus] ? 'Connected' : 'Disconnected'}
+                </TableCell>
+                <TableCell>
+                  <Integration
+                    name={name}
+                    status={integrations[name as keyof IntegrationStatus]}
+                    toggleStatus={toggleStatus}
+                    setShowOverlay={(visible) => toggleOverlay(visible)}
+                  />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 };

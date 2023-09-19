@@ -54,9 +54,10 @@ const EventLogs: React.FC = () => {
 
   const renderLogs = () => {
     return logs.map((log, index) => {
-      const key = `${log.content}-${index}`;
+      const timestamp = log.isNew ? Date.now() : '';
+      const key = `${log.content}-${index}-${timestamp}`;
       const classes = [log.isNew ? 'new-entry' : 'old-entry', log.type].join(' ');
-
+  
       return (
         <div className={classes} key={key}>
           {log.content}
@@ -64,7 +65,7 @@ const EventLogs: React.FC = () => {
       );
     });
   };
-
+  
   return (
     <div className="dashboard log-dashboard">
       <h2>Event Logs</h2>

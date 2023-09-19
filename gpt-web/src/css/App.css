@@ -37,6 +37,19 @@ table {
   border-collapse: collapse;
 }
 
+.table-container {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+/* Sticky header */
+.TableHead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: #ebebeb;
+}
+
 th, td {
   padding: 8px;
   text-align: left;
