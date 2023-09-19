@@ -16,29 +16,36 @@ const EventLogs: React.FC = () => {
       try {
         const response = await fetch('/logs', { method: 'POST' });
         const data = await response.json();
+        const allLogs = data.log_data.split('\n');
   
         setLogs(prevLogs => {
-          const existingLogContents = new Set(prevLogs.map(log => log.content)); // Moved inside functional update
-  
-          const allLogs = data.log_data.split('\n');
+          // Create a set of existing log contents based on the current state
+          const existingLogContents = new Set(prevLogs.map(log => log.content));
+    
+          // Filter out the logs that already exist in the state
           const newLogs = allLogs
-            .filter((log: any) => !existingLogContents.has(log))
-            .map((log: any) => ({
+            .filter((log: string) => !existingLogContents.has(log))
+            .map((log: string) => ({
               content: log,
               isNew: true,
               type: log.split(":")[0].toLowerCase(),
             }));
-  
+    
+          // If there are new logs, update the state
           if (newLogs.length > 0) {
-            // Remove the 'new' flag after 2 seconds
-            setTimeout(() => {
-              setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
-            }, 2000);
+            return [...newLogs.reverse(), ...prevLogs]; // Reverse the new logs to maintain chronological order
           }
-  
-          return [...newLogs, ...prevLogs];
+    
+          // If no new logs, return the existing logs
+          return prevLogs;
         });
   
+        // Remove the 'new' flag after 2 seconds
+        setTimeout(() => {
+          setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
+        }, 2000);
+  
+        // Scroll to the bottom
         if (logContainerRef.current) {
           logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
         }
@@ -47,7 +54,7 @@ const EventLogs: React.FC = () => {
       }
     };
   
-    const intervalId = setInterval(fetchLogs, 3000);
+    const intervalId = setInterval(fetchLogs, 2000);
   
     return () => {
       clearInterval(intervalId);
