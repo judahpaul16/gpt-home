@@ -9,6 +9,7 @@ interface Log {
 
 const EventLogs: React.FC = () => {
   const [logs, setLogs] = useState<Log[]>([]);
+  const [newLogIndexes, setNewLogIndexes] = useState<number[]>([]);
   const logContainerRef = useRef<HTMLPreElement>(null);
   const lastLog = useRef<string | null>(null);  // Keep track of the last log
 
@@ -33,10 +34,14 @@ const EventLogs: React.FC = () => {
 
           setLogs(prevLogs => [...prevLogs, ...newLogs]);
 
-          // Remove the 'new' flag after 2 seconds
+          const startIndex = logs.length;
+          const newIndexes = Array.from({ length: newLogs.length }, (_, i) => i + startIndex);
+          setNewLogIndexes(newIndexes);
+
+          // Remove the 'new' flag after 1 second
           setTimeout(() => {
-            setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
-          }, 2000);
+            setNewLogIndexes([]);
+          }, 1000);
         }
 
         if (logContainerRef.current) {
@@ -50,14 +55,14 @@ const EventLogs: React.FC = () => {
     fetchLogs();
     const intervalId = setInterval(fetchLogs, 2000);
     return () => clearInterval(intervalId);
-  }, []);
+  }, [logs]);
 
   const renderLogs = () => {
     return logs.map((log, index) => {
-      const timestamp = log.isNew ? Date.now() : '';
-      const key = `${log.content}-${index}-${timestamp}`;
-      const classes = [log.isNew ? 'new-entry' : 'old-entry', log.type].join(' ');
-  
+      const key = `${log.content}-${index}`;
+      const isNew = newLogIndexes.includes(index);
+      const classes = [isNew ? 'new-entry' : 'old-entry', log.type].join(' ');
+
       return (
         <div className={classes} key={key}>
           {log.content}
@@ -65,7 +70,7 @@ const EventLogs: React.FC = () => {
       );
     });
   };
-  
+
   return (
     <div className="dashboard log-dashboard">
       <h2>Event Logs</h2>
