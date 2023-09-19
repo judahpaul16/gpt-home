@@ -11,6 +11,7 @@ const EventLogs: React.FC = () => {
   const [logs, setLogs] = useState<Log[]>([]);
   const [currentLogLength, setCurrentLogLength] = useState<number | null>(null);
   const logContainerRef = useRef<HTMLPreElement>(null);
+  const [lastLineNumber, setLastLineNumber] = useState<number>(0);
 
   useEffect(() => {
     const fetchAllLogs = async () => {
@@ -31,28 +32,28 @@ const EventLogs: React.FC = () => {
   useEffect(() => {
     const fetchLastLog = async () => {
       try {
-        const response = await fetch('/last-log', { method: 'POST' });
+        // Send last line number as a parameter
+        const response = await fetch(`/last-logs?last_line_number=${lastLineNumber}`, { method: 'POST' });
         const data = await response.json();
-        const lastLog = data.last_log;
-
-        const response2 = await fetch('/logs', { method: 'POST' });
-        const data2 = await response2.json();
-        const fullLog = data2.log_data.split('\n');
-
-        if (lastLog && fullLog.length > (currentLogLength || 0)) {
-          setCurrentLogLength(fullLog.length);
-
-          setLogs(prevLogs => [...prevLogs, {
-            content: lastLog,
+        const newLogs = data.last_logs;
+        const newLastLineNumber = data.new_last_line_number;
+  
+        if (newLogs.length > 0) {
+          const formattedNewLogs = newLogs.map((log: string) => ({
+            content: log.trim(),
             isNew: true,
-            type: lastLog.split(":")[0].toLowerCase(),
-          }]);
-
+            type: log.split(":")[0].toLowerCase().trim(),
+          }));
+          // Update logs state
+          setLogs(prevLogs => [...prevLogs, ...formattedNewLogs]);
+          // Update last line number state
+          setLastLineNumber(newLastLineNumber);
+  
           setTimeout(() => {
             setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
-          }, 1000);
+          }, 2000);
         }
-
+  
         if (logContainerRef.current) {
           logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
         }
@@ -60,13 +61,13 @@ const EventLogs: React.FC = () => {
         console.error('Error fetching last log:', error);
       }
     };
-
+  
     if (logs.length > 0) {
       const intervalId = setInterval(fetchLastLog, 2000);
       return () => clearInterval(intervalId);
     }
-  }, [logs, currentLogLength]);
-
+  }, [logs, lastLineNumber]);
+  
   const renderLogs = () => {
     return logs.map((log, index) => {
       const key = `${log.content}-${index}`;
