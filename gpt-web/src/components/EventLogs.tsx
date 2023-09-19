@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import '../css/EventLogs.css';
 
 const EventLogs: React.FC = () => {
   const [logs, setLogs] = useState<string[]>([]);
-  const [isNew, setIsNew] = useState<boolean[]>([]);
+  const logContainerRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
     const fetchLogs = async () => {
@@ -12,12 +12,12 @@ const EventLogs: React.FC = () => {
         const data = await response.json();
         const newLogs = data.log_data.split('\n');
 
-        // Mark new logs
-        const newFlags = newLogs.map((_: any, index: any) => index >= logs.length);
-
         setLogs(newLogs);
-        setIsNew(newFlags);
 
+        // Scroll to the bottom
+        if (logContainerRef.current) {
+          logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+        }
       } catch (error) {
         console.error('Error fetching logs:', error);
       }
@@ -31,12 +31,12 @@ const EventLogs: React.FC = () => {
 
     // Clear the interval when the component is unmounted
     return () => clearInterval(intervalId);
-  }, [logs]);
+  }, []);
 
   return (
-    <pre className="log-container">
-      {logs.map((log, index) => (
-        <div className={isNew[index] ? 'new-entry' : 'old-entry'} key={index}>
+    <pre className="log-container" ref={logContainerRef}>
+      {logs.map((log, index, arr) => (
+        <div className={index === arr.length - 1 ? 'new-entry' : 'old-entry'} key={index}>
           {log}
         </div>
       ))}
