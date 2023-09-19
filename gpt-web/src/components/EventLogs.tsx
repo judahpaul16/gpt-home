@@ -51,6 +51,7 @@ const EventLogs: React.FC = () => {
 
   return (
     <div className="dashboard log-dashboard">
+    <h2>Event Logs</h2>
       <pre className="log-container" ref={logContainerRef}>
         {renderLogs()}
       </pre>
