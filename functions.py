@@ -252,7 +252,7 @@ async def query_openai(text, display, retries=3):
             else:
                 logging.warning(f"Retry {i+1}: Received empty response from OpenAI.")
         except Exception as e:
-            logging.info(f"Error on try {i+1}: {e}")
+            logging.error(f"Error on try {i+1}: {e}")
             if i == retries - 1:  # If this was the last retry
                 error_message = f"Something went wrong after {retries} retries: {e}"
                 handle_error(error_message, None, display)
