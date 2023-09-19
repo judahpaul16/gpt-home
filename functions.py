@@ -180,13 +180,13 @@ async def listen(display, state_task, stop_event):
                         
                 except sr.WaitTimeoutError:
                     if listening:
-                        logging.error("Still listening but timed out, waiting for phrase...")
+                        logging.info("Still listening but timed out, waiting for phrase...")
                     else:
-                        logging.error("Timed out, waiting for phrase to start...")
+                        logging.info("Timed out, waiting for phrase to start...")
                         listening = True
                         
                 except sr.UnknownValueError:
-                    logging.error("Could not understand audio, waiting for a new phrase...")
+                    logging.info("Could not understand audio, waiting for a new phrase...")
                     listening = False
                         
         except sr.WaitTimeoutError:

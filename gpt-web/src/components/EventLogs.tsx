@@ -2,48 +2,44 @@ import React, { useEffect, useState, useRef } from 'react';
 import '../css/EventLogs.css';
 
 const EventLogs: React.FC = () => {
-  const [logs, setLogs] = useState<string[]>([]);
+  const [logs, setLogs] = useState<Array<{ content: string, isNew: boolean, type: string }>>([]);
   const logContainerRef = useRef<HTMLPreElement>(null);
-  const lastLogCount = useRef<number>(0); // Store the last log count
 
   useEffect(() => {
     const fetchLogs = async () => {
       try {
         const response = await fetch('/logs', { method: 'POST' });
         const data = await response.json();
-        const newLogs = data.log_data.split('\n');
+        const newLogs = data.log_data.split('\n').map((log: any) => ({ content: log, isNew: true, type: 'info' })); // Dummy type
 
-        setLogs(newLogs);
+        setLogs(prevLogs => [...prevLogs, ...newLogs]);
+
+        // Remove the 'new' flag after 2 seconds
+        setTimeout(() => {
+          setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
+        }, 2000);
 
         if (logContainerRef.current) {
           logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
         }
-
-        lastLogCount.current = newLogs.length; // Update the last log count
       } catch (error) {
         console.error('Error fetching logs:', error);
       }
     };
 
-    // Fetch logs initially
     fetchLogs();
-
-    // Set an interval to fetch logs every 2 seconds
     const intervalId = setInterval(fetchLogs, 2000);
-
-    // Clear the interval when the component is unmounted
     return () => clearInterval(intervalId);
   }, []);
 
   const renderLogs = () => {
     return logs.map((log, index) => {
-      const key = `${log}-${index}`;
-      // Identify new log entries based on last log count
-      const isNewEntry = index >= lastLogCount.current;
+      const key = `${log.content}-${index}`;
+      const classes = [log.isNew ? 'new-entry' : 'old-entry', log.type].join(' ');
 
       return (
-        <div className={isNewEntry ? 'new-entry' : 'old-entry'} key={key}>
-          {log}
+        <div className={classes} key={key}>
+          {log.content}
         </div>
       );
     });
@@ -51,7 +47,7 @@ const EventLogs: React.FC = () => {
 
   return (
     <div className="dashboard log-dashboard">
-    <h2>Event Logs</h2>
+      <h2>Event Logs</h2>
       <pre className="log-container" ref={logContainerRef}>
         {renderLogs()}
       </pre>

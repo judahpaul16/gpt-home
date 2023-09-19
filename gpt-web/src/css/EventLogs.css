@@ -20,7 +20,6 @@ pre {
   text-wrap: wrap;
   font-size: 16pt;
   overflow-y: scroll;
-  transition: all 0.2s ease-in-out;
 }
 
 .log-container > * {
@@ -34,6 +33,19 @@ pre {
 
 .old-entry {
   background-color: transparent;
+}
+
+/* Log types */
+.warning {
+  background-color: #ffffcc;
+}
+
+.error {
+  background-color: #ffcccc;
+}
+
+.success {
+  background-color: #ccffcc;
 }
 
 @keyframes flash {
