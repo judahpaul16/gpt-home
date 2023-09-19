@@ -12,15 +12,30 @@ const EventLogs: React.FC = () => {
   const logContainerRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
+    // Fetch all logs initially
+    const fetchAllLogs = async () => {
+      const response = await fetch('/logs', { method: 'POST' });
+      const data = await response.json();
+      const allLogs = data.log_data.split('\n').map((log: string) => ({
+        content: log,
+        isNew: false,
+        type: log.split(":")[0].toLowerCase(),
+      }));
+      setLogs(allLogs);
+    };
+
+    fetchAllLogs();
+  }, []);
+
+  useEffect(() => {
     const fetchLastLog = async () => {
       try {
         const response = await fetch('/last-log', { method: 'POST' });
         const data = await response.json();
         const lastLog = data.last_log;
-
+  
         if (lastLog) {
           setLogs(prevLogs => {
-            // Check if the last log already exists in state
             const existingLogContents = new Set(prevLogs.map(log => log.content));
   
             if (!existingLogContents.has(lastLog)) {
@@ -39,30 +54,28 @@ const EventLogs: React.FC = () => {
             setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
           }, 2000);
         }
-
+  
         // Scroll to the bottom
         if (logContainerRef.current) {
           logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
         }
-
       } catch (error) {
         console.error('Error fetching last log:', error);
       }
     };
-
-    // Fetch the last log every 2 seconds
-    const intervalId = setInterval(fetchLastLog, 2000);
-
-    return () => {
-      clearInterval(intervalId);  // Clear the interval when the component is unmounted
-    };
-  }, []);  
+  
+    // Fetch the last log every 2 seconds, only after the initial logs are fetched
+    if (logs.length > 0) {
+      const intervalId = setInterval(fetchLastLog, 2000);
+      return () => clearInterval(intervalId);
+    }
+  }, [logs]);  
 
   const renderLogs = () => {
     return logs.map((log, index) => {
       const key = `${log.content}-${index}`;
       const classes = [log.isNew ? 'new-entry' : 'old-entry', log.type].join(' ');
-
+  
       return (
         <div className={classes} key={key}>
           {log.content}
