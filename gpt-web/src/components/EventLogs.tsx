@@ -16,26 +16,28 @@ const EventLogs: React.FC = () => {
       try {
         const response = await fetch('/logs', { method: 'POST' });
         const data = await response.json();
-
         const allLogs = data.log_data.split('\n');
-        const existingLogContents = new Set(logs.map(log => log.content));
+        
+        setLogs(prevLogs => {
+          const existingLogContents = new Set(prevLogs.map(log => log.content));
 
-        const newLogs = allLogs
-          .filter((log: any) => !existingLogContents.has(log))
-          .map((log: any) => ({
-            content: log,
-            isNew: true,
-            type: log.split(":")[0].toLowerCase(),
-          }));
+          const newLogs = allLogs
+            .filter((log: any) => !existingLogContents.has(log))
+            .map((log: any) => ({
+              content: log,
+              isNew: true,
+              type: log.split(":")[0].toLowerCase(),
+            }));
+          
+          if (newLogs.length > 0) {
+            // Remove the 'new' flag after 2 seconds
+            setTimeout(() => {
+              setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
+            }, 2000);
+          }
 
-        if (newLogs.length > 0) {
-          setLogs(prevLogs => [...newLogs, ...prevLogs]);
-
-          // Remove the 'new' flag after 2 seconds
-          setTimeout(() => {
-            setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
-          }, 2000);
-        }
+          return [...newLogs, ...prevLogs];
+        });
 
         if (logContainerRef.current) {
           logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
