@@ -3,6 +3,7 @@ import '../css/EventLogs.css';
 
 const EventLogs: React.FC = () => {
   const [logs, setLogs] = useState<string[]>([]);
+  const [prevLogsLength, setPrevLogsLength] = useState<number>(0);
   const logContainerRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
@@ -12,9 +13,9 @@ const EventLogs: React.FC = () => {
         const data = await response.json();
         const newLogs = data.log_data.split('\n');
         
+        setPrevLogsLength(logs.length);
         setLogs(newLogs);
 
-        // Scroll to the bottom
         if (logContainerRef.current) {
           logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
         }
@@ -23,22 +24,16 @@ const EventLogs: React.FC = () => {
       }
     };
 
-    // Fetch logs initially
     fetchLogs();
-
-    // Set an interval to fetch logs every 2 seconds
     const intervalId = setInterval(fetchLogs, 2000);
-
-    // Clear the interval when the component is unmounted
     return () => clearInterval(intervalId);
-  }, []);
+  }, [logs]);  // add dependency on logs
 
   const renderLogs = () => {
     return logs.map((log, index) => {
-      // Assign a unique key for React, and add a timestamp to it
-      const key = `${log}-${Date.now()}-${index}`;
+      const key = `${log}-${index}`;
       return (
-        <div className={index === logs.length - 1 ? 'new-entry' : 'old-entry'} key={key}>
+        <div className={index >= prevLogsLength ? 'new-entry' : 'old-entry'} key={key}>
           {log}
         </div>
       );
