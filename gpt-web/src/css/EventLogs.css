@@ -31,11 +31,11 @@ pre {
   background-color: transparent;
 }
 
-/* Log types */
-.info {
+.old-entry, .info {
   background-color: transparent;
 }
 
+/* Log types */
 .success {
   background-color: #ccffcc;
 }
@@ -57,6 +57,6 @@ pre {
     background-color: yellow;
   }
   100% {
-    background-color: initial;
+    background-color: transparent;
   }
 }

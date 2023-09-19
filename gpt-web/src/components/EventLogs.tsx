@@ -5,15 +5,14 @@ interface Log {
   content: string;
   isNew: boolean;
   type: string;
-  timestamp: string;
 }
 
 const EventLogs: React.FC = () => {
   const [logs, setLogs] = useState<Log[]>([]);
-  const [seenTimestamps, setSeenTimestamps] = useState<Set<string>>(new Set());
   const logContainerRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
+    // Fetch all logs initially
     const fetchAllLogs = async () => {
       const response = await fetch('/logs', { method: 'POST' });
       const data = await response.json();
@@ -21,7 +20,6 @@ const EventLogs: React.FC = () => {
         content: log,
         isNew: false,
         type: log.split(":")[0].toLowerCase(),
-        timestamp: ''
       }));
       setLogs(allLogs);
     };
@@ -35,42 +33,42 @@ const EventLogs: React.FC = () => {
         const response = await fetch('/last-log', { method: 'POST' });
         const data = await response.json();
         const lastLog = data.last_log;
-        const timestamp = data.timestamp;
-
-        if (lastLog && !seenTimestamps.has(timestamp)) {
-          setSeenTimestamps(prevTimestamps => new Set([...prevTimestamps, timestamp]));
-
+    
+        if (lastLog) {
+          // Always append the last log
           setLogs(prevLogs => [...prevLogs, {
             content: lastLog,
             isNew: true,
             type: lastLog.split(":")[0].toLowerCase(),
-            timestamp: timestamp
           }]);
-
+    
+          // Remove the 'new' flag after 2 seconds
           setTimeout(() => {
             setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
           }, 2000);
         }
-
+    
+        // Scroll to the bottom
         if (logContainerRef.current) {
           logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
         }
       } catch (error) {
         console.error('Error fetching last log:', error);
       }
-    };
-
+    };    
+  
+    // Fetch the last log every 2 seconds, only after the initial logs are fetched
     if (logs.length > 0) {
       const intervalId = setInterval(fetchLastLog, 2000);
       return () => clearInterval(intervalId);
     }
-  }, [logs, seenTimestamps]);
+  }, [logs]);  
 
   const renderLogs = () => {
     return logs.map((log, index) => {
       const key = `${log.content}-${index}`;
       const classes = [log.isNew ? 'new-entry' : 'old-entry', log.type].join(' ');
-
+  
       return (
         <div className={classes} key={key}>
           {log.content}
