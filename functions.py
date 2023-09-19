@@ -17,7 +17,18 @@ import time
 import os
 import re
 
+# Add a new 'SUCCESS' logging level
+logging.SUCCESS = 25  # Between INFO and WARNING
+logging.addLevelName(logging.SUCCESS, "SUCCESS")
+
+def success(self, message, *args, **kws):
+    if self.isEnabledFor(logging.SUCCESS):
+        self._log(logging.SUCCESS, message, args, **kws)
+
+logging.Logger.success = success
+
 logging.basicConfig(filename='events.log', level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # Initialize the speech recognition engine
 r = sr.Recognizer()
@@ -95,7 +106,7 @@ async def initialize_system():
     while not network_connected():
         await asyncio.sleep(1)
         message = "Network not connected. Retrying..."
-        logging.info(message)
+        logger.info(message)
     stop_event_init.set()  # Signal to stop the 'Connecting' display
     state_task.cancel()  # Cancel the display task
     display = initLCD()  # Reinitialize the display
@@ -127,7 +138,7 @@ async def updateLCD(text, display, stop_event=None, delay=0.02):
                     try:
                         display.text(char, j * 6, 10 + i * 10, 1)
                     except struct.error as e:
-                        logging.error(f"Struct Error: {e}, skipping character {char}")
+                        logger.error(f"Struct Error: {e}, skipping character {char}")
                         continue  # Skip the current character and continue with the next
                     display.show()
                     await asyncio.sleep(delay)
@@ -180,13 +191,13 @@ async def listen(display, state_task, stop_event):
                         
                 except sr.WaitTimeoutError:
                     if listening:
-                        logging.info("Still listening but timed out, waiting for phrase...")
+                        logger.info("Still listening but timed out, waiting for phrase...")
                     else:
-                        logging.info("Timed out, waiting for phrase to start...")
+                        logger.info("Timed out, waiting for phrase to start...")
                         listening = True
                         
                 except sr.UnknownValueError:
-                    logging.info("Could not understand audio, waiting for a new phrase...")
+                    logger.info("Could not understand audio, waiting for a new phrase...")
                     listening = False
                         
         except sr.WaitTimeoutError:
@@ -250,9 +261,9 @@ async def query_openai(text, display, retries=3):
                 message = f"Response: {response.choices[0].text.strip()}"
                 return message
             else:
-                logging.warning(f"Retry {i+1}: Received empty response from OpenAI.")
+                logger.warning(f"Retry {i+1}: Received empty response from OpenAI.")
         except Exception as e:
-            logging.error(f"Error on try {i+1}: {e}")
+            logger.error(f"Error on try {i+1}: {e}")
             if i == retries - 1:  # If this was the last retry
                 error_message = f"Something went wrong after {retries} retries: {e}"
                 handle_error(error_message, None, display)
@@ -271,4 +282,4 @@ async def handle_error(message, state_task, display):
     speak_task = asyncio.create_task(speak(message, stop_event))
     await speak_task
     lcd_task.cancel()
-    logging.critical(f"An error occurred: {message}\n{traceback.format_exc()}")
+    logger.critical(f"An error occurred: {message}\n{traceback.format_exc()}")

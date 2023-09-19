@@ -12,7 +12,7 @@ async def main():
             try:
                 text = await listen(display, state_task, stop_event)
             except Exception as e:
-                logging.error(f"Listening timed out: {traceback.format_exc()}")
+                logger.error(f"Listening timed out: {traceback.format_exc()}")
                 continue
 
             # Stop displaying 'Listening'
@@ -39,7 +39,7 @@ async def main():
                             speak(heard_message, stop_event_heard),
                             updateLCD(heard_message, display, stop_event=stop_event_heard, delay=delay_heard)
                         )
-                        logging.success(heard_message)
+                        logger.success(heard_message)
 
                         response_message = await query_task
                         
@@ -50,7 +50,7 @@ async def main():
                         response_task_lcd = asyncio.create_task(updateLCD(response_message, display, stop_event=stop_event_response, delay=delay_response))
 
                         await asyncio.gather(response_task_speak, response_task_lcd)
-                        logging.success(response_message)
+                        logger.success(response_message)
                         
                 else:
                     continue  # Skip to the next iteration
