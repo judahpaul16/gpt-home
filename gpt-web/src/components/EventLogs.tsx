@@ -33,7 +33,7 @@ const EventLogs: React.FC = () => {
     const fetchLastLog = async () => {
       try {
         // Send last line number as a parameter
-        const response = await fetch(`/logs?last_line_number=${lastLineNumber}`, { method: 'POST' });
+        const response = await fetch(`/last-logs?last_line_number=${lastLineNumber}`, { method: 'POST' });
         const data = await response.json();
         const newLogs = data.last_logs;
         const newLastLineNumber = data.new_last_line_number;
