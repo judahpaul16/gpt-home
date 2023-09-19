@@ -25,6 +25,19 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 100;
 }
 
+::-webkit-scrollbar {
+  width: 0.5em;
+}
+
+::-webkit-scrollbar-track {
+  background-color: #F4F4F4;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #ccc;
+  border-radius: 4px;
+}
+
 button {
   background-color: #007bff;
   color: white;

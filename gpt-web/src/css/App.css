@@ -44,6 +44,7 @@ table {
 .table-container {
   max-height: 70vh;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* Sticky header */
