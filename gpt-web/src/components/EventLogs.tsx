@@ -33,9 +33,15 @@ const EventLogs: React.FC = () => {
         const response = await fetch('/last-log', { method: 'POST' });
         const data = await response.json();
         const lastLog = data.last_log;
+        const response2 = await fetch('/logs', { method: 'POST' });
+        const data2 = await response2.json();
+        const fullLog = data2.log_data.split('\n').map((log: string) => ({
+          content: log,
+          isNew: false,
+          type: log.split(":")[0].toLowerCase(),
+        }));
     
-        if (lastLog) {
-          // Always append the last log
+        if (lastLog && fullLog && fullLog.length > logs.length) {
           setLogs(prevLogs => [...prevLogs, {
             content: lastLog,
             isNew: true,
