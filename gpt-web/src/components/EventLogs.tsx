@@ -30,18 +30,21 @@ const EventLogs: React.FC = () => {
         }
 
         if (newLogs.length > 0) {
-          lastLog.current = newLogs[newLogs.length - 1].content;  // Update the last log
+          lastLog.current = newLogs[newLogs.length - 1].content;
 
-          setLogs(prevLogs => [...prevLogs, ...newLogs]);
+          setLogs(prevLogs => {
+            const startIndex = prevLogs.length;
+            const newIndexes = Array.from({ length: newLogs.length }, (_, i) => i + startIndex);
 
-          const startIndex = logs.length;
-          const newIndexes = Array.from({ length: newLogs.length }, (_, i) => i + startIndex);
-          setNewLogIndexes(newIndexes);
+            setNewLogIndexes(newIndexes);
 
-          // Remove the 'new' flag after 1 second
-          setTimeout(() => {
-            setNewLogIndexes([]);
-          }, 1000);
+            // Remove the 'new' flag after 1 second
+            setTimeout(() => {
+              setNewLogIndexes([]);
+            }, 1000);
+
+            return [...prevLogs, ...newLogs];
+          });
         }
 
         if (logContainerRef.current) {
@@ -54,8 +57,9 @@ const EventLogs: React.FC = () => {
 
     fetchLogs();
     const intervalId = setInterval(fetchLogs, 2000);
+
     return () => clearInterval(intervalId);
-  }, [logs]);
+  }, []);
 
   const renderLogs = () => {
     return logs.map((log, index) => {
