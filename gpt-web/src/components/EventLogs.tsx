@@ -16,11 +16,11 @@ const EventLogs: React.FC = () => {
       try {
         const response = await fetch('/logs', { method: 'POST' });
         const data = await response.json();
-        const allLogs = data.log_data.split('\n');
-        
+  
         setLogs(prevLogs => {
-          const existingLogContents = new Set(prevLogs.map(log => log.content));
-
+          const existingLogContents = new Set(prevLogs.map(log => log.content)); // Moved inside functional update
+  
+          const allLogs = data.log_data.split('\n');
           const newLogs = allLogs
             .filter((log: any) => !existingLogContents.has(log))
             .map((log: any) => ({
@@ -28,17 +28,17 @@ const EventLogs: React.FC = () => {
               isNew: true,
               type: log.split(":")[0].toLowerCase(),
             }));
-          
+  
           if (newLogs.length > 0) {
             // Remove the 'new' flag after 2 seconds
             setTimeout(() => {
               setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
             }, 2000);
           }
-
+  
           return [...newLogs, ...prevLogs];
         });
-
+  
         if (logContainerRef.current) {
           logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
         }
@@ -46,13 +46,13 @@ const EventLogs: React.FC = () => {
         console.error('Error fetching logs:', error);
       }
     };
-
-    const intervalId = setInterval(fetchLogs, 2000);
-
+  
+    const intervalId = setInterval(fetchLogs, 3000);
+  
     return () => {
       clearInterval(intervalId);
     };
-  }, []);
+  }, []);  
 
   const renderLogs = () => {
     return logs.map((log, index) => {
