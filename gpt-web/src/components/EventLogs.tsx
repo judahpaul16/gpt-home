@@ -12,40 +12,35 @@ const EventLogs: React.FC = () => {
   const logContainerRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
+    let existingLogContents = new Set(logs.map(log => log.content));
+
     const fetchLogs = async () => {
       try {
         const response = await fetch('/logs', { method: 'POST' });
         const data = await response.json();
         const allLogs = data.log_data.split('\n');
-  
-        setLogs(prevLogs => {
-          // Create a set of existing log contents based on the current state
-          const existingLogContents = new Set(prevLogs.map(log => log.content));
-    
-          // Filter out the logs that already exist in the state
-          const newLogs = allLogs
-            .filter((log: string) => !existingLogContents.has(log))
-            .map((log: string) => ({
-              content: log,
-              isNew: true,
-              type: log.split(":")[0].toLowerCase(),
-            }));
-    
-          // If there are new logs, update the state
-          if (newLogs.length > 0) {
-            return [...newLogs.reverse(), ...prevLogs]; // Reverse the new logs to maintain chronological order
-          }
-    
-          // If no new logs, return the existing logs
-          return prevLogs;
-        });
-  
-        // Remove the 'new' flag after 2 seconds
-        setTimeout(() => {
-          setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
-        }, 2000);
-  
-        // Scroll to the bottom
+
+        // Filter out the logs that already exist
+        const newLogs = allLogs
+          .filter((log: string) => !existingLogContents.has(log))
+          .map((log: string) => ({
+            content: log,
+            isNew: true,
+            type: log.split(":")[0].toLowerCase(),
+          }));
+
+        if (newLogs.length > 0) {
+          // Update existingLogContents
+          newLogs.forEach((log: Log) => existingLogContents.add(log.content));
+
+          setLogs(prevLogs => [...newLogs.reverse(), ...prevLogs]);
+
+          // Remove the 'new' flag after 2 seconds
+          setTimeout(() => {
+            setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
+          }, 2000);
+        }
+
         if (logContainerRef.current) {
           logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
         }
@@ -53,13 +48,13 @@ const EventLogs: React.FC = () => {
         console.error('Error fetching logs:', error);
       }
     };
-  
+
     const intervalId = setInterval(fetchLogs, 2000);
-  
+
     return () => {
       clearInterval(intervalId);
     };
-  }, []);  
+  }, []);
 
   const renderLogs = () => {
     return logs.map((log, index) => {
