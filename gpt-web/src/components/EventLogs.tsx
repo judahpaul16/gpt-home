@@ -4,7 +4,6 @@ import '../css/EventLogs.css';
 const EventLogs: React.FC = () => {
   const [logs, setLogs] = useState<string[]>([]);
   const logContainerRef = useRef<HTMLPreElement>(null);
-  const [isNew, setIsNew] = useState<boolean>(false); // State to track if a new log entry is added
 
   useEffect(() => {
     const fetchLogs = async () => {
@@ -12,12 +11,7 @@ const EventLogs: React.FC = () => {
         const response = await fetch('/logs', { method: 'POST' });
         const data = await response.json();
         const newLogs = data.log_data.split('\n');
-
-        if (newLogs.length > logs.length) {
-          setIsNew(true);
-          setTimeout(() => setIsNew(false), 2000); // Reset flag after 2 seconds
-        }
-
+        
         setLogs(newLogs);
 
         // Scroll to the bottom
@@ -37,16 +31,24 @@ const EventLogs: React.FC = () => {
 
     // Clear the interval when the component is unmounted
     return () => clearInterval(intervalId);
-  }, [logs]);
+  }, []);
+
+  const renderLogs = () => {
+    return logs.map((log, index) => {
+      // Assign a unique key for React, and add a timestamp to it
+      const key = `${log}-${Date.now()}-${index}`;
+      return (
+        <div className={index === logs.length - 1 ? 'new-entry' : 'old-entry'} key={key}>
+          {log}
+        </div>
+      );
+    });
+  };
 
   return (
     <div className="dashboard log-dashboard">
       <pre className="log-container" ref={logContainerRef}>
-        {logs.map((log, index) => (
-          <div className={isNew && index === logs.length - 1 ? 'new-entry' : 'old-entry'} key={index}>
-            {log}
-          </div>
-        ))}
+        {renderLogs()}
       </pre>
     </div>
   );
