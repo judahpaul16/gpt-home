@@ -12,15 +12,10 @@ const EventLogs: React.FC = () => {
   const logContainerRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
-    let isCancelled = false; // Flag to keep track of component unmount
-
     const fetchLogs = async () => {
       try {
         const response = await fetch('/logs', { method: 'POST' });
-        if (isCancelled) return; // Check if component unmounted
-
         const data = await response.json();
-        if (isCancelled) return; // Check if component unmounted
 
         const allLogs = data.log_data.split('\n');
         const existingLogContents = new Set(logs.map(log => log.content));
@@ -34,11 +29,11 @@ const EventLogs: React.FC = () => {
           }));
 
         if (newLogs.length > 0) {
-          setLogs([...logs, ...newLogs]);
+          setLogs(prevLogs => [...newLogs, ...prevLogs]);
 
           // Remove the 'new' flag after 2 seconds
           setTimeout(() => {
-            setLogs(logs.map(log => ({ ...log, isNew: false })));
+            setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
           }, 2000);
         }
 
@@ -46,20 +41,16 @@ const EventLogs: React.FC = () => {
           logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
         }
       } catch (error) {
-        if (!isCancelled) {
-          console.error('Error fetching logs:', error);
-        }
+        console.error('Error fetching logs:', error);
       }
     };
 
-    fetchLogs();
     const intervalId = setInterval(fetchLogs, 2000);
 
     return () => {
-      isCancelled = true; // Update the flag when component unmounts
-      clearInterval(intervalId); // Clear the interval
+      clearInterval(intervalId);
     };
-  }, []); // Empty dependency array ensures this runs once when component mounts and cleans up when it unmounts
+  }, []);
 
   const renderLogs = () => {
     return logs.map((log, index) => {
