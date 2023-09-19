@@ -18,27 +18,30 @@ const EventLogs: React.FC = () => {
         const data = await response.json();
         const fetchedLogs = data.log_data.split('\n').filter((log: string) => log.trim() !== '');
 
-        const existingLogContents = logs.map(log => log.content);
-        const newLogs: Log[] = [];
+        setLogs(prevLogs => {
+          const existingLogContents = new Set(prevLogs.map(log => log.content));
+          const newLogs = fetchedLogs
+            .filter((log: any) => !existingLogContents.has(log))
+            .map((log: any) => ({
+              content: log,
+              isNew: true,
+              type: log.split(":")[0].toLowerCase(),
+            }));
 
-        for (const log of fetchedLogs) {
-          if (!existingLogContents.includes(log)) {
-            const type = log.split(":")[0].toLowerCase();
-            newLogs.push({ content: log, isNew: true, type });
+          if (newLogs.length > 0) {
+            // Remove the 'new' flag from old logs
+            const updatedOldLogs = prevLogs.map(log => ({ ...log, isNew: false }));
+
+            // Scroll to the bottom
+            if (logContainerRef.current) {
+              logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+            }
+
+            return [...updatedOldLogs, ...newLogs];
           }
-        }
 
-        if (newLogs.length > 0) {
-          setLogs([...logs, ...newLogs]);
-
-          setTimeout(() => {
-            setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
-          }, 2000);
-        }
-
-        if (logContainerRef.current) {
-          logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
-        }
+          return prevLogs;
+        });
       } catch (error) {
         console.error('Error fetching logs:', error);
       }
@@ -47,7 +50,7 @@ const EventLogs: React.FC = () => {
     fetchLogs();
     const intervalId = setInterval(fetchLogs, 2000);
     return () => clearInterval(intervalId);
-  }, [logs]);
+  }, []); // Empty dependency array
 
   const renderLogs = () => {
     return logs.map((log, index) => {
