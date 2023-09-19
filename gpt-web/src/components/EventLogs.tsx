@@ -11,7 +11,7 @@ interface Log {
 const EventLogs: React.FC = () => {
   const [logs, setLogs] = useState<Log[]>([]);
   const [seenTimestamps, setSeenTimestamps] = useState<Set<string>>(new Set());
-  const [totalLogLines, setTotalLogLines] = useState<number>(0);
+  const [prevLogLength, setPrevLogLength] = useState<number | null>(null);
   const logContainerRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
@@ -25,6 +25,7 @@ const EventLogs: React.FC = () => {
         timestamp: ''
       }));
       setLogs(allLogs);
+      setPrevLogLength(allLogs.length);
     };
 
     fetchAllLogs();
@@ -33,29 +34,27 @@ const EventLogs: React.FC = () => {
   useEffect(() => {
     const fetchLastLog = async () => {
       try {
-        const response = await fetch('/last-log', { method: 'POST' });
+        const response = await fetch('/logs', { method: 'POST' });
         const data = await response.json();
-        const lastLog = data.last_log;
-        const timestamp = data.timestamp;
-        const newTotalLogLines = data.total_lines;
+        const allLogs = data.log_data.split('\n');
+        const currentLogLength = allLogs.length;
 
-        if (newTotalLogLines !== totalLogLines) {
-          setTotalLogLines(newTotalLogLines);
+        if (prevLogLength !== null && prevLogLength < currentLogLength) {
+          const lastLog = allLogs[allLogs.length - 1];
+          const timestamp = new Date().toISOString(); // You can keep this or remove it
 
-          if (lastLog && !seenTimestamps.has(timestamp)) {
-            setSeenTimestamps(prevTimestamps => new Set([...Array.from(prevTimestamps), timestamp]));
+          setLogs(prevLogs => [...prevLogs, {
+            content: lastLog,
+            isNew: true,
+            type: lastLog.split(":")[0].toLowerCase(),
+            timestamp: timestamp
+          }]);
 
-            setLogs(prevLogs => [...prevLogs, {
-              content: lastLog,
-              isNew: true,
-              type: lastLog.split(":")[0].toLowerCase(),
-              timestamp: timestamp
-            }]);
+          setTimeout(() => {
+            setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
+          }, 2000);
 
-            setTimeout(() => {
-              setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
-            }, 2000);
-          }
+          setPrevLogLength(currentLogLength);
         }
 
         if (logContainerRef.current) {
@@ -70,7 +69,7 @@ const EventLogs: React.FC = () => {
       const intervalId = setInterval(fetchLastLog, 2000);
       return () => clearInterval(intervalId);
     }
-  }, [logs, seenTimestamps, totalLogLines]);
+  }, [logs, prevLogLength]);
 
   const renderLogs = () => {
     return logs.map((log, index) => {
