@@ -22,7 +22,6 @@ const EventLogs: React.FC = () => {
         isNew: false,
         type: log.split(":")[0].toLowerCase(),
       }));
-      setLogs(allLogs);
       setCurrentLogLength(allLogs.length);
     };
 
