@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React from 'react';
 import '../css/About.css';
 
 const About: React.FC = () => {
@@ -7,7 +7,7 @@ const About: React.FC = () => {
     <div className="dashboard about-dashboard">
       <h2>About</h2>
       <div className="about-container">
-        GPT at home! Basically a better G**gle Nest Hub desk assistant.
+        ChatGPT at home! Basically a better G**gle Nest Hub desk assistant.
         <br/>
         Made with Raspberry Pi and OpenAI API.
         <br/><br/>

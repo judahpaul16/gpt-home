@@ -9,6 +9,7 @@ interface Log {
 
 const EventLogs: React.FC = () => {
   const [logs, setLogs] = useState<Log[]>([]);
+  // eslint-disable-next-line
   const [_, setCurrentLogLength] = useState<number | null>(null);
   const logContainerRef = useRef<HTMLPreElement>(null);
   const [lastLineNumber, setLastLineNumber] = useState<number>(0);
