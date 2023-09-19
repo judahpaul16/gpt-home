@@ -28,8 +28,8 @@ pre {
 }
 
 .new-entry {
-  animation: flash 2s ease-in-out;
-  background-color: yellow;
+  animation: flash 1s ease-in-out;
+  background-color: transparent;
 }
 
 .old-entry {
