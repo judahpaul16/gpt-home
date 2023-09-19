@@ -50,7 +50,7 @@ const EventLogs: React.FC = () => {
 
           setTimeout(() => {
             setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
-          }, 2000);
+          }, 1000);
         }
 
         if (logContainerRef.current) {

@@ -26,6 +26,7 @@ async def main():
                     actual_text = clean_text.split(keyword, 1)[1].strip()
                     if actual_text:
                         heard_message = f"Heard: \"{actual_text}\""
+                        logger.success(heard_message)
                         stop_event_heard = asyncio.Event()
                         stop_event_response = asyncio.Event()
 
@@ -39,7 +40,6 @@ async def main():
                             speak(heard_message, stop_event_heard),
                             updateLCD(heard_message, display, stop_event=stop_event_heard, delay=delay_heard)
                         )
-                        logger.success(heard_message)
 
                         response_message = await query_task
                         
