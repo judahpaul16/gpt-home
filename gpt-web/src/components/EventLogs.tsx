@@ -55,7 +55,7 @@ const EventLogs: React.FC = () => {
     fetchLogs();
     const intervalId = setInterval(fetchLogs, 2000);
     return () => clearInterval(intervalId);
-  }, []);
+  }, [logs]);
 
   const renderLogs = () => {
     return logs.map((log, index) => {
