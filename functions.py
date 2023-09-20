@@ -257,7 +257,7 @@ async def query_openai(text, display, retries=3):
     for i in range(retries):
         try:
             response = openai.ChatCompletion.create(
-                model="gpt-4",
+                model=settings.get("model"),
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
                     {"role": "user", "content": f"Human: {text}\nAI:"}
