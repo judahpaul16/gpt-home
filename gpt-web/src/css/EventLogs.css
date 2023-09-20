@@ -1,0 +1,73 @@
+pre {
+  background: #ececec;
+  border: 5px solid #d3d3d3;
+  border-radius: 10px;
+  padding: 1em 1.5em;
+  text-align: left;
+  max-width: 100%;
+  text-wrap: balance;
+  font-size: 16pt;
+}
+
+.log-container {
+  background: #ececec;
+  border: 5px solid #d3d3d3;
+  border-radius: 10px;
+  padding: 1em 1.5em;
+  text-align: left;
+  max-width: 100%;
+  max-height: 60vh;
+  text-wrap: wrap;
+  font-size: 16pt;
+  overflow-y: scroll;
+}
+
+.log-container > * {
+  transition: all 0.2s ease-in-out;
+}
+
+.new-entry {
+  animation: flash 1s ease-in-out;
+  background-color: transparent;
+}
+
+.old-entry, .info {
+  background-color: transparent;
+}
+
+/* Log types */
+.success {
+  background-color: #ccffcc;
+}
+
+.warning {
+  background-color: #ffffcc;
+}
+
+.error {
+  background-color: #ffcccc;
+}
+
+.critical {
+  background-color: #ff9999;
+}
+
+@keyframes flash {
+  0% {
+    background-color: yellow;
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.filter-container {
+  display: inline-block;
+  text-align: center;
+}
+
+.filter-label {
+  margin-right: 20px;
+  font-size: 15px;
+  user-select: none;
+}
