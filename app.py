@@ -4,11 +4,14 @@ async def main():
     state_task = None
     while True:
         try:
-            keyword = "computer"
+            # Load settings from settings.json
+            settings = load_settings()
+            keyword = settings.get("keyword")
+
             # Start displaying 'Listening'
             stop_event = asyncio.Event()
             state_task = asyncio.create_task(display_state("Listening", display, stop_event))
-            
+
             try:
                 text = await listen(display, state_task, stop_event)
             except Exception as e:
@@ -20,6 +23,7 @@ async def main():
             if state_task:
                 state_task.cancel()
             
+            # Check if keyword is in text and respond
             if text:
                 clean_text = text.lower().translate(str.maketrans('', '', string.punctuation))
                 if keyword in clean_text:

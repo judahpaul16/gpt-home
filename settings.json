@@ -1,5 +1,6 @@
 {
-    "max_tokens": 150,
-    "temperature": 0.7
-  }
+  "keyword": "computer",
+  "max_tokens": 150,
+  "temperature": 0.7
+}
   

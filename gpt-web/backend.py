@@ -5,12 +5,16 @@ from fastapi.exceptions import HTTPException
 from typing import Optional
 from pathlib import Path
 import subprocess
+import openai
 import json
+import os
 
 ROOT_DIRECTORY = Path(__file__).parent
 PARENT_DIRECTORY = ROOT_DIRECTORY.parent
 
 app = FastAPI()
+
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 app.mount("/static", StaticFiles(directory=ROOT_DIRECTORY / "build" / "static"), name="static")
 
@@ -80,3 +84,16 @@ async def settings(request: Request):
         return JSONResponse(content=new_settings)
     else:
         return HTTPException(status_code=400, detail="Invalid action")
+    
+@app.get("/availableModels")
+async def available_models():
+    try:
+        # Get available models from OpenAI
+        model_list = openai.Model.list()
+        
+        # Filter to only keep supported models.
+        supported_models = [model['id'] for model in model_list['data'] if "gpt" in model['id'].lower()]
+
+        return JSONResponse(content={"models": supported_models})
+    except Exception as e:
+        return HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")

@@ -5,14 +5,19 @@ import '../css/Settings.css';
 const Settings: React.FC = () => {
   const [settings, setSettings] = useState<any>({});
   const [isLoading, setLoading] = useState(true);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
 
   useEffect(() => {
-    // Fetch settings from backend when component mounts
+    // Fetch settings and available models from backend when component mounts
     axios.post('/settings', { action: 'read' }).then((response) => {
       setSettings(response.data);
       setLoading(false);
     });
-  }, []);
+  
+    axios.get('/availableModels').then((response) => {
+      setAvailableModels(response.data);
+    });
+  }, []);  
 
   const updateSettings = () => {
     // Send updated settings to backend
@@ -30,6 +35,27 @@ const Settings: React.FC = () => {
     <div className="dashboard settings-dashboard">
       <h2>Settings</h2>
       <div className="settings-container">
+        <label>
+          Keyword:
+          <input
+            type="text"
+            value={settings.keyword || ''}
+            onChange={(e) => setSettings({ ...settings, keyword: e.target.value })}
+          />
+        </label>
+        <label>
+          Model:
+          <select
+            value={settings.model || ''}
+            onChange={(e) => setSettings({ ...settings, model: e.target.value })}
+          >
+            {availableModels.map((model, index) => (
+              <option key={index} value={model}>
+                {model}
+              </option>
+            ))}
+          </select>
+        </label>
         <label>
           Max Tokens:
           <input
