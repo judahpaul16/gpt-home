@@ -9,10 +9,16 @@ interface Log {
 
 const EventLogs: React.FC = () => {
   const [logs, setLogs] = useState<Log[]>([]);
-  // eslint-disable-next-line
-  const [_, setCurrentLogLength] = useState<number | null>(null);
+  const [currentLogLength, setCurrentLogLength] = useState<number | null>(null);
   const logContainerRef = useRef<HTMLPreElement>(null);
   const [lastLineNumber, setLastLineNumber] = useState<number>(0);
+  const [activeFilters, setActiveFilters] = useState<{ [key: string]: boolean }>({
+    warning: true,
+    info: true,
+    critical: true,
+    success: true,
+    error: true,
+  });
 
   useEffect(() => {
     const fetchAllLogs = async () => {
@@ -70,22 +76,40 @@ const EventLogs: React.FC = () => {
     }
   }, [logs, lastLineNumber]);
   
-  const renderLogs = () => {
-    return logs.map((log, index) => {
-      const key = `${log.content}-${index}`;
-      const classes = [log.isNew ? 'new-entry' : 'old-entry', log.type].join(' ');
+  const toggleFilter = (type: string) => {
+    setActiveFilters({ ...activeFilters, [type]: !activeFilters[type] });
+  };
 
-      return (
-        <div className={classes} key={key}>
-          {log.content}
-        </div>
-      );
-    });
+  const renderLogs = () => {
+    return logs
+      .filter(log => activeFilters[log.type])
+      .map((log, index) => {
+        const key = `${log.content}-${index}`;
+        const classes = [log.isNew ? 'new-entry' : 'old-entry', log.type].join(' ');
+
+        return (
+          <div className={classes} key={key}>
+            {log.content}
+          </div>
+        );
+      });
   };
 
   return (
     <div className="dashboard log-dashboard">
       <h2>Event Logs</h2>
+      <div className="filter-container">
+        {['warning', 'info', 'critical', 'success', 'error'].map(type => (
+          <label key={type} className="filter-label">
+            <input
+              type="checkbox"
+              checked={activeFilters[type]}
+              onChange={() => toggleFilter(type)}
+            />
+            {type}
+          </label>
+        ))}
+      </div>
       <pre className="log-container" ref={logContainerRef}>
         {renderLogs()}
       </pre>

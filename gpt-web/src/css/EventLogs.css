@@ -16,7 +16,7 @@ pre {
   padding: 1em 1.5em;
   text-align: left;
   max-width: 100%;
-  max-height: 65vh;
+  max-height: 60vh;
   text-wrap: wrap;
   font-size: 16pt;
   overflow-y: scroll;
@@ -59,4 +59,15 @@ pre {
   100% {
     background-color: transparent;
   }
+}
+
+.filter-container {
+  display: inline-block;
+  text-align: center;
+}
+
+.filter-label {
+  margin-right: 20px;
+  font-size: 15px;
+  user-select: none;
 }
