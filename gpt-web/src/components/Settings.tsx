@@ -15,10 +15,14 @@ const Settings: React.FC = () => {
     });
   
     axios.get('/availableModels').then((response) => {
-      setAvailableModels(response.data.models);
+      console.log("Response Data: ", response.data);
+      if (response.data.models) {
+        setAvailableModels(response.data.models);
+      }
     }).catch((error) => {
-      console.log(error);
-    });    
+      console.log("Error: ", error);
+      console.log("Error Response: ", error.response);
+    });
   }, []);  
 
   const updateSettings = () => {
@@ -47,16 +51,20 @@ const Settings: React.FC = () => {
         </label>
         <label>
           Model:
-          <select
-            value={settings.model || ''}
-            onChange={(e) => setSettings({ ...settings, model: e.target.value })}
-          >
-            {availableModels.map((model, index) => (
-              <option key={index} value={model}>
-                {model}
-              </option>
-            ))}
-          </select>
+          {availableModels.length > 0 ? (
+            <select
+              value={settings.model || ''}
+              onChange={(e) => setSettings({ ...settings, model: e.target.value })}
+            >
+              {availableModels.map((model, index) => (
+                <option key={index} value={model}>
+                  {model}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <p>Loading models...</p>
+          )}
         </label>
         <label>
           Max Tokens:
