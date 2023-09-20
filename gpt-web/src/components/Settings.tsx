@@ -18,6 +18,7 @@ const Settings: React.FC = () => {
     // Send updated settings to backend
     axios.post('/settings', { action: 'update', data: settings }).then((response) => {
       setSettings(response.data);
+      alert('Settings updated!');
     });
   };
 
