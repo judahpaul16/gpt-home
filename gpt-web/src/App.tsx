@@ -84,7 +84,9 @@ const App: React.FC = () => {
             <div 
               ref={sidebarRef}
               className={sidebarVisible ? 'MuiPaper-root open' : 'MuiPaper-root closed'}>
-              <h1 className="sidebar-title">GPT Home</h1>
+              <Link to="/integrations">
+                <h1 className="sidebar-title">GPT Home</h1>
+              </Link>
               <List>
                 <Link to="/integrations">
                   <ButtonBase>
