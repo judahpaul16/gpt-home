@@ -4,6 +4,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.exceptions import HTTPException
 from typing import Optional
 from pathlib import Path
+import subprocess
 import json
 
 ROOT_DIRECTORY = Path(__file__).parent
@@ -75,6 +76,7 @@ async def settings(request: Request):
         new_settings = incoming_data['data']
         with settings_path.open("w") as f:
             json.dump(new_settings, f)
+        subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
         return JSONResponse(content=new_settings)
     else:
         return HTTPException(status_code=400, detail="Invalid action")
