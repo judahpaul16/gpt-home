@@ -3,16 +3,21 @@
     background: #ececec;
     border: 5px solid #d3d3d3;
     border-radius: 10px;
+    display: inline-block;
     font-size: 16pt;
     max-height: 65vh;
-    max-width: 100%;
+    width: 60vw;
     overflow-y: scroll;
     padding: 1em 1.5em;
     text-align: center;
-    display: inline-grid;
 }
 
-.settings-container > * {
-    width: min-content;
-    margin: 0.5em auto;
+input, select {
+    border: 2px solid #ccc;
+    box-sizing: border-box;
+    padding: 5px;
+    width: 40%;
+    display: block;
+    content: "";
+    margin: 0.75em auto 0.4em;
 }
