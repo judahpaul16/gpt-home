@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Route, Routes, Link, Navigate, useLocation } from 'react-router-dom';
 import './css/App.css';
 import EventLogs from './components/EventLogs';
+import Settings from './components/Settings';
 import About from './components/About';
 import Integrations from './components/Integrations';
 import Drawer from '@mui/material/Drawer';
@@ -134,7 +135,7 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/event-logs" element={<EventLogs />} />
             <Route path="/integrations" element={<Integrations toggleStatus={toggleStatus} toggleOverlay={toggleOverlay} />} />
-            {/* <Route path="/settings" element={<div>Settings</div>} /> */}
+            <Route path="/settings" element={<Settings />} />
             <Route path="/about" element={<About />} />
             <Route index element={<Navigate to="/integrations" />} />
           </Routes>

@@ -13,6 +13,7 @@ import string
 import struct
 import openai
 import busio
+import json
 import time
 import os
 import re
@@ -111,6 +112,12 @@ async def initialize_system():
     state_task.cancel()  # Cancel the display task
     display = initLCD()  # Reinitialize the display
     return display
+
+def load_settings():
+    settings_path = "settings.json"
+    with open(settings_path, "r") as f:
+        settings = json.load(f)
+        return settings
 
 async def updateLCD(text, display, stop_event=None, delay=0.02):
     async with display_lock:
@@ -245,6 +252,13 @@ async def speak(text, stop_event):
 
 async def query_openai(text, display, retries=3):
     stop_event = asyncio.Event()
+
+    # Load settings from settings.json
+    settings = load_settings()
+
+    max_tokens = settings.get("max_tokens", 150)  # Default to 150 if not in settings
+    temperature = settings.get("temperature", 0.7)  # Default to 0.7 if not in settings
+
     for i in range(retries):
         try:
             response = openai.ChatCompletion.create(
@@ -253,11 +267,12 @@ async def query_openai(text, display, retries=3):
                     {"role": "system", "content": "You are a helpful assistant."},
                     {"role": "user", "content": f"Human: {text}\nAI:"}
                 ],
-                max_tokens=150
+                max_tokens=max_tokens,
+                temperature=temperature
             )
-            
+
             response_content = response['choices'][0]['message']['content'].strip()
-            
+
             if response_content:  # Check if the response is not empty
                 message = f"Response: {response_content}"
                 return message
@@ -269,7 +284,6 @@ async def query_openai(text, display, retries=3):
                 error_message = f"Something went wrong after {retries} retries: {e}"
                 handle_error(error_message, None, display)
         await asyncio.sleep(0.5)  # Wait before retrying
-    raise Exception(f"Something went wrong after {retries} retries.")
 
 def network_connected():
     return os.system("ping -c 1 google.com") == 0

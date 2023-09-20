@@ -85,7 +85,7 @@ th, td {
   background: white;
   border-radius: 10px;
   padding: 0.5em;
-  margin-right: 1em;
+  margin-right: 2em;
   transition: width 0.2s ease-in-out, visibility 0.2s ease-in-out;
 }
 
