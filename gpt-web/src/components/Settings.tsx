@@ -14,7 +14,7 @@ const Settings: React.FC = () => {
       setLoading(false);
     });
   
-    axios.get('/availableModels').then((response) => {
+    axios.post('/availableModels').then((response) => {
       console.log("Response Data: ", response.data);
       if (response.data.models) {
         setAvailableModels(response.data.models);

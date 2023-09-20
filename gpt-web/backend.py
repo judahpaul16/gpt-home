@@ -85,7 +85,7 @@ async def settings(request: Request):
     else:
         return HTTPException(status_code=400, detail="Invalid action")
     
-@app.get("/availableModels")
+@app.post("/availableModels")
 async def available_models():
     try:
         # Get available models from OpenAI
