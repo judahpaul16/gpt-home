@@ -185,11 +185,6 @@ async def listen(display, state_task, stop_event):
                 
                 try:
                     audio = r.listen(source, timeout=2, phrase_time_limit=15)
-
-                    stop_event.set()
-                    state_task.cancel()
-                    state_task = None
-                    state_task = loop.create_task(display_state("Processing", display, stop_event))
                     text = r.recognize_google(audio)
                     
                     if text:  # If text is found, break the loop
