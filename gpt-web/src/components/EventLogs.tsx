@@ -9,6 +9,7 @@ interface Log {
 
 const EventLogs: React.FC = () => {
   const [logs, setLogs] = useState<Log[]>([]);
+  // eslint-disable-next-line
   const [currentLogLength, setCurrentLogLength] = useState<number | null>(null);
   const logContainerRef = useRef<HTMLPreElement>(null);
   const [lastLineNumber, setLastLineNumber] = useState<number>(0);
@@ -99,7 +100,7 @@ const EventLogs: React.FC = () => {
     <div className="dashboard log-dashboard">
       <h2>Event Logs</h2>
       <div className="filter-container">
-        {['warning', 'info', 'critical', 'success', 'error'].map(type => (
+        {['debug', 'success', 'info', 'warning', 'error', 'critical'].map(type => (
           <label key={type} className="filter-label">
             <input
               type="checkbox"
