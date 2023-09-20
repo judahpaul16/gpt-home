@@ -15,8 +15,10 @@ const Settings: React.FC = () => {
     });
   
     axios.get('/availableModels').then((response) => {
-      setAvailableModels(response.data);
-    });
+      setAvailableModels(response.data.models);
+    }).catch((error) => {
+      console.log(error);
+    });    
   }, []);  
 
   const updateSettings = () => {

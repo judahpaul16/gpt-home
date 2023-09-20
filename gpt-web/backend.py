@@ -89,7 +89,7 @@ async def settings(request: Request):
 async def available_models():
     try:
         # Get available models from OpenAI
-        model_list = openai.Model.list()
+        model_list = await openai.Model.list()
         
         # Filter to only keep supported models.
         supported_models = [model['id'] for model in model_list['data'] if "gpt" in model['id'].lower()]
