@@ -88,48 +88,53 @@ const App: React.FC = () => {
               <Link to="/integrations" className='sidebar-title-link'>
                 <h1 className="sidebar-title">GPT Home</h1>
               </Link>
-              <List>
-                <Link to="/integrations">
-                  <ButtonBase>
-                    <ListItem key="Integrations" className={location.pathname === "/integrations" ? "active" : ""}>
-                      <ListItemIcon>
-                        <IntegrationIcon />
-                      </ListItemIcon>
-                      <ListItemText primary="Integrations" />
-                    </ListItem>
-                  </ButtonBase>
-                </Link>
-                <Link to="/event-logs">
-                  <ButtonBase>
-                    <ListItem key="Event Logs" className={location.pathname === "/event-logs" ? "active" : ""}>
-                      <ListItemIcon>
-                        <ChatIcon />
-                      </ListItemIcon>
-                      <ListItemText primary="Event Logs" />
-                    </ListItem>
-                  </ButtonBase>
-                </Link>
-                <Link to="/settings">
-                  <ButtonBase>
-                    <ListItem key="Settings" className={location.pathname === "/settings" ? "active" : ""}>
-                      <ListItemIcon>
-                        <SettingsIcon />
-                      </ListItemIcon>
-                      <ListItemText primary="Settings" />
-                    </ListItem>
-                  </ButtonBase>
-                </Link>
-                <Link to="/about">
-                  <ButtonBase>
-                    <ListItem key="About" className={location.pathname === "/about" ? "active" : ""}>
-                      <ListItemIcon>
-                        <InfoIcon />
-                      </ListItemIcon>
-                      <ListItemText primary="About" />
-                    </ListItem>
-                  </ButtonBase>
-                </Link>
-              </List>
+              <div className="sidebar-links-container">
+                <List>
+                  <Link to="/integrations">
+                    <ButtonBase>
+                      <ListItem key="Integrations" className={location.pathname === "/integrations" ? "active" : ""}>
+                        <ListItemIcon>
+                          <IntegrationIcon />
+                        </ListItemIcon>
+                        <ListItemText primary="Integrations" />
+                      </ListItem>
+                    </ButtonBase>
+                  </Link>
+                  <Link to="/event-logs">
+                    <ButtonBase>
+                      <ListItem key="Event Logs" className={location.pathname === "/event-logs" ? "active" : ""}>
+                        <ListItemIcon>
+                          <ChatIcon />
+                        </ListItemIcon>
+                        <ListItemText primary="Event Logs" />
+                      </ListItem>
+                    </ButtonBase>
+                  </Link>
+                  <Link to="/settings">
+                    <ButtonBase>
+                      <ListItem key="Settings" className={location.pathname === "/settings" ? "active" : ""}>
+                        <ListItemIcon>
+                          <SettingsIcon />
+                        </ListItemIcon>
+                        <ListItemText primary="Settings" />
+                      </ListItem>
+                    </ButtonBase>
+                  </Link>
+                  <Link to="/about">
+                    <ButtonBase>
+                      <ListItem key="About" className={location.pathname === "/about" ? "active" : ""}>
+                        <ListItemIcon>
+                          <InfoIcon />
+                        </ListItemIcon>
+                        <ListItemText primary="About" />
+                      </ListItem>
+                    </ButtonBase>
+                  </Link>
+                </List>
+                <div className="robot-gif-container">
+                  <img width={"155px"} src={`${process.env.PUBLIC_URL}/robot.gif`} alt="robot" />
+                </div>
+              </div>
             </div>
           </Drawer>
           <Routes>
