@@ -1,6 +1,7 @@
-# Getting Started with Create React App
+# 🌐 GPT Home Web Interface
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Configuration and management interface for the GPT Home project.<br>
+*This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).*
 
 ## Available Scripts
 
