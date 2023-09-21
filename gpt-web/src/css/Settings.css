@@ -8,34 +8,35 @@
     overflow-y: scroll;
     padding: 1em 1.5em;
     text-align: center;
-  }
+}
   
-  .settings-section {
-    margin-bottom: 20px;
-  }
+.settings-section {
+    margin-bottom: 1em;
+    padding-bottom: 1em;
+    border-bottom: solid 1px #a1a1a1;
+}
   
-  .settings-section-header {
+.settings-section-header {
     font-size: 18pt;
     margin-bottom: 10px;
-  }
+}
   
-  .settings-group {
+.settings-group {
     display: flex;
     justify-content: space-between;
     flex-wrap: wrap;
-  }
-  
-  label {
+}
+
+label {
     flex: 0 0 calc(50% - 10px);
     margin: 5px;
-  }
-  
-  input, select {
+}
+
+input, select {
     border: 2px solid #ccc !important;
     box-sizing: border-box !important;
     padding: 5px !important;
     width: 100% !important;
     max-width: 200px !important;
     margin: 0.75em auto 0.4em !important;
-  }
-  
+}

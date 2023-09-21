@@ -88,7 +88,7 @@ async def available_models():
     try:
         # Get available models from OpenAI
         openai.api_key = os.getenv("OPENAI_API_KEY")
-        model_list = await openai.Model.list()
+        model_list = openai.Model.list()
         
         # Filter to only keep supported models.
         supported_models = [model['id'] for model in model_list['data'] if "gpt" in model['id'].lower()]
