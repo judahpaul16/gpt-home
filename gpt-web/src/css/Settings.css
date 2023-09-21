@@ -27,12 +27,12 @@
     flex-wrap: wrap;
 }
 
-label {
+.settings-group label {
     flex: 0 0 calc(50% - 10px);
     margin: 5px;
 }
 
-input, select {
+.settings-group label input, .settings-group label select {
     border: 2px solid #ccc !important;
     box-sizing: border-box !important;
     padding: 5px !important;
