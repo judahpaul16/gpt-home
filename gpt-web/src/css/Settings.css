@@ -32,11 +32,15 @@
     margin: 5px;
 }
 
-.settings-group label input, .settings-group label select {
+.settings-group label input, .settings-group label select, #keyword-input {
     border: 2px solid #ccc !important;
     box-sizing: border-box !important;
     padding: 5px !important;
     width: 100% !important;
     max-width: 200px !important;
-    margin: 0.75em auto 0.4em !important;
+    margin: 0.75em auto 0.4em;
+}
+
+#keyword-input {
+    margin-left: 0.5em !important;
 }

@@ -48,7 +48,7 @@ const Settings: React.FC = () => {
             Keyword:
             <input
               type="text"
-              style={{ marginLeft: '0.5em !important' }}
+              id='keyword-input'
               value={settings.keyword || ''}
               onChange={(e) => setSettings({ ...settings, keyword: e.target.value })}
             />
