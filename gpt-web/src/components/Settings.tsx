@@ -48,6 +48,7 @@ const Settings: React.FC = () => {
             Keyword:
             <input
               type="text"
+              style={{ marginLeft: '0.5em !important' }}
               value={settings.keyword || ''}
               onChange={(e) => setSettings({ ...settings, keyword: e.target.value })}
             />
@@ -58,7 +59,7 @@ const Settings: React.FC = () => {
           <div className="settings-section-header">OpenAI Settings</div>
           <div className="settings-group">
             <label>
-              Model:
+              Model:<br/>
               {availableModels.length > 0 ? (
                 <select
                   value={settings.model || ''}
@@ -75,7 +76,7 @@ const Settings: React.FC = () => {
               )}
             </label>
             <label>
-              Max Tokens:
+              Max Tokens:<br/>
               <input
                 type="number"
                 value={settings.max_tokens || ''}
@@ -83,7 +84,7 @@ const Settings: React.FC = () => {
               />
             </label>
             <label>
-              Temperature:
+              Temperature:<br/>
               <input
                 type="number"
                 step="0.01"
