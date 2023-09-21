@@ -96,3 +96,35 @@ async def available_models():
         return JSONResponse(content={"models": supported_models})
     except Exception as e:
         return HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+    
+@app.post("/updateModel")
+async def update_model(request: Request):
+    try:
+        incoming_data = await request.json()
+        model_id = incoming_data['model_id']
+        
+        # Get available models from OpenAI
+        openai.api_key = os.getenv("OPENAI_API_KEY")
+        model_list = openai.Model.list()
+        
+        # Filter to only keep supported models.
+        supported_models = [model['id'] for model in model_list['data'] if "gpt" in model['id'].lower()]
+        
+        # Check if model is supported
+        if model_id in supported_models:
+            # Update settings.json
+            settings_path = PARENT_DIRECTORY / "settings.json"
+            with settings_path.open("r") as f:
+                settings = json.load(f)
+            settings['model'] = model_id
+            with settings_path.open("w") as f:
+                json.dump(settings, f)
+            
+            # Restart service
+            subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
+            
+            return JSONResponse(content={"model": model_id})
+        else:
+            return HTTPException(status_code=400, detail=f"Model {model_id} not supported")
+    except Exception as e:
+        return HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
