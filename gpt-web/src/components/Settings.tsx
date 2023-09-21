@@ -41,48 +41,59 @@ const Settings: React.FC = () => {
     <div className="dashboard settings-dashboard">
       <h2>Settings</h2>
       <div className="settings-container">
-        <label>
-          Keyword:
-          <input
-            type="text"
-            value={settings.keyword || ''}
-            onChange={(e) => setSettings({ ...settings, keyword: e.target.value })}
-          />
-        </label>
-        <label>
-          Model:
-          {availableModels.length > 0 ? (
-            <select
-              value={settings.model || ''}
-              onChange={(e) => setSettings({ ...settings, model: e.target.value })}
-            >
-              {availableModels.map((model, index) => (
-                <option key={index} value={model}>
-                  {model}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <p>Loading models...</p>
-          )}
-        </label>
-        <label>
-          Max Tokens:
-          <input
-            type="number"
-            value={settings.max_tokens || ''}
-            onChange={(e) => setSettings({ ...settings, max_tokens: parseInt(e.target.value, 10) })}
-          />
-        </label>
-        <label>
-          Temperature:
-          <input
-            type="number"
-            step="0.01"
-            value={settings.temperature || ''}
-            onChange={(e) => setSettings({ ...settings, temperature: parseFloat(e.target.value) })}
-          />
-        </label>
+        
+        <div className="settings-section">
+          <div className="settings-section-header">General Settings</div>
+          <label>
+            Keyword:
+            <input
+              type="text"
+              value={settings.keyword || ''}
+              onChange={(e) => setSettings({ ...settings, keyword: e.target.value })}
+            />
+          </label>
+        </div>
+
+        <div className="settings-section">
+          <div className="settings-section-header">OpenAI Settings</div>
+          <div className="settings-group">
+            <label>
+              Model:
+              {availableModels.length > 0 ? (
+                <select
+                  value={settings.model || ''}
+                  onChange={(e) => setSettings({ ...settings, model: e.target.value })}
+                >
+                  {availableModels.map((model, index) => (
+                    <option key={index} value={model}>
+                      {model}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p>Loading models...</p>
+              )}
+            </label>
+            <label>
+              Max Tokens:
+              <input
+                type="number"
+                value={settings.max_tokens || ''}
+                onChange={(e) => setSettings({ ...settings, max_tokens: parseInt(e.target.value, 10) })}
+              />
+            </label>
+            <label>
+              Temperature:
+              <input
+                type="number"
+                step="0.01"
+                value={settings.temperature || ''}
+                onChange={(e) => setSettings({ ...settings, temperature: parseFloat(e.target.value) })}
+              />
+            </label>
+          </div>
+        </div>
+        
         <button onClick={updateSettings}>Update</button>
       </div>
     </div>

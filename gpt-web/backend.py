@@ -14,8 +14,6 @@ PARENT_DIRECTORY = ROOT_DIRECTORY.parent
 
 app = FastAPI()
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
 app.mount("/static", StaticFiles(directory=ROOT_DIRECTORY / "build" / "static"), name="static")
 
 @app.get("/favicon.ico")
@@ -89,6 +87,7 @@ async def settings(request: Request):
 async def available_models():
     try:
         # Get available models from OpenAI
+        openai.api_key = os.getenv("OPENAI_API_KEY")
         model_list = await openai.Model.list()
         
         # Filter to only keep supported models.

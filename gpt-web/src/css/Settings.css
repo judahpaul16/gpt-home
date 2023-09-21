@@ -1,23 +1,41 @@
 .settings-container {
-    text-wrap: wrap;
     background: #ececec;
     border: 5px solid #d3d3d3;
     border-radius: 10px;
-    display: inline-block;
     font-size: 16pt;
     max-height: 65vh;
-    width: 60vw;
+    width: 50vw;
     overflow-y: scroll;
     padding: 1em 1.5em;
     text-align: center;
-}
-
-input, select {
-    border: 2px solid #ccc;
-    box-sizing: border-box;
-    padding: 5px;
-    width: 40%;
-    display: block;
-    content: "";
-    margin: 0.75em auto 0.4em;
-}
+  }
+  
+  .settings-section {
+    margin-bottom: 20px;
+  }
+  
+  .settings-section-header {
+    font-size: 18pt;
+    margin-bottom: 10px;
+  }
+  
+  .settings-group {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  
+  label {
+    flex: 0 0 calc(50% - 10px);
+    margin: 5px;
+  }
+  
+  input, select {
+    border: 2px solid #ccc !important;
+    box-sizing: border-box !important;
+    padding: 5px !important;
+    width: 100% !important;
+    max-width: 200px !important;
+    margin: 0.75em auto 0.4em !important;
+  }
+  
