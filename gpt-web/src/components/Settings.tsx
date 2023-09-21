@@ -91,6 +91,13 @@ const Settings: React.FC = () => {
                 onChange={(e) => setSettings({ ...settings, temperature: parseFloat(e.target.value) })}
               />
             </label>
+            <label>
+              Custom Instructions:<br/>
+              <textarea
+                value={settings.custom_instructions || ''}
+                onChange={(e) => setSettings({ ...settings, custom_instructions: e.target.value })}
+              />
+            </label>
           </div>
         </div>
         

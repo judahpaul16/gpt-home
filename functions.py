@@ -259,7 +259,7 @@ async def query_openai(text, display, retries=3):
             response = openai.ChatCompletion.create(
                 model=settings.get("model"),
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "system", "content": f"You are a helpful assistant. {settings.get('custom_instructions')}"},
                     {"role": "user", "content": f"Human: {text}\nAI:"}
                 ],
                 max_tokens=max_tokens,
