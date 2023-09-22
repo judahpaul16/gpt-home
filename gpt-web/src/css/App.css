@@ -19,6 +19,7 @@
   align-items: center;
 }
 
+/* Mobile Styling */
 @media (max-width: 768px) {
   .App-header {
     overflow-x: hidden;
@@ -28,9 +29,13 @@
     flex-direction: column;
   }
 
-  .integrations-dashboard, .settings-dashboard {
-    width: 75vw;
+  .integrations-dashboard {
+    width: 75vw !important;
     padding: 2em !important;
+  }
+
+  .about-container, .settings-dashboard {
+    width: 75vw !important;
   }
 
   .table-container {

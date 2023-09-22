@@ -86,7 +86,7 @@ const EventLogs: React.FC = () => {
       .filter(log => activeFilters[log.type])
       .map((log, index) => {
         const key = `${log.content}-${index}`;
-        const classes = [log.isNew ? 'new-entry' : 'old-entry', log.type].join(' ');
+        const classes = [log.isNew ? 'new-entry' : 'old-entry', log.type].join(' entry ');
 
         return (
           <div className={classes} key={key}>

@@ -26,6 +26,10 @@ pre {
   transition: all 0.2s ease-in-out;
 }
 
+.entry {
+  font-size: medium !important;
+}
+
 .new-entry {
   animation: flash 1s ease-in-out;
   background-color: transparent;
