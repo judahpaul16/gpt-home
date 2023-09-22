@@ -169,7 +169,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, status, usage, toggleSt
       }
       <button
         className={status ? 'btn-disconnect' : 'btn-connect'}
-        onClick={status ? connectService : disconnectService}
+        onClick={status ? disconnectService : () => setShowForm(true)}
       >
         {status ? 'Disconnect' : 'Connect'}
       </button>
