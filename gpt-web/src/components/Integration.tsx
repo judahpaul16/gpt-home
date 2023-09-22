@@ -61,7 +61,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, status, usage, toggleSt
       fields[field] = formData[field as keyof typeof formData];
     }
 
-    axios.post('/connect-service', { fields }).then((response) => {
+    axios.post('/connect-service', { name, fields }).then((response) => {
       if (response.data.success) {
         toggleStatus(name);
         setShowOverlay(false);
@@ -80,7 +80,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, status, usage, toggleSt
 
   const disconnectService = async () => {
     setShowOverlay(true);
-    axios.post('/disconnect-service', { name }).then((response) => {
+    axios.post('/disconnect-service', {fields: requiredFields[name] }).then((response) => {
       if (response.data.success) {
         toggleStatus(name);
         setShowOverlay(false);
@@ -112,7 +112,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, status, usage, toggleSt
       fields[field] = formData[field as keyof typeof formData];
     }
 
-    axios.post('/connect-service', { fields }).then((response) => {
+    axios.post('/connect-service', { name, fields }).then((response) => {
       if (response.data.success) {
         toggleStatus(name);
         setShowOverlay(false);

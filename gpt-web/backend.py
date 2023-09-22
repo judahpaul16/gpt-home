@@ -227,10 +227,19 @@ def read_env_config():
 async def connect_service(request: Request):
     try:
         incoming_data = await request.json()
+        name = incoming_data["name"].lower().strip()
         fields = incoming_data["fields"]
 
         for key, value in fields.items():
-            set_key(ENV_FILE_PATH, key, value)
+            if name == "spotify":
+                set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", value)
+            elif name == "googlecalendar":
+                set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN", value)
+            elif name == "phillipshue":
+                if 'ip' in key:
+                    set_key(ENV_FILE_PATH, "HUE_BRIDGE_IP", value)
+                elif 'username' in key:
+                    set_key(ENV_FILE_PATH, "HUE_BRIDGE_USERNAME", value)
 
         subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
 
