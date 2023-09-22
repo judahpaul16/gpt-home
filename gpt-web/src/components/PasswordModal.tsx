@@ -32,8 +32,13 @@ const PasswordModal: React.FC<PasswordModalProps> = ({ unlockApp }) => {
   };
 
   const hashPassword = async (password: string) => {
-    const response = await axios.post('/hashPassword', { password });
-    return response.data.hashedPassword;
+    return await axios.post('/hashPassword', { password }).then(response => {
+        return response.data.hashedPassword;
+    })
+    .catch(error => {
+        console.error('Error hashing password:', error);
+        return null;
+    });
   };
 
   const handleUnlock = async () => {
