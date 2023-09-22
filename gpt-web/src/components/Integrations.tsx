@@ -5,9 +5,15 @@ import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Integration from './Integration';
+import '../css/Integrations.css';
+
+interface IndividualIntegration {
+  status: boolean;
+  usage: string[];
+}
 
 interface IntegrationStatus {
-  [key: string]: boolean;
+  [key: string]: IndividualIntegration;
 }
 
 interface IntegrationsProps {
@@ -17,9 +23,9 @@ interface IntegrationsProps {
 
 const Integrations: React.FC<IntegrationsProps> = ({ toggleStatus, toggleOverlay }) => {
   const [integrations] = React.useState<IntegrationStatus>({
-    Spotify: false,
-    GoogleCalendar: false,
-    PhilipsHue: false,
+    Spotify: { status: false, usage: ["Play....on Spotify", "Next Song / Go Back", "Play / Pause / Stop"] },
+    GoogleCalendar: { status: false, usage: ["Schedule a meeting for...", "Delete event on..."] },
+    PhilipsHue: { status: false, usage: ["Turn on lights", "Turn off lights", "Dim the lights to..."] },
   });
 
   return (
@@ -39,12 +45,13 @@ const Integrations: React.FC<IntegrationsProps> = ({ toggleStatus, toggleOverlay
               <TableRow key={name}>
                 <TableCell>{name}</TableCell>
                 <TableCell>
-                  {integrations[name as keyof IntegrationStatus] ? 'Connected' : 'Disconnected'}
+                  {integrations[name].status ? 'Connected' : 'Not Connected'}
                 </TableCell>
                 <TableCell>
                   <Integration
                     name={name}
-                    status={integrations[name as keyof IntegrationStatus]}
+                    status={integrations[name].status}
+                    usage={integrations[name].usage}
                     toggleStatus={toggleStatus}
                     setShowOverlay={(visible) => toggleOverlay(visible)}
                   />

@@ -1,5 +1,7 @@
 # 🏠 GPT Home
-ChatGPT at home! Basically a better G**gle Nest Hub desk assistant made with Raspberry Pi and OpenAI API.
+ChatGPT at home! Basically a better G**gle Nest Hub desk assistant. Built on the Raspberry Pi using the OpenAI API.
+
+This guide will explain how to build your own. It's pretty straight forward. You can also use this as a reference for building other projects on the Raspberry Pi.
 
 * *This guide assumes you're using Ubuntu Server as your Raspberry Pi operating system. You may need to make certain modifications to accomodate other operating systems*
 

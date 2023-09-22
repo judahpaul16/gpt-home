@@ -1,0 +1,31 @@
+.integrations-dashboard {
+    padding-top: 0 !important;
+}
+
+/* Table styling */
+table {
+    width: 100%;
+    margin-top: 20px;
+    border-collapse: collapse;
+  }
+  
+  .table-container {
+    max-height: 70vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin-top: 1.5em;
+  }
+  
+  /* Sticky header */
+  .TableHead {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background-color: #ebebeb;
+  }
+  
+  th, td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid #ccc;
+  }

@@ -9,9 +9,9 @@ const About: React.FC = () => {
       <div className="about-container">
         ChatGPT at home! Basically a better G**gle Nest Hub desk assistant.
         <br/>
-        Made with Raspberry Pi and OpenAI API.
+        Built on the Raspberry Pi using the OpenAI API.
         <br/><br/>
-        Developed by Judah Paul.
+        Made with &hearts; by Judah Paul.
         <br/><br/>
         Learn more @ <a target='_blank' rel='noopener noreferrer'
                       href="https://github.com/judahpaul16/gpt-home">

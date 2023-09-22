@@ -4,11 +4,12 @@ import '../css/Integration.css';
 interface IntegrationProps {
   name: string;
   status: boolean;
+  usage: string[];
   toggleStatus: (name: string) => void;
   setShowOverlay: (visible: boolean) => void;
 }
 
-const Integration: React.FC<IntegrationProps> = ({ name, status, toggleStatus, setShowOverlay }) => {
+const Integration: React.FC<IntegrationProps> = ({ name, status, usage, toggleStatus, setShowOverlay }) => {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ apiKey: '' });
   const [error, setError] = useState('');
@@ -28,8 +29,15 @@ const Integration: React.FC<IntegrationProps> = ({ name, status, toggleStatus, s
 
   return (
     <div className="integration">
-      <h3>{name}</h3>
-      {showForm ? (
+      {usage.map((phrase) => (
+        <h4 key={phrase}>{phrase}</h4>
+      ))}
+      {status && 
+        <button className="btn-edit" onClick={() => setShowForm(true)}>
+          Edit
+        </button>
+      }
+      {showForm &&
         <div className="overlay">
           <div className="form-container">
             <input
@@ -44,11 +52,13 @@ const Integration: React.FC<IntegrationProps> = ({ name, status, toggleStatus, s
             {error && <div className="error-text">{error}</div>}
           </div>
         </div>
-      ) : (
-        <button onClick={status ? connectService : () => setShowForm(true)}>
-          {status ? 'Disconnect' : 'Connect'}
-        </button>
-      )}
+      }
+      <button
+        className={status ? 'btn-disconnect' : 'btn-connect'}
+        onClick={status ? connectService : () => setShowForm(true)}
+      >
+        {status ? 'Disconnect' : 'Connect'}
+      </button>
     </div>
   );
 };
