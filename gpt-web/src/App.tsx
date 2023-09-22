@@ -21,11 +21,15 @@ import MenuIcon from '@mui/icons-material/Menu';
 
 const App: React.FC = () => {
   const location = useLocation();
-  const [integrations, setIntegrations] = useState<{Spotify: boolean, GoogleCalendar: boolean, PhilipsHue: boolean}>({
-    Spotify: false,
-    GoogleCalendar: false,
-    PhilipsHue: false,
-  }); 
+  const [integrations, setIntegrations] = useState<{
+    Spotify: { status: boolean; usage: string[] };
+    GoogleCalendar: { status: boolean; usage: string[] };
+    PhilipsHue: { status: boolean; usage: string[] };
+  }>({
+    Spotify: { status: false, usage: [] },
+    GoogleCalendar: { status: false, usage: [] },
+    PhilipsHue: { status: false, usage: [] },
+  });  
   
   const [showOverlay, setShowOverlay] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(window.innerWidth >= 768);

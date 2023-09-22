@@ -7,28 +7,17 @@ import TableRow from '@mui/material/TableRow';
 import Integration from './Integration';
 import '../css/Integrations.css';
 
-interface IndividualIntegration {
-  status: boolean;
-  usage: string[];
-}
-
-interface IntegrationStatus {
-  [key: string]: IndividualIntegration;
-}
-
 interface IntegrationsProps {
   toggleStatus: (name: string) => void;
   toggleOverlay: (visible: boolean) => void;
-  integrations: {Spotify: boolean, GoogleCalendar: boolean, PhilipsHue: boolean};
+  integrations: {
+    Spotify: { status: boolean; usage: string[] };
+    GoogleCalendar: { status: boolean; usage: string[] };
+    PhilipsHue: { status: boolean; usage: string[] };
+  };
 }
 
-const Integrations: React.FC<IntegrationsProps> = ({ toggleStatus, toggleOverlay }) => {
-  const [integrations] = React.useState<IntegrationStatus>({
-    Spotify: { status: false, usage: ["Play....on Spotify", "Next Song / Go Back", "Play / Pause / Stop"] },
-    GoogleCalendar: { status: false, usage: ["Schedule a meeting for...", "Delete event on..."] },
-    PhilipsHue: { status: false, usage: ["Turn on lights", "Turn off lights", "Dim the lights to..."] },
-  });
-
+const Integrations: React.FC<IntegrationsProps> = ({ toggleStatus, toggleOverlay, integrations }) => {
   return (
     <div className="dashboard integrations-dashboard">
       <h2>Integrations Dashboard</h2>
@@ -44,15 +33,15 @@ const Integrations: React.FC<IntegrationsProps> = ({ toggleStatus, toggleOverlay
           <TableBody>
             {Object.keys(integrations).map((name) => (
               <TableRow key={name}>
-                <TableCell>{name}</TableCell>
+              <TableCell>{name}</TableCell>
                 <TableCell>
-                  {integrations[name].status ? 'Connected' : 'Not Connected'}
+                  {integrations[name as keyof typeof integrations] ? 'Connected' : 'Not Connected'}
                 </TableCell>
                 <TableCell>
                   <Integration
                     name={name}
-                    status={integrations[name].status}
-                    usage={integrations[name].usage}
+                    status={integrations[name as keyof typeof integrations]?.status}
+                    usage={integrations[name as keyof typeof integrations]?.usage}
                     toggleStatus={toggleStatus}
                     setShowOverlay={(visible) => toggleOverlay(visible)}
                   />
