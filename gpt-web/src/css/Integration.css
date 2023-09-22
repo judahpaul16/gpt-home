@@ -1,7 +1,7 @@
 .integration {
   text-align: center;
   border: 1px solid #ccc;
-  padding: 1.5em;
+  padding: 1em;
   border-radius: 10px;
   background-color: #FFFFFF;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
@@ -9,9 +9,9 @@
 
 .form-container {
   background: #fff;
-  padding: 1em;
+  padding: 2em;
   border-radius: 10px;
-  width: 300px;
+  width: auto;
   text-align: center;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   position: absolute;

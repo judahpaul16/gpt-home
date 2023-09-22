@@ -9,6 +9,7 @@ import textwrap
 import logging
 import asyncio
 import pyttsx3
+import aiohttp
 import string
 import struct
 import openai
@@ -45,6 +46,9 @@ engine.setProperty('volume', 1.0)
 engine.setProperty('alsa_device', 'hw:Headphones,0')
 speak_lock = asyncio.Lock()
 display_lock = asyncio.Lock()
+
+def network_connected():
+    return os.system("ping -c 1 google.com") == 0
 
 # Manually draw a degree symbol °
 def degree_symbol(display, x, y, radius, color):
@@ -245,14 +249,71 @@ async def speak(text, stop_event):
         await loop.run_in_executor(executor, _speak)
         stop_event.set()
 
+async def spotify_action(text: str):
+    # Assume you have the access token
+    access_token = os.environ['SPOTIFY_ACCESS_TOKEN']
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    if access_token:
+        async with aiohttp.ClientSession() as session:
+            if "play" in text:
+                # Assume that you've already fetched the playlist or song ID
+                playlist_id = "YOUR_PLAYLIST_ID"
+                await session.put(f"https://api.spotify.com/v1/playlists/{playlist_id}/play", headers=headers)
+                return "Playing music on Spotify."
+            elif "next song" in text:
+                await session.post("https://api.spotify.com/v1/me/player/next", headers=headers)
+                return "Playing next song on Spotify."
+            elif "go back" in text:
+                await session.post("https://api.spotify.com/v1/me/player/previous", headers=headers)
+                return "Going back to previous song on Spotify."
+            elif "pause" in text or "stop" in text:
+                await session.put("https://api.spotify.com/v1/me/player/pause", headers=headers)
+                return "Pausing music on Spotify."
+    return "No access token found. Please enter your access token in the web interface."
+
+async def google_calendar_action(text: str):
+    # Assume you have the access token
+    access_token = os.environ['GOOGLE_CALENDAR_ACCESS_TOKEN']
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    if access_token:
+        async with aiohttp.ClientSession() as session:
+            if "schedule a meeting" in text:
+                # Parse the meeting details from `text` or through some dialog
+                meeting_details = {...}  # Add meeting details here
+                await session.post("https://www.googleapis.com/calendar/v3/calendars/primary/events", json=meeting_details, headers=headers)
+                return "Scheduled a meeting."
+            elif "delete event" in text:
+                # Parse the event ID from `text` or through some dialog
+                event_id = "YOUR_EVENT_ID"
+                await session.delete(f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{event_id}", headers=headers)
+                return "Deleted an event."
+    return "No access token found. Please enter your access token in the web interface."
+
+async def philips_hue_action(text: str):
+    bridge_ip = os.environ['PHILIPS_HUE_BRIDGE_IP']
+    username = os.environ['PHILIPS_HUE_USERNAME']
+
+    if bridge_ip and username:
+        async with aiohttp.ClientSession() as session:
+            if "turn on" in text:
+                await session.put(f"http://{bridge_ip}/api/{username}/lights/1/state", json={"on": True})
+                return "Lights turned on."
+
+            elif "turn off" in text:
+                await session.put(f"http://{bridge_ip}/api/{username}/lights/1/state", json={"on": False})
+                return "Lights turned off."
+    return "No bridge IP or username found. Please enter your bridge IP and username in the web interface."
+
 async def query_openai(text, display, retries=3):
     stop_event = asyncio.Event()
 
     # Load settings from settings.json
     settings = load_settings()
 
-    max_tokens = settings.get("max_tokens", 150)  # Default to 150 if not in settings
-    temperature = settings.get("temperature", 0.7)  # Default to 0.7 if not in settings
+    max_tokens = settings.get("max_tokens")
+    temperature = settings.get("temperature")
 
     for i in range(retries):
         try:
@@ -280,8 +341,22 @@ async def query_openai(text, display, retries=3):
                 handle_error(error_message, None, display)
         await asyncio.sleep(0.5)  # Wait before retrying
 
-def network_connected():
-    return os.system("ping -c 1 google.com") == 0
+async def action_router(text: str, display):
+    # For Spotify actions
+    if re.search(r'(play|next song|go back|pause|stop)\s.*\son\sSpotify', text, re.IGNORECASE):
+        return await spotify_action(text)
+        
+    # For Google Calendar actions
+    elif re.search(r'(schedule a meeting|delete event)\s.*\son', text, re.IGNORECASE):
+        return await google_calendar_action(text)
+
+    # For Philips Hue actions
+    elif re.search(r'turn\s(on|off)\slights', text, re.IGNORECASE):
+        return await philips_hue_action(text)
+        
+    # If no pattern matches, query OpenAI
+    else:
+        return await query_openai(text, display)
 
 async def handle_error(message, state_task, display):
     if state_task: 

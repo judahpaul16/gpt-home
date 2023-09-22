@@ -213,3 +213,18 @@ async def change_password(request: Request):
             return HTTPException(status_code=404, detail="Hashed password not found")
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
+
+@app.post("connect-service")
+async def connect_service(request: Request):
+    try:
+        incoming_data = await request.json()
+        fields = incoming_data["fields"]
+
+        # Set environment variables in ~/.bashrc
+        with open(os.path.expanduser("~/.bashrc"), "a") as f:
+            for field in fields:
+                f.write(f"export {field}={fields[field]}\n")
+
+        return JSONResponse(content={"success": True})
+    except Exception as e:
+        return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})

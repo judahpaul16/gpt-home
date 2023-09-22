@@ -38,7 +38,7 @@ async def main():
                         delay_heard = await calculate_delay(heard_message)
 
                         # Create a task for OpenAI query, don't await it yet
-                        query_task = asyncio.create_task(query_openai(actual_text, display))
+                        query_task = asyncio.create_task(action_router(actual_text, display))
 
                         await asyncio.gather(
                             speak(heard_message, stop_event_heard),
