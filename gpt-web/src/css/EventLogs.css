@@ -84,3 +84,13 @@ pre {
 .clear-logs-button:hover {
   background-color: #ff6666;
 }
+
+.scroll-bottom {
+  display: flex;
+  justify-content: center;
+  color: grey;
+  text-align: right;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: small;
+}

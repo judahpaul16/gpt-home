@@ -13,6 +13,7 @@ const EventLogs: React.FC = () => {
   // eslint-disable-next-line
   const [currentLogLength, setCurrentLogLength] = useState<number | null>(null);
   const logContainerRef = useRef<HTMLPreElement>(null);
+  const [userHasScrolled, setUserHasScrolled] = useState(false);
   const [lastLineNumber, setLastLineNumber] = useState<number>(0);
   const [activeFilters, setActiveFilters] = useState<{ [key: string]: boolean }>({
     warning: true,
@@ -58,14 +59,14 @@ const EventLogs: React.FC = () => {
           setLogs(prevLogs => [...prevLogs, ...formattedNewLogs]);
           // Update last line number state
           setLastLineNumber(newLastLineNumber);
+          
+          if (logContainerRef.current && !userHasScrolled) {
+            logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+          }
   
           setTimeout(() => {
             setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
           }, 2000);
-        }
-  
-        if (logContainerRef.current) {
-          logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
         }
       } catch (error) {
         console.error('Error fetching last log:', error);
@@ -74,8 +75,25 @@ const EventLogs: React.FC = () => {
   
     const intervalId = setInterval(fetchLastLog, 500);
     return () => clearInterval(intervalId);
-  }, [logs, lastLineNumber]);
+  }, [logs, lastLineNumber, userHasScrolled]);
   
+  useEffect(() => {
+    const handleScroll = () => {
+      if (logContainerRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = logContainerRef.current;
+        const isAtBottom = scrollHeight - scrollTop === clientHeight;
+        setUserHasScrolled(!isAtBottom);
+      }
+    };
+  
+    const logRef = logContainerRef.current;
+    logRef?.addEventListener('scroll', handleScroll);
+  
+    return () => {
+      logRef?.removeEventListener('scroll', handleScroll);
+    };
+  }, []);  
+
   const toggleFilter = (type: string) => {
     setActiveFilters({ ...activeFilters, [type]: !activeFilters[type] });
   };
@@ -104,6 +122,12 @@ const EventLogs: React.FC = () => {
     };
   };
 
+  const scrollToBottom = () => {
+    if (logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
+  };
+
   return (
     <div className="dashboard log-dashboard">
       <h2>Event Logs</h2>
@@ -128,6 +152,9 @@ const EventLogs: React.FC = () => {
       <pre className="log-container" ref={logContainerRef}>
         {renderLogs()}
       </pre>
+      <div className="scroll-bottom" onClick={scrollToBottom}>
+        scroll bottom
+      </div>
     </div>
   );
 };
