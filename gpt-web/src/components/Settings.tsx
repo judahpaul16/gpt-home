@@ -12,6 +12,9 @@ const Settings: React.FC = () => {
     axios.post('/settings', { action: 'read' }).then((response) => {
       setSettings(response.data);
       setLoading(false);
+    }).catch((error) => {
+      console.log("Error: ", error);
+      console.log("Error Response: ", error.response);
     });
   
     axios.post('/availableModels').then((response) => {
@@ -29,6 +32,9 @@ const Settings: React.FC = () => {
     axios.post('/settings', { action: 'update', data: settings }).then((response) => {
       setSettings(response.data);
       alert('Settings updated!');
+    }).catch((error) => {
+      console.log("Error: ", error);
+      console.log("Error Response: ", error.response);
     });
   };
 

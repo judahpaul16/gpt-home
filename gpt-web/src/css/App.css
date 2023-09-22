@@ -172,3 +172,44 @@
   background-color: rgba(0, 0, 0, 0.7);
   z-index: 9999;
 }
+
+.password-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  border-radius: 10px;
+  padding: 1em;
+  z-index: 9999;
+  display: grid;
+  width: 20vw;
+}
+
+.password {
+  margin-bottom: 1em;
+}
+
+.password-button {
+  margin-top: 1em;
+  padding: 0.5em;
+  border-radius: 10px;
+  width: fit-content;
+  margin: 0.5em auto 0.25em;
+}
+
+input[type=password] {
+  border: 2px solid #ccc !important;
+  box-sizing: border-box !important;
+  padding: 5px !important;
+  width: 100% !important;
+  max-width: 200px !important;
+  margin: 0.75em auto 0.4em;
+  height: 2.5em;
+}
+
+.error-message {
+  color: red;
+  font-size: 0.8em;
+  margin-top: 0.5em;
+}

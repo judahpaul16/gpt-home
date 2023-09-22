@@ -132,3 +132,24 @@ async def update_model(request: Request):
             return HTTPException(status_code=400, detail=f"Model {model_id} not supported")
     except Exception as e:
         return HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+        
+@app.post("/getHashedPassword")
+def get_hashed_password():
+    password_file_path = PARENT_DIRECTORY / "hashed_password.txt"
+
+    if password_file_path.exists() and password_file_path.is_file():
+        with password_file_path.open("r") as f:
+            hashed_password = f.read().strip()
+        return JSONResponse(content={"hashedPassword": hashed_password})
+    else:
+        return HTTPException(status_code=404, detail="Hashed password not found")
+
+@app.post("/setHashedPassword")
+async def set_hashed_password(request: Request):
+    incoming_data = await request.json()
+    new_hashed_password = incoming_data["hashedPassword"]
+    password_file_path = PARENT_DIRECTORY / "hashed_password.txt"
+
+    with password_file_path.open("w") as f:
+        f.write(new_hashed_password)
+    return JSONResponse(content={"status": "success"})

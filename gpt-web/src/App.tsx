@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Route, Routes, Link, Navigate, useLocation } from 'react-router-dom';
 import './css/App.css';
+import PasswordModal from './components/PasswordModal';
 import EventLogs from './components/EventLogs';
 import Settings from './components/Settings';
 import About from './components/About';
@@ -31,6 +32,11 @@ const App: React.FC = () => {
   });
   const [showOverlay, setShowOverlay] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(window.innerWidth >= 768);
+  const [unlocked, setUnlocked] = useState(false);
+
+  const unlockApp = () => {
+    setUnlocked(true);
+  };
 
   const toggleStatus = (name: string) => {
     setIntegrations({ ...integrations, [name]: !integrations[name] });
@@ -65,87 +71,90 @@ const App: React.FC = () => {
 
   return (
     <div className="App">
+      {process.env.NODE_ENV !== 'development' && !unlocked && <PasswordModal unlockApp={unlockApp} />}
       {showOverlay && <div className="overlay"></div>}
-      <header className="App-header">
-        <div className="dashboard-container">
-          <IconButton
-            edge="start"
-            color="inherit"
-            aria-label="menu"
-            className="menu-toggle"
-            onClick={() => setSidebarVisible(!sidebarVisible)}
-          >
-            <MenuIcon />
-          </IconButton>
-          <Drawer
-            variant="persistent"
-            open={sidebarVisible}
-            className={sidebarVisible ? 'sidebar open' : 'sidebar closed'}
-          >
-            <div 
-              ref={sidebarRef}
-              className={sidebarVisible ? 'MuiPaper-root open' : 'MuiPaper-root closed'}>
-              <Link to="/integrations" className='sidebar-title-link'>
-                <h1 className="sidebar-title">GPT Home</h1>
-              </Link>
-              <div className="sidebar-links-container">
-                <List>
-                  <Link to="/integrations">
-                    <ButtonBase>
-                      <ListItem key="Integrations" className={location.pathname === "/integrations" ? "active" : ""}>
-                        <ListItemIcon>
-                          <IntegrationIcon />
-                        </ListItemIcon>
-                        <ListItemText primary="Integrations" />
-                      </ListItem>
-                    </ButtonBase>
-                  </Link>
-                  <Link to="/event-logs">
-                    <ButtonBase>
-                      <ListItem key="Event Logs" className={location.pathname === "/event-logs" ? "active" : ""}>
-                        <ListItemIcon>
-                          <ChatIcon />
-                        </ListItemIcon>
-                        <ListItemText primary="Event Logs" />
-                      </ListItem>
-                    </ButtonBase>
-                  </Link>
-                  <Link to="/settings">
-                    <ButtonBase>
-                      <ListItem key="Settings" className={location.pathname === "/settings" ? "active" : ""}>
-                        <ListItemIcon>
-                          <SettingsIcon />
-                        </ListItemIcon>
-                        <ListItemText primary="Settings" />
-                      </ListItem>
-                    </ButtonBase>
-                  </Link>
-                  <Link to="/about">
-                    <ButtonBase>
-                      <ListItem key="About" className={location.pathname === "/about" ? "active" : ""}>
-                        <ListItemIcon>
-                          <InfoIcon />
-                        </ListItemIcon>
-                        <ListItemText primary="About" />
-                      </ListItem>
-                    </ButtonBase>
-                  </Link>
-                </List>
-                <div className="robot-gif-container">
-                  <img width={"150px"} src={`${process.env.PUBLIC_URL}/robot.gif`} alt="robot" />
+      {(unlocked || process.env.NODE_ENV === 'development') && (
+        <header className="App-header">
+          <div className="dashboard-container">
+            <IconButton
+              edge="start"
+              color="inherit"
+              aria-label="menu"
+              className="menu-toggle"
+              onClick={() => setSidebarVisible(!sidebarVisible)}
+            >
+              <MenuIcon />
+            </IconButton>
+            <Drawer
+              variant="persistent"
+              open={sidebarVisible}
+              className={sidebarVisible ? 'sidebar open' : 'sidebar closed'}
+            >
+              <div 
+                ref={sidebarRef}
+                className={sidebarVisible ? 'MuiPaper-root open' : 'MuiPaper-root closed'}>
+                <Link to="/integrations" className='sidebar-title-link'>
+                  <h1 className="sidebar-title">GPT Home</h1>
+                </Link>
+                <div className="sidebar-links-container">
+                  <List>
+                    <Link to="/integrations">
+                      <ButtonBase>
+                        <ListItem key="Integrations" className={location.pathname === "/integrations" ? "active" : ""}>
+                          <ListItemIcon>
+                            <IntegrationIcon />
+                          </ListItemIcon>
+                          <ListItemText primary="Integrations" />
+                        </ListItem>
+                      </ButtonBase>
+                    </Link>
+                    <Link to="/event-logs">
+                      <ButtonBase>
+                        <ListItem key="Event Logs" className={location.pathname === "/event-logs" ? "active" : ""}>
+                          <ListItemIcon>
+                            <ChatIcon />
+                          </ListItemIcon>
+                          <ListItemText primary="Event Logs" />
+                        </ListItem>
+                      </ButtonBase>
+                    </Link>
+                    <Link to="/settings">
+                      <ButtonBase>
+                        <ListItem key="Settings" className={location.pathname === "/settings" ? "active" : ""}>
+                          <ListItemIcon>
+                            <SettingsIcon />
+                          </ListItemIcon>
+                          <ListItemText primary="Settings" />
+                        </ListItem>
+                      </ButtonBase>
+                    </Link>
+                    <Link to="/about">
+                      <ButtonBase>
+                        <ListItem key="About" className={location.pathname === "/about" ? "active" : ""}>
+                          <ListItemIcon>
+                            <InfoIcon />
+                          </ListItemIcon>
+                          <ListItemText primary="About" />
+                        </ListItem>
+                      </ButtonBase>
+                    </Link>
+                  </List>
+                  <div className="robot-gif-container">
+                    <img width={"150px"} src={`${process.env.PUBLIC_URL}/robot.gif`} alt="robot" />
+                  </div>
                 </div>
               </div>
-            </div>
-          </Drawer>
-          <Routes>
-            <Route path="/event-logs" element={<EventLogs />} />
-            <Route path="/integrations" element={<Integrations toggleStatus={toggleStatus} toggleOverlay={toggleOverlay} />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/about" element={<About />} />
-            <Route index element={<Navigate to="/integrations" />} />
-          </Routes>
-        </div>
-      </header>
+            </Drawer>
+            <Routes>
+              <Route path="/event-logs" element={<EventLogs />} />
+              <Route path="/integrations" element={<Integrations toggleStatus={toggleStatus} toggleOverlay={toggleOverlay} />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/about" element={<About />} />
+              <Route index element={<Navigate to="/integrations" />} />
+            </Routes>
+          </div>
+        </header>
+      )}
     </div>
   );  
 };
