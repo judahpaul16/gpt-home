@@ -150,7 +150,7 @@ def generate_hashed_password(password: str) -> str:
 @app.post("/hashPassword")
 async def hash_password_route(request: Request):
     try:
-        incoming_data = request.json()
+        incoming_data = await request.json()
         password = incoming_data["password"]
         hashed_password = generate_hashed_password(password)
         return JSONResponse(content={"success": True, "hashedPassword": hashed_password})
@@ -174,7 +174,7 @@ def get_hashed_password():
 @app.post("/setHashedPassword")
 async def set_hashed_password(request: Request):
     try:
-        incoming_data = request.json()
+        incoming_data = await request.json()
         new_hashed_password = incoming_data["hashedPassword"]
         password_file_path = PARENT_DIRECTORY / "hashed_password.txt"
 
@@ -187,7 +187,7 @@ async def set_hashed_password(request: Request):
 @app.post("/changePassword")
 async def change_password(request: Request):
     try:
-        incoming_data = request.json()
+        incoming_data = await request.json()
         old_password = incoming_data["oldPassword"]
         new_password = incoming_data["newPassword"]
         password_file_path = PARENT_DIRECTORY / "hashed_password.txt"
