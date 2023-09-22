@@ -20,6 +20,10 @@ app.mount("/static", StaticFiles(directory=ROOT_DIRECTORY / "build" / "static"),
 def read_favicon():
     return FileResponse(ROOT_DIRECTORY / "build" / "favicon.ico")
 
+@app.get("/robot.gif")
+def read_robot():
+    return FileResponse(ROOT_DIRECTORY / "build" / "robot.gif")
+
 @app.get("/{path:path}")
 def read_root(path: str):
     return FileResponse(ROOT_DIRECTORY / "build" / "index.html")
