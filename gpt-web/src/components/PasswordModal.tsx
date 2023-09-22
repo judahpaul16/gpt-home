@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { hashPassword } from './hashPassword';
 
 interface PasswordModalProps {
   unlockApp: () => void;
@@ -28,6 +27,11 @@ const PasswordModal: React.FC<PasswordModalProps> = ({ unlockApp }) => {
 
   const handleConfirmInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     setConfirmInput(e.target.value);
+  };
+
+  const hashPassword = async (password: string) => {
+    const response = await axios.post('/hashPassword', { password });
+    return response.data.hashedPassword;
   };
 
   const handleUnlock = async () => {

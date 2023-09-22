@@ -139,6 +139,13 @@ def hash_password(password: str) -> str:
     sha256.update(password.encode('utf-8'))
     return sha256.hexdigest()
 
+@app.post("/hashPassword")
+async def hash_password(request: Request):
+    incoming_data = await request.json()
+    password = incoming_data["password"]
+    hashed_password = hash_password(password)
+    return JSONResponse(content={"hashedPassword": hashed_password})
+
 @app.post("/getHashedPassword")
 def get_hashed_password():
     password_file_path = PARENT_DIRECTORY / "hashed_password.txt"
