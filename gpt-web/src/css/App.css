@@ -20,14 +20,21 @@
 }
 
 @media (max-width: 768px) {
+  .App-header {
+    overflow-x: hidden;
+  }
+
   .dashboard {
     flex-direction: column;
-    padding: 0;
+  }
+
+  .integrations-dashboard, .settings-dashboard {
+    width: 75vw;
+    padding: 2em !important;
   }
 
   .table-container {
-    height: 100%;
-    max-height: none !important;
+    overflow: scroll !important;
   }
 }
 
