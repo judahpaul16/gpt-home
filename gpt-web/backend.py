@@ -141,17 +141,17 @@ async def startup_event():
         with password_file_path.open("w") as f:
             f.write("")
 
-def hash_password(password: str) -> str:
+def generate_hashed_password(password: str) -> str:
     sha256 = hashlib.sha256()
     sha256.update(password.encode('utf-8'))
     return sha256.hexdigest()
 
 @app.post("/hashPassword")
-async def hash_password(request: Request):
+async def hash_password_route(request: Request):
     try:
         incoming_data = await request.json()
         password = incoming_data["password"]
-        hashed_password = hash_password(password)
+        hashed_password = generate_hashed_password(password)
         return JSONResponse(content={"success": True, "hashedPassword": hashed_password})
     except Exception as e:
         return JSONResponse(content={"error": str(e)})
@@ -195,11 +195,11 @@ async def change_password(request: Request):
             with password_file_path.open("r") as f:
                 stored_hashed_password = f.read().strip()
 
-            provided_hashed_password = hash_password(old_password)
+            provided_hashed_password = generate_hashed_password(old_password)
 
             if provided_hashed_password == stored_hashed_password:
                 
-                new_hashed_password = hash_password(new_password)
+                new_hashed_password = generate_hashed_password(new_password)
 
                 # Store the new hashed password
                 with password_file_path.open("w") as f:
