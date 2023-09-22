@@ -3,6 +3,7 @@ import speech_recognition as sr
 from asyncio import create_task
 from dotenv import load_dotenv
 from board import SCL, SDA
+from phue import Bridge
 import adafruit_ssd1306
 import subprocess
 import traceback
@@ -309,14 +310,33 @@ async def philips_hue_action(text: str):
 
     if bridge_ip and username:
         try:
-            async with aiohttp.ClientSession() as session:
-                if "turn on" in text:
-                    await session.put(f"http://{bridge_ip}/api/{username}/lights/1/state", json={"on": True})
-                    return "Lights turned on."
+            b = Bridge(bridge_ip, username)
+            b.connect()
+                # turn on or off all lights
+            if re.search(r'(turn)?(\son|\soff)?.*\slight(s)?(\son|\soff)?', text, re.IGNORECASE):
+                if "on" in text:
+                    b.set_group(0, 'on', True)
+                    return "Turning on all lights."
+                elif "off" in text:
+                    b.set_group(0, 'on', False)
+                    return "Turning off all lights."
+                else:
+                    return "Turning on all lights."
+            elif re.search(r'(change|set).*\slight(s)?(\sto)?.*', text, re.IGNORECASE):
+                # Parse the light ID and color from `text` or through some dialog
+                light_id = text.split("light", 1)[1].split(" ", 1)[0].strip()
+                color = text.split("to", 1)[1].strip()
+                b.set_light(light_id, 'on', True)
+                b.set_light(light_id, 'hue', color)
+                return "Changing light color."
+            elif re.search(r'(dim|brighten).*\slight(s)?(\sto)?.*', text, re.IGNORECASE):
+                # Parse the light ID and brightness from `text` or through some dialog
+                light_id = text.split("light", 1)[1].split(" ", 1)[0].strip()
+                brightness = text.split("to", 1)[1].strip()
+                b.set_light(light_id, 'on', True)
+                b.set_light(light_id, 'bri', brightness)
+                return "Changing light brightness."
 
-                elif "turn off" in text:
-                    await session.put(f"http://{bridge_ip}/api/{username}/lights/1/state", json={"on": False})
-                    return "Lights turned off."
         except Exception as e:
             logger.error(f"Error: {traceback.format_exc()}")
             return f"Something went wrong: {e}"

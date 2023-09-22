@@ -17,7 +17,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, status, usage, toggleSt
   const apiRefs: { [key: string]: string[] } = {
     Spotify: ['https://developer.spotify.com/documentation/web-api/'],
     GoogleCalendar: ['https://developers.google.com/calendar/api/quickstart/python'],
-    PhilipsHue: [],
+    PhilipsHue: ['https://developers.meethue.com/develop/get-started-2/', 'https://github.com/studioimaginaire/phue'],
   };
   const requiredFields: { [key: string]: string[] } = {
     Spotify: ['API Key'],

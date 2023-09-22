@@ -418,6 +418,7 @@ alias web-error="tail -n 100 -f /var/log/nginx/error.log"
 - [Google Calendar API Docs](https://developers.google.com/calendar)
 - [Google Calendar Python API Docs](https://developers.google.com/calendar/quickstart/python)
 - [Phillips Hue API Docs](https://developers.meethue.com/develop/get-started-2/)
+- [Phillips Hue Python API Docs](https://github.com/studioimaginaire/phue)
 - [OpenWeatherMap API Docs](https://openweathermap.org/api)
 - [OpenWeatherMap Free Data For Education](https://openweathermap.org/our-initiatives/student-initiative)
 - [Fritzing Schematics](https://fritzing.org/)

@@ -25,6 +25,7 @@ multidict==6.0.4
 ninja==1.11.1
 openai==0.28.0
 Pillow==10.0.0
+phue==1.1
 PyAudio==0.2.13
 pydantic==2.3.0
 pydantic_core==2.6.3
