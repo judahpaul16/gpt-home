@@ -58,7 +58,7 @@ const PasswordModal: React.FC<PasswordModalProps> = ({ unlockApp }) => {
   return (
     <div className="password-modal">
       <input className="password" type="password" placeholder='Password' onChange={handleInput} />
-      {hashedPassword === null && <input className='password2' type="password" placeholder="Confirm Password" onChange={handleConfirmInput} />}
+      {!hashedPassword && <input className='password2' type="password" placeholder="Confirm Password" onChange={handleConfirmInput} />}
       <button className="password-button" onClick={handleUnlock}>
         {hashedPassword ? "Unlock" : "Set Password"}
       </button>
