@@ -268,13 +268,13 @@ async def spotify_action(text: str):
                     return "Playing music on Spotify."
                 elif "next song" in text:
                     await session.post("https://api.spotify.com/v1/me/player/next", headers=headers)
-                    return "Playing next song on Spotify."
+                    return "Playing next song."
                 elif "go back" in text:
                     await session.post("https://api.spotify.com/v1/me/player/previous", headers=headers)
-                    return "Going back to previous song on Spotify."
+                    return "Going back."
                 elif "pause" in text or "stop" in text:
                     await session.put("https://api.spotify.com/v1/me/player/pause", headers=headers)
-                    return "Pausing music on Spotify."
+                    return ""
         except Exception as e:
             logger.error(f"Error: {traceback.format_exc()}")
             return f"Something went wrong: {e}"
@@ -287,12 +287,12 @@ async def google_calendar_action(text: str):
     if access_token:
         try:
             async with aiohttp.ClientSession() as session:
-                if "schedule a meeting" in text:
+                if re.search(r'(schedule|set).*meeting', text, re.IGNORECASE):
                     # Parse the meeting details from `text` or through some dialog
                     meeting_details = {...}  # Add meeting details here
                     await session.post("https://www.googleapis.com/calendar/v3/calendars/primary/events", json=meeting_details, headers=headers)
                     return "Scheduled a meeting."
-                elif "delete event" in text:
+                elif re.search(r'(delete|remove|cancel).*event', text, re.IGNORECASE):
                     # Parse the event ID from `text` or through some dialog
                     event_id = "YOUR_EVENT_ID"
                     await session.delete(f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{event_id}", headers=headers)
