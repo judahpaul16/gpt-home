@@ -17,8 +17,9 @@ interface IntegrationStatus {
 }
 
 interface IntegrationsProps {
-    toggleStatus: (name: string) => void;
-    toggleOverlay: (visible: boolean) => void;
+  toggleStatus: (name: string) => void;
+  toggleOverlay: (visible: boolean) => void;
+  integrations: {Spotify: boolean, GoogleCalendar: boolean, PhilipsHue: boolean};
 }
 
 const Integrations: React.FC<IntegrationsProps> = ({ toggleStatus, toggleOverlay }) => {

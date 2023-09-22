@@ -19,17 +19,14 @@ import IntegrationIcon from '@mui/icons-material/IntegrationInstructions';
 import IconButton from '@mui/material/IconButton';
 import MenuIcon from '@mui/icons-material/Menu';
 
-interface IntegrationStatus {
-  [key: string]: boolean;
-}
-
 const App: React.FC = () => {
   const location = useLocation();
-  const [integrations, setIntegrations] = useState<IntegrationStatus>({
+  const [integrations, setIntegrations] = useState<{Spotify: boolean, GoogleCalendar: boolean, PhilipsHue: boolean}>({
     Spotify: false,
     GoogleCalendar: false,
     PhilipsHue: false,
-  });
+  }); 
+  
   const [showOverlay, setShowOverlay] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(window.innerWidth >= 768);
   const [unlocked, setUnlocked] = useState(false);
@@ -39,9 +36,11 @@ const App: React.FC = () => {
   };
 
   const toggleStatus = (name: string) => {
-    setIntegrations({ ...integrations, [name]: !integrations[name] });
+    if (name in integrations) {
+      setIntegrations({ ...integrations, [name]: !integrations[name as keyof typeof integrations] });
+    }
   };
-
+  
   const toggleOverlay = (visible: boolean) => {
     setShowOverlay(visible);
   };
@@ -148,7 +147,7 @@ const App: React.FC = () => {
             </Drawer>
             <Routes>
               <Route path="/event-logs" element={<EventLogs />} />
-              <Route path="/integrations" element={<Integrations toggleStatus={toggleStatus} toggleOverlay={toggleOverlay} />} />
+              <Route path="/integrations" element={<Integrations toggleStatus={toggleStatus} toggleOverlay={toggleOverlay} integrations={integrations} />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/about" element={<About />} />
               <Route index element={<Navigate to="/integrations" />} />
