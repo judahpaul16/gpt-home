@@ -72,7 +72,7 @@ const EventLogs: React.FC = () => {
     };
   
     if (logs.length > 0) {
-      const intervalId = setInterval(fetchLastLog, 2000);
+      const intervalId = setInterval(fetchLastLog, 500);
       return () => clearInterval(intervalId);
     }
   }, [logs, lastLineNumber]);
