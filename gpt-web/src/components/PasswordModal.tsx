@@ -5,6 +5,8 @@ interface PasswordModalProps {
   unlockApp: () => void;
 }
 
+const MIN_PASSWORD_LENGTH = 6;
+
 const PasswordModal: React.FC<PasswordModalProps> = ({ unlockApp }) => {
   const [input, setInput] = useState<string>("");
   const [confirmInput, setConfirmInput] = useState<string>("");
@@ -35,6 +37,16 @@ const PasswordModal: React.FC<PasswordModalProps> = ({ unlockApp }) => {
   };
 
   const handleUnlock = async () => {
+    if (input.length < MIN_PASSWORD_LENGTH) {
+      setError('Password is too short!');
+      return;
+    }
+
+    if (!input || !confirmInput) {
+      setError('All fields are required!');
+      return;
+    }
+
     if (hashedPassword === null) {
       if (input === confirmInput) {
         const hashedInput = await hashPassword(input);

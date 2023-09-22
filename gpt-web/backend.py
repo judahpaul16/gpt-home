@@ -134,7 +134,7 @@ async def update_model(request: Request):
     except Exception as e:
         return HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
-def hash_password(password: str) -> str:
+async def hash_password(password: str) -> str:
     sha256 = hashlib.sha256()
     sha256.update(password.encode('utf-8'))
     return sha256.hexdigest()
@@ -143,7 +143,7 @@ def hash_password(password: str) -> str:
 async def hash_password(request: Request):
     incoming_data = await request.json()
     password = incoming_data["password"]
-    hashed_password = hash_password(password)
+    hashed_password = await hash_password(password)
     return JSONResponse(content={"hashedPassword": hashed_password})
 
 @app.post("/getHashedPassword")
@@ -178,11 +178,11 @@ async def change_password(request: Request):
         with password_file_path.open("r") as f:
             stored_hashed_password = f.read().strip()
 
-        provided_hashed_password = hash_password(old_password)  # Use the Python hash_password function
+        provided_hashed_password = await hash_password(old_password)
 
         if provided_hashed_password == stored_hashed_password:
             
-            new_hashed_password = hash_password(new_password)  # Hash the new password
+            new_hashed_password = await hash_password(new_password)
 
             # Store the new hashed password
             with password_file_path.open("w") as f:
