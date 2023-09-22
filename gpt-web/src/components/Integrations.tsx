@@ -18,6 +18,12 @@ interface IntegrationsProps {
 }
 
 const Integrations: React.FC<IntegrationsProps> = ({ toggleStatus, toggleOverlay, integrations }) => {
+  const usage: { [key: string]: string[] } = {
+    Spotify: ['Play.....on Spotify', 'Play / Pause / Stop', 'Next Song / Go Back'],
+    GoogleCalendar: ['Schedule an event', 'What\'s on my calendar?',],
+    PhilipsHue: ['Dim the lights to...', 'Turn on / off....lights', 'Set the lights to red'],
+  };
+
   return (
     <div className="dashboard integrations-dashboard">
       <h2>Integrations Dashboard</h2>
@@ -41,7 +47,7 @@ const Integrations: React.FC<IntegrationsProps> = ({ toggleStatus, toggleOverlay
                   <Integration
                     name={name}
                     status={integrations[name as keyof typeof integrations]?.status}
-                    usage={integrations[name as keyof typeof integrations]?.usage}
+                    usage={usage[name as keyof typeof usage]}
                     toggleStatus={toggleStatus}
                     setShowOverlay={(visible) => toggleOverlay(visible)}
                   />

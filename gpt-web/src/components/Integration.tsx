@@ -10,7 +10,7 @@ interface IntegrationProps {
   setShowOverlay: (visible: boolean) => void;
 }
 
-const Integration: React.FC<IntegrationProps> = ({ name, status, usage, toggleStatus, setShowOverlay }) => {
+const Integration: React.FC<IntegrationProps> = ({ name, usage, status,  toggleStatus, setShowOverlay }) => {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ apiKey: '' });
   const [error, setError] = useState('');
@@ -19,6 +19,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, status, usage, toggleSt
     GoogleCalendar: ['https://developers.google.com/calendar/api/quickstart/python'],
     PhilipsHue: ['https://developers.meethue.com/develop/get-started-2/', 'https://github.com/studioimaginaire/phue'],
   };
+
   const requiredFields: { [key: string]: string[] } = useMemo(() => ({
     Spotify: ['API Key'],
     GoogleCalendar: ['API Key'],
