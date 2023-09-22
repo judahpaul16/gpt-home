@@ -1,3 +1,4 @@
+from dotenv import load_dotenv, set_key, unset_key, find_dotenv
 from fastapi import FastAPI, Request, Response, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -13,6 +14,9 @@ import os
 
 ROOT_DIRECTORY = Path(__file__).parent
 PARENT_DIRECTORY = ROOT_DIRECTORY.parent
+ENV_FILE_PATH = PARENT_DIRECTORY / ".env"
+
+load_dotenv(ENV_FILE_PATH)
 
 app = FastAPI()
 
@@ -214,77 +218,52 @@ async def change_password(request: Request):
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
-@app.post("connect-service")
+# Utility function to read environment config from .env file
+def read_env_config():
+    load_dotenv(ENV_FILE_PATH)
+    return {key: os.getenv(key) for key in os.environ if not key.startswith('_')}
+
+@app.post("/connect-service")
 async def connect_service(request: Request):
     try:
         incoming_data = await request.json()
         fields = incoming_data["fields"]
 
-        # Set environment variables in ~/.bashrc
-        with open(os.path.expanduser("~/.bashrc"), "a") as f:
-            for field in fields:
-                f.write(f"export {field}={fields[field]}\n")
+        for key, value in fields.items():
+            set_key(ENV_FILE_PATH, key, value)
 
-        # Restart service
         subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
+
         return JSONResponse(content={"success": True})
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
-@app.post("edit-service")
-async def edit_service(request: Request):
-    try:
-        incoming_data = await request.json()
-        fields = incoming_data["fields"]
-
-        # Set environment variables in ~/.bashrc
-        with open(os.path.expanduser("~/.bashrc"), "r") as f:
-            lines = f.readlines()
-        with open(os.path.expanduser("~/.bashrc"), "w") as f:
-            for line in lines:
-                if not any([field in line for field in fields]):
-                    f.write(line)
-            for field in fields:
-                f.write(f"export {field}={fields[field]}\n")
-
-        # Restart service
-        subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
-        return JSONResponse(content={"success": True})
-    except Exception as e:
-        return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
-
-@app.post("disconnect-service")
+@app.post("/disconnect-service")
 async def disconnect_service(request: Request):
     try:
         incoming_data = await request.json()
         fields = incoming_data["fields"]
 
-        # Remove environment variables from ~/.bashrc
-        with open(os.path.expanduser("~/.bashrc"), "r") as f:
-            lines = f.readlines()
-        with open(os.path.expanduser("~/.bashrc"), "w") as f:
-            for line in lines:
-                if not any([field in line for field in fields]):
-                    f.write(line)
+        for field in fields:
+            unset_key(ENV_FILE_PATH, field)
 
-        # Restart service
         subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
+
         return JSONResponse(content={"success": True})
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
-@app.post("is-service-connected")
+@app.post("/is-service-connected")
 async def is_service_connected(request: Request):
     try:
         incoming_data = await request.json()
         fields = incoming_data["fields"]
+        env_config = read_env_config()
 
-        # Check if environment variables are in ~/.bashrc
-        with open(os.path.expanduser("~/.bashrc"), "r") as f:
-            lines = f.readlines()
         for field in fields:
-            if not any([field in line for line in lines]):
+            if field not in env_config:
                 return JSONResponse(content={"success": False})
+
         return JSONResponse(content={"success": True})
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})

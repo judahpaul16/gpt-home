@@ -113,7 +113,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, status, usage, toggleSt
       fields[field] = formData[field as keyof typeof formData];
     }
 
-    axios.post('/edit-service', { fields }).then((response) => {
+    axios.post('/connect-service', { fields }).then((response) => {
       if (response.data.success) {
         toggleStatus(name);
         setShowOverlay(false);

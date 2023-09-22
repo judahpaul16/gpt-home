@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import speech_recognition as sr
 from asyncio import create_task
+from dotenv import load_dotenv
 from board import SCL, SDA
 import adafruit_ssd1306
 import subprocess
@@ -18,6 +19,9 @@ import json
 import time
 import os
 import re
+
+# Load .env file
+load_dotenv(dotenv_path='gpt-web/.env')
 
 # Add a new 'SUCCESS' logging level
 logging.SUCCESS = 25  # Between INFO and WARNING
@@ -251,7 +255,7 @@ async def speak(text, stop_event):
 
 async def spotify_action(text: str):
     # Assume you have the access token
-    access_token = os.environ['SPOTIFY_ACCESS_TOKEN']
+    access_token = os.getenv('SPOTIFY_ACCESS_TOKEN')
     headers = {"Authorization": f"Bearer {access_token}"}
 
     if access_token:
@@ -278,7 +282,7 @@ async def spotify_action(text: str):
 
 async def google_calendar_action(text: str):
     # Assume you have the access token
-    access_token = os.environ['GOOGLE_CALENDAR_ACCESS_TOKEN']
+    access_token = os.getenv['GOOGLE_CALENDAR_ACCESS_TOKEN']
     headers = {"Authorization": f"Bearer {access_token}"}
 
     if access_token:
@@ -300,8 +304,8 @@ async def google_calendar_action(text: str):
     return "No access token found. Please enter your access token in the web interface."
 
 async def philips_hue_action(text: str):
-    bridge_ip = os.environ['PHILIPS_HUE_BRIDGE_IP']
-    username = os.environ['PHILIPS_HUE_USERNAME']
+    bridge_ip = os.getenv['PHILIPS_HUE_BRIDGE_IP']
+    username = os.getenv['PHILIPS_HUE_USERNAME']
 
     if bridge_ip and username:
         try:
