@@ -68,10 +68,19 @@ pre {
 .filter-container {
   display: inline-block;
   text-align: center;
+  text-wrap: balance;
 }
 
 .filter-label {
   margin-right: 20px;
   font-size: 15px;
   user-select: none;
+}
+
+.clear-logs-button {
+  background-color: #ff9999;
+}
+
+.clear-logs-button:hover {
+  background-color: #ff6666;
 }

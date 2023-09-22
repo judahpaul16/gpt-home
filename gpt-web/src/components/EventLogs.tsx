@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import '../css/EventLogs.css';
+import axios from 'axios';
 
 interface Log {
   content: string;
@@ -96,6 +97,15 @@ const EventLogs: React.FC = () => {
       });
   };
 
+  const clearLogs = () => {
+    if (window.confirm('Are you sure you want to clear all logs?')) {
+      axios.post('/clear-logs').then(() => {
+        setLogs([]);
+        setLastLineNumber(0);
+      });
+    };
+  };
+
   return (
     <div className="dashboard log-dashboard">
       <h2>Event Logs</h2>
@@ -110,6 +120,12 @@ const EventLogs: React.FC = () => {
             {type}
           </label>
         ))}
+        <button 
+          className="clear-logs-button"
+          onClick={() => clearLogs()}
+        >
+          Clear Logs
+        </button>
       </div>
       <pre className="log-container" ref={logContainerRef}>
         {renderLogs()}

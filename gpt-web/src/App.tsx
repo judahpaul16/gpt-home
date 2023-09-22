@@ -132,7 +132,7 @@ const App: React.FC = () => {
                   </Link>
                 </List>
                 <div className="robot-gif-container">
-                  <img width={"155px"} src={`${process.env.PUBLIC_URL}/robot.gif`} alt="robot" />
+                  <img width={"150px"} src={`${process.env.PUBLIC_URL}/robot.gif`} alt="robot" />
                 </div>
               </div>
             </div>
