@@ -225,6 +225,8 @@ async def connect_service(request: Request):
             for field in fields:
                 f.write(f"export {field}={fields[field]}\n")
 
+        # Restart service
+        subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
         return JSONResponse(content={"success": True})
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
@@ -245,6 +247,8 @@ async def edit_service(request: Request):
             for field in fields:
                 f.write(f"export {field}={fields[field]}\n")
 
+        # Restart service
+        subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
         return JSONResponse(content={"success": True})
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
@@ -263,6 +267,8 @@ async def disconnect_service(request: Request):
                 if not any([field in line for field in fields]):
                     f.write(line)
 
+        # Restart service
+        subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
         return JSONResponse(content={"success": True})
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
