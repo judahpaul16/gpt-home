@@ -163,6 +163,10 @@
   color: #404040;
 }
 
+a {
+  text-decoration: none;
+}
+
 .overlay {
   position: fixed;
   top: 0;
