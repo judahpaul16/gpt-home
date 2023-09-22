@@ -278,7 +278,7 @@ async def spotify_action(text: str):
         except Exception as e:
             logger.error(f"Error: {traceback.format_exc()}")
             return f"Something went wrong: {e}"
-    return "No access token found. Please enter your access token in the web interface."
+    raise Exception("No access token found. Please enter your access token in the web interface.")
 
 async def google_calendar_action(text: str):
     # Assume you have the access token
@@ -301,7 +301,7 @@ async def google_calendar_action(text: str):
         except Exception as e:
             logger.error(f"Error: {traceback.format_exc()}")
             return f"Something went wrong: {e}"
-    return "No access token found. Please enter your access token in the web interface."
+    raise Exception("No access token found. Please enter your access token in the web interface.")
 
 async def philips_hue_action(text: str):
     bridge_ip = os.getenv['PHILIPS_HUE_BRIDGE_IP']
@@ -320,7 +320,7 @@ async def philips_hue_action(text: str):
         except Exception as e:
             logger.error(f"Error: {traceback.format_exc()}")
             return f"Something went wrong: {e}"
-    return "No bridge IP or username found. Please enter your bridge IP and username in the web interface."
+    raise Exception("No bridge IP or username found. Please enter your bridge IP and username in the web interface.")
 
 async def query_openai(text, display, retries=3):
     stop_event = asyncio.Event()
