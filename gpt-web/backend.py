@@ -228,3 +228,57 @@ async def connect_service(request: Request):
         return JSONResponse(content={"success": True})
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
+
+@app.post("edit-service")
+async def edit_service(request: Request):
+    try:
+        incoming_data = await request.json()
+        fields = incoming_data["fields"]
+
+        # Set environment variables in ~/.bashrc
+        with open(os.path.expanduser("~/.bashrc"), "r") as f:
+            lines = f.readlines()
+        with open(os.path.expanduser("~/.bashrc"), "w") as f:
+            for line in lines:
+                if not any([field in line for field in fields]):
+                    f.write(line)
+            for field in fields:
+                f.write(f"export {field}={fields[field]}\n")
+
+        return JSONResponse(content={"success": True})
+    except Exception as e:
+        return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
+
+@app.post("disconnect-service")
+async def disconnect_service(request: Request):
+    try:
+        incoming_data = await request.json()
+        fields = incoming_data["fields"]
+
+        # Remove environment variables from ~/.bashrc
+        with open(os.path.expanduser("~/.bashrc"), "r") as f:
+            lines = f.readlines()
+        with open(os.path.expanduser("~/.bashrc"), "w") as f:
+            for line in lines:
+                if not any([field in line for field in fields]):
+                    f.write(line)
+
+        return JSONResponse(content={"success": True})
+    except Exception as e:
+        return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
+
+@app.post("is-service-connected")
+async def is_service_connected(request: Request):
+    try:
+        incoming_data = await request.json()
+        fields = incoming_data["fields"]
+
+        # Check if environment variables are in ~/.bashrc
+        with open(os.path.expanduser("~/.bashrc"), "r") as f:
+            lines = f.readlines()
+        for field in fields:
+            if not any([field in line for line in lines]):
+                return JSONResponse(content={"success": False})
+        return JSONResponse(content={"success": True})
+    except Exception as e:
+        return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})

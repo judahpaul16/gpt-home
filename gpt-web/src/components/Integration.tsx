@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../css/Integration.css';
 
@@ -24,6 +24,22 @@ const Integration: React.FC<IntegrationProps> = ({ name, status, usage, toggleSt
     GoogleCalendar: ['API Key'],
     PhilipsHue: ['Bridge IP Address', 'Username'],
   };
+
+  useEffect(() => {
+    // Function to fetch initial service status
+    const fetchInitialStatus = async () => {
+      try {
+        const response = await axios.post(`/is-service-connected`, { fields: requiredFields[name] });
+        if (response.data.success) {
+          toggleStatus(name);
+        }
+      } catch (error) {
+        console.log('Error fetching initial status:', error);
+      }
+    };
+    fetchInitialStatus();
+    // eslint-disable-next-line
+  }, []);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
@@ -63,13 +79,64 @@ const Integration: React.FC<IntegrationProps> = ({ name, status, usage, toggleSt
     });
   };
 
+  const disconnectService = async () => {
+    setShowOverlay(true);
+    axios.post('/disconnect-service', { name }).then((response) => {
+      if (response.data.success) {
+        toggleStatus(name);
+        setShowOverlay(false);
+      } else {
+        setError(`Error disconnecting from ${name}: ${response.data.error}`);
+        console.log(response.data.traceback);
+        setShowOverlay(false);
+      }
+    }).catch((error) => {
+      setError(`Error disconnecting from ${name}: ${error}`);
+      console.log("Error: ", error);
+      console.log("Error Response: ", error.response);
+      setShowOverlay(false);
+    });
+  };
+
+  const editService = async () => {
+    setShowOverlay(true);
+    for (const field of requiredFields[name]) {
+      if (!formData[field as keyof typeof formData]) {
+        setError(`Please enter a value for ${field}`);
+        setShowOverlay(false);
+        return;
+      }
+    }
+
+    let fields: { [key: string]: string } = {};
+    for (const field of requiredFields[name]) {
+      fields[field] = formData[field as keyof typeof formData];
+    }
+
+    axios.post('/edit-service', { fields }).then((response) => {
+      if (response.data.success) {
+        toggleStatus(name);
+        setShowOverlay(false);
+      } else {
+        setError(`Error editing ${name}: ${response.data.error}`);
+        console.log(response.data.traceback);
+        setShowOverlay(false);
+      }
+    }).catch((error) => {
+      setError(`Error editing ${name}: ${error}`);
+      console.log("Error: ", error);
+      console.log("Error Response: ", error.response);
+      setShowOverlay(false);
+    });
+  };
+
   return (
     <div className="integration">
       {usage.map((phrase) => (
         <h4 key={phrase}>{phrase}</h4>
       ))}
       {status && 
-        <button className="btn-edit" onClick={() => setShowForm(true)}>
+        <button className="btn-edit" onClick={editService}>
           Edit
         </button>
       }
@@ -102,7 +169,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, status, usage, toggleSt
       }
       <button
         className={status ? 'btn-disconnect' : 'btn-connect'}
-        onClick={status ? connectService : () => setShowForm(true)}
+        onClick={status ? connectService : disconnectService}
       >
         {status ? 'Disconnect' : 'Connect'}
       </button>
