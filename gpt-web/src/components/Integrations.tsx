@@ -35,7 +35,7 @@ const Integrations: React.FC<IntegrationsProps> = ({ toggleStatus, toggleOverlay
               <TableRow key={name}>
               <TableCell>{name}</TableCell>
                 <TableCell>
-                  {integrations[name as keyof typeof integrations] ? 'Connected' : 'Not Connected'}
+                  {integrations[name as keyof typeof integrations].status ? 'Connected' : 'Not Connected'}
                 </TableCell>
                 <TableCell>
                   <Integration
