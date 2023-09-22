@@ -19,6 +19,18 @@
   align-items: center;
 }
 
+@media (max-width: 768px) {
+  .dashboard {
+    flex-direction: column;
+    padding: 0;
+  }
+
+  .table-container {
+    height: 100%;
+    max-height: none !important;
+  }
+}
+
 .dashboard {
   flex: 3;
   padding: 20px;

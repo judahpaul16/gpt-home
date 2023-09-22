@@ -15,7 +15,7 @@ const About: React.FC = () => {
         <br/><br/>
         Learn more @ <a target='_blank' rel='noopener noreferrer'
                       href="https://github.com/judahpaul16/gpt-home">
-                      https://github.com/judahpaul16/gpt-home
+                      github.com/judahpaul16/gpt-home
                     </a>
       </div>
     </div>

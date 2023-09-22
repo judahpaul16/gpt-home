@@ -8,5 +8,11 @@
   max-height: 65vh;
   text-wrap: wrap;
   font-size: 16pt;
-  overflow-y: scroll;
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .about-container {
+    width: 75vw;
+  }
 }
