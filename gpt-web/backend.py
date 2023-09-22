@@ -134,62 +134,81 @@ async def update_model(request: Request):
     except Exception as e:
         return HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
-async def hash_password(password: str) -> str:
+@app.on_event("startup")
+async def startup_event():
+    password_file_path = PARENT_DIRECTORY / "hashed_password.txt"
+    if not password_file_path.exists():
+        with password_file_path.open("w") as f:
+            f.write("")
+
+def hash_password(password: str) -> str:
     sha256 = hashlib.sha256()
     sha256.update(password.encode('utf-8'))
     return sha256.hexdigest()
 
 @app.post("/hashPassword")
 async def hash_password(request: Request):
-    incoming_data = await request.json()
-    password = incoming_data["password"]
-    hashed_password = await hash_password(password)
-    return JSONResponse(content={"hashedPassword": hashed_password})
+    try:
+        incoming_data = await request.json()
+        password = incoming_data["password"]
+        hashed_password = hash_password(password)
+        return JSONResponse(content={"success": True, "hashedPassword": hashed_password})
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)})
 
 @app.post("/getHashedPassword")
 def get_hashed_password():
-    password_file_path = PARENT_DIRECTORY / "hashed_password.txt"
+    try:
+        password_file_path = PARENT_DIRECTORY / "hashed_password.txt"
 
-    if password_file_path.exists() and password_file_path.is_file():
-        with password_file_path.open("r") as f:
-            hashed_password = f.read().strip()
-        return JSONResponse(content={"hashedPassword": hashed_password})
-    else:
-        return HTTPException(status_code=404, detail="Hashed password not found")
+        if password_file_path.exists() and password_file_path.is_file():
+            with password_file_path.open("r") as f:
+                hashed_password = f.read().strip()
+            return JSONResponse(content={"success": True, "hashedPassword": hashed_password})
+        else:
+            return HTTPException(status_code=404, detail="Hashed password not found")
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)})
 
 @app.post("/setHashedPassword")
 async def set_hashed_password(request: Request):
-    incoming_data = await request.json()
-    new_hashed_password = incoming_data["hashedPassword"]
-    password_file_path = PARENT_DIRECTORY / "hashed_password.txt"
+    try:
+        incoming_data = await request.json()
+        new_hashed_password = incoming_data["hashedPassword"]
+        password_file_path = PARENT_DIRECTORY / "hashed_password.txt"
 
-    with password_file_path.open("w") as f:
-        f.write(new_hashed_password)
-    return JSONResponse(content={"status": "success"})
+        with password_file_path.open("w") as f:
+            f.write(new_hashed_password)
+        return JSONResponse(content={"success": True})
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)})
 
 @app.post("/changePassword")
 async def change_password(request: Request):
-    incoming_data = await request.json()
-    old_password = incoming_data["oldPassword"]
-    new_password = incoming_data["newPassword"]
-    password_file_path = PARENT_DIRECTORY / "hashed_password.txt"
-    
-    if password_file_path.exists() and password_file_path.is_file():
-        with password_file_path.open("r") as f:
-            stored_hashed_password = f.read().strip()
+    try:
+        incoming_data = await request.json()
+        old_password = incoming_data["oldPassword"]
+        new_password = incoming_data["newPassword"]
+        password_file_path = PARENT_DIRECTORY / "hashed_password.txt"
+        
+        if password_file_path.exists() and password_file_path.is_file():
+            with password_file_path.open("r") as f:
+                stored_hashed_password = f.read().strip()
 
-        provided_hashed_password = await hash_password(old_password)
+            provided_hashed_password = hash_password(old_password)
 
-        if provided_hashed_password == stored_hashed_password:
-            
-            new_hashed_password = await hash_password(new_password)
+            if provided_hashed_password == stored_hashed_password:
+                
+                new_hashed_password = hash_password(new_password)
 
-            # Store the new hashed password
-            with password_file_path.open("w") as f:
-                f.write(new_hashed_password)
-            
-            return JSONResponse(content={"status": "Password changed successfully"})
+                # Store the new hashed password
+                with password_file_path.open("w") as f:
+                    f.write(new_hashed_password)
+                
+                return JSONResponse(content={"success": True})
+            else:
+                return HTTPException(status_code=401, detail="Incorrect password")
         else:
-            return HTTPException(status_code=401, detail="Incorrect password")
-    else:
-        return HTTPException(status_code=404, detail="Hashed password not found")
+            return HTTPException(status_code=404, detail="Hashed password not found")
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)})

@@ -16,7 +16,11 @@ const PasswordModal: React.FC<PasswordModalProps> = ({ unlockApp }) => {
   useEffect(() => {
     axios.post('/getHashedPassword')
       .then(response => {
-        setHashedPassword(response.data.hashedPassword);
+        if (response.data.success) {
+            setHashedPassword(response.data.hashedPassword);
+        } else {
+            setError(`Error fetching hashed password: ${response.data.error}`);
+        }
       })
       .catch(error => {
         console.error('Error fetching hashed password:', error);
@@ -33,10 +37,15 @@ const PasswordModal: React.FC<PasswordModalProps> = ({ unlockApp }) => {
 
   const hashPassword = async (password: string) => {
     return await axios.post('/hashPassword', { password }).then(response => {
-        return response.data.hashedPassword;
+        if (response.data.success) {
+            return response.data.hashedPassword;
+        } else {
+            setError(`Error hashing password: ${response.data.error}`);
+        }
     })
     .catch(error => {
         console.error('Error hashing password:', error);
+        setError(`Error hashing password: ${error}`);
         return null;
     });
   };
@@ -55,14 +64,20 @@ const PasswordModal: React.FC<PasswordModalProps> = ({ unlockApp }) => {
     if (!hashedPassword) {
       if (input === confirmInput) {
         const hashedInput = await hashPassword(input);
-        axios.post('/setHashedPassword', { hashedPassword: hashedInput })
-          .then(() => {
-            setHashedPassword(hashedInput);
-            unlockApp();
-          })
-          .catch(error => {
-            console.error('Error saving hashed password:', error);
-          });
+        if (hashedInput) {
+            axios.post('/setHashedPassword', { hashedPassword: hashedInput })
+            .then(response => {
+                if (response.data.success) {
+                    setHashedPassword(hashedInput);
+                    unlockApp();
+                } else {
+                    setError(`Error saving hashed password: ${response.data.error}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error saving hashed password:', error);
+            });
+        }
       } else {
         setError("Passwords do not match!");
       }
