@@ -14,7 +14,7 @@ const PasswordModal: React.FC<PasswordModalProps> = ({ unlockApp }) => {
   const [hashedPassword, setHashedPassword] = useState<string | null>(null);
 
   useEffect(() => {
-    axios.get('/getHashedPassword')
+    axios.post('/getHashedPassword')
       .then(response => {
         setHashedPassword(response.data.hashedPassword);
       })
@@ -47,7 +47,7 @@ const PasswordModal: React.FC<PasswordModalProps> = ({ unlockApp }) => {
       return;
     }
 
-    if (hashedPassword === null) {
+    if (!hashedPassword) {
       if (input === confirmInput) {
         const hashedInput = await hashPassword(input);
         axios.post('/setHashedPassword', { hashedPassword: hashedInput })
