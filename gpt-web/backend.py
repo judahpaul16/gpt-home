@@ -14,7 +14,7 @@ import os
 
 ROOT_DIRECTORY = Path(__file__).parent
 PARENT_DIRECTORY = ROOT_DIRECTORY.parent
-ENV_FILE_PATH = PARENT_DIRECTORY / ".env"
+ENV_FILE_PATH = ROOT_DIRECTORY / ".env"
 
 load_dotenv(ENV_FILE_PATH)
 

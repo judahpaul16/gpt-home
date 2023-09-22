@@ -255,7 +255,6 @@ async def speak(text, stop_event):
         stop_event.set()
 
 async def spotify_action(text: str):
-    # Assume you have the access token
     access_token = os.getenv('SPOTIFY_ACCESS_TOKEN')
     headers = {"Authorization": f"Bearer {access_token}"}
 
@@ -282,7 +281,6 @@ async def spotify_action(text: str):
     raise Exception("No access token found. Please enter your access token in the web interface.")
 
 async def google_calendar_action(text: str):
-    # Assume you have the access token
     access_token = os.getenv['GOOGLE_CALENDAR_ACCESS_TOKEN']
     headers = {"Authorization": f"Bearer {access_token}"}
 
@@ -312,7 +310,7 @@ async def philips_hue_action(text: str):
         try:
             b = Bridge(bridge_ip, username)
             b.connect()
-                # turn on or off all lights
+            # turn on or off all lights
             if re.search(r'(turn)?(\son|\soff)?.*\slight(s)?(\son|\soff)?', text, re.IGNORECASE):
                 if "on" in text:
                     b.set_group(0, 'on', True)

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import '../css/Integration.css';
 
@@ -19,15 +19,15 @@ const Integration: React.FC<IntegrationProps> = ({ name, status, usage, toggleSt
     GoogleCalendar: ['https://developers.google.com/calendar/api/quickstart/python'],
     PhilipsHue: ['https://developers.meethue.com/develop/get-started-2/', 'https://github.com/studioimaginaire/phue'],
   };
-  const requiredFields: { [key: string]: string[] } = {
+  const requiredFields: { [key: string]: string[] } = useMemo(() => ({
     Spotify: ['API Key'],
     GoogleCalendar: ['API Key'],
     PhilipsHue: ['Bridge IP Address', 'Username'],
-  };
-
+  }), []);
+  
   useEffect(() => {
-    // Function to fetch initial service status
-    const fetchInitialStatus = async () => {
+    // Check if service is connected on page load
+    const fetchStatus = async () => {
       try {
         const response = await axios.post(`/is-service-connected`, { fields: requiredFields[name] });
         if (response.data.success) {
@@ -37,9 +37,8 @@ const Integration: React.FC<IntegrationProps> = ({ name, status, usage, toggleSt
         console.log('Error fetching initial status:', error);
       }
     };
-    fetchInitialStatus();
-    // eslint-disable-next-line
-  }, []);
+    fetchStatus();
+  }, [name, requiredFields, toggleStatus]);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
