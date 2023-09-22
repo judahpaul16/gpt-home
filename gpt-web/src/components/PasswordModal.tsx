@@ -58,13 +58,13 @@ const PasswordModal: React.FC<PasswordModalProps> = ({ unlockApp }) => {
       return;
     }
 
-    if (!input || !confirmInput) {
+    if (!input) {
       setError('All fields are required!');
       return;
     }
 
     if (!hashedPassword) {
-      if (input === confirmInput) {
+      if (input && confirmInput && input === confirmInput) {
         const hashedInput = await hashPassword(input);
         if (hashedInput) {
             axios.post('/setHashedPassword', { hashedPassword: hashedInput })
