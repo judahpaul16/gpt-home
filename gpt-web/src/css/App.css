@@ -31,7 +31,7 @@
 
   .integrations-dashboard {
     width: 75vw !important;
-    padding: 2em !important;
+    padding: 1em !important;
   }
 
   .about-container, .settings-dashboard {
@@ -39,6 +39,8 @@
   }
 
   .table-container {
+    width: 80vw !important;
+    max-height: 80vh !important;
     overflow: scroll !important;
   }
 }
