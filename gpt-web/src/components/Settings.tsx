@@ -6,9 +6,10 @@ const Settings: React.FC = () => {
   const [settings, setSettings] = useState<any>({});
   const [isLoading, setLoading] = useState(true);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [oldPassword, setOldPassword] = useState<string>('');
+  const [newPassword, setNewPassword] = useState<string>('');
 
   useEffect(() => {
-    // Fetch settings and available models from backend when component mounts
     axios.post('/settings', { action: 'read' }).then((response) => {
       setSettings(response.data);
       setLoading(false);
@@ -28,13 +29,21 @@ const Settings: React.FC = () => {
   }, []);  
 
   const updateSettings = () => {
-    // Send updated settings to backend
     axios.post('/settings', { action: 'update', data: settings }).then((response) => {
       setSettings(response.data);
       alert('Settings updated!');
     }).catch((error) => {
       console.log("Error: ", error);
       console.log("Error Response: ", error.response);
+    });
+  };
+
+  const changePassword = () => {
+    axios.post('/changePassword', { oldPassword, newPassword }).then((response) => {
+      alert('Password changed successfully');
+    }).catch((error) => {
+      console.log("Error: ", error);
+      alert('Failed to change password');
     });
   };
 
@@ -47,6 +56,7 @@ const Settings: React.FC = () => {
       <h2>Settings</h2>
       <div className="settings-container">
         
+        {/* General Settings */}
         <div className="settings-section">
           <div className="settings-section-header">General Settings</div>
           <label>
@@ -60,11 +70,12 @@ const Settings: React.FC = () => {
           </label>
         </div>
 
+        {/* OpenAI Settings */}
         <div className="settings-section">
           <div className="settings-section-header">OpenAI Settings</div>
           <div className="settings-group">
             <label>
-              Model:<br/>
+              Model:<br />
               {availableModels.length > 0 ? (
                 <select
                   value={settings.model || ''}
@@ -81,7 +92,7 @@ const Settings: React.FC = () => {
               )}
             </label>
             <label>
-              Max Tokens:<br/>
+              Max Tokens:<br />
               <input
                 type="number"
                 value={settings.max_tokens || ''}
@@ -89,7 +100,7 @@ const Settings: React.FC = () => {
               />
             </label>
             <label>
-              Temperature:<br/>
+              Temperature:<br />
               <input
                 type="number"
                 step="0.01"
@@ -98,7 +109,7 @@ const Settings: React.FC = () => {
               />
             </label>
             <label>
-              Custom Instructions:<br/>
+              Custom Instructions:<br />
               <textarea
                 value={settings.custom_instructions || ''}
                 onChange={(e) => setSettings({ ...settings, custom_instructions: e.target.value })}
@@ -107,6 +118,29 @@ const Settings: React.FC = () => {
           </div>
         </div>
         
+        {/* Change Password */}
+        <div className="settings-section">
+          <div className="settings-section-header">Change Password</div>
+          <label>
+            Old Password:<br />
+            <input
+              type="password"
+              value={oldPassword}
+              onChange={(e) => setOldPassword(e.target.value)}
+            />
+          </label>
+          <label>
+            New Password:<br />
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
+          </label>
+          <button onClick={changePassword}>Change Password</button>
+        </div>
+
+        {/* Update Settings Button */}
         <button onClick={updateSettings}>Update</button>
       </div>
     </div>

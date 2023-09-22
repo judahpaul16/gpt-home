@@ -5,6 +5,7 @@ from fastapi.exceptions import HTTPException
 from typing import Optional
 from pathlib import Path
 import subprocess
+import hashlib
 import openai
 import json
 import os
@@ -132,7 +133,12 @@ async def update_model(request: Request):
             return HTTPException(status_code=400, detail=f"Model {model_id} not supported")
     except Exception as e:
         return HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
-        
+
+def hash_password(password: str) -> str:
+    sha256 = hashlib.sha256()
+    sha256.update(password.encode('utf-8'))
+    return sha256.hexdigest()
+
 @app.post("/getHashedPassword")
 def get_hashed_password():
     password_file_path = PARENT_DIRECTORY / "hashed_password.txt"
@@ -153,3 +159,30 @@ async def set_hashed_password(request: Request):
     with password_file_path.open("w") as f:
         f.write(new_hashed_password)
     return JSONResponse(content={"status": "success"})
+
+@app.post("/changePassword")
+async def change_password(request: Request):
+    incoming_data = await request.json()
+    old_password = incoming_data["oldPassword"]
+    new_password = incoming_data["newPassword"]
+    password_file_path = PARENT_DIRECTORY / "hashed_password.txt"
+    
+    if password_file_path.exists() and password_file_path.is_file():
+        with password_file_path.open("r") as f:
+            stored_hashed_password = f.read().strip()
+
+        provided_hashed_password = hash_password(old_password)  # Use the Python hash_password function
+
+        if provided_hashed_password == stored_hashed_password:
+            
+            new_hashed_password = hash_password(new_password)  # Hash the new password
+
+            # Store the new hashed password
+            with password_file_path.open("w") as f:
+                f.write(new_hashed_password)
+            
+            return JSONResponse(content={"status": "Password changed successfully"})
+        else:
+            return HTTPException(status_code=401, detail="Incorrect password")
+    else:
+        return HTTPException(status_code=404, detail="Hashed password not found")
