@@ -363,7 +363,7 @@ async def action_router(text: str, display):
         return await google_calendar_action(text)
 
     # For Philips Hue actions
-    elif re.search(r'turn\s(on|off).*\slights', text, re.IGNORECASE):
+    elif re.search(r'(turn)?(\son|\soff)?.*\slight(s)?(\son|\soff)?', text, re.IGNORECASE):
         return await philips_hue_action(text)
         
     # If no pattern matches, query OpenAI
