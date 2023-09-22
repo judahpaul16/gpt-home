@@ -20,6 +20,7 @@ const PasswordModal: React.FC<PasswordModalProps> = ({ unlockApp }) => {
             setHashedPassword(response.data.hashedPassword);
         } else {
             setError(`Error fetching hashed password: ${response.data.error}`);
+            console.log(response.data.traceback);
         }
       })
       .catch(error => {
@@ -41,6 +42,7 @@ const PasswordModal: React.FC<PasswordModalProps> = ({ unlockApp }) => {
             return response.data.hashedPassword;
         } else {
             setError(`Error hashing password: ${response.data.error}`);
+            console.log(response.data.traceback);
         }
     })
     .catch(error => {
@@ -72,6 +74,7 @@ const PasswordModal: React.FC<PasswordModalProps> = ({ unlockApp }) => {
                     unlockApp();
                 } else {
                     setError(`Error saving hashed password: ${response.data.error}`);
+                    console.log(response.data.traceback);
                 }
             })
             .catch(error => {

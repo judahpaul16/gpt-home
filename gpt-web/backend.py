@@ -5,6 +5,7 @@ from fastapi.exceptions import HTTPException
 from typing import Optional
 from pathlib import Path
 import subprocess
+import traceback
 import hashlib
 import openai
 import json
@@ -149,12 +150,12 @@ def generate_hashed_password(password: str) -> str:
 @app.post("/hashPassword")
 async def hash_password_route(request: Request):
     try:
-        incoming_data = await request.json()
+        incoming_data = request.json()
         password = incoming_data["password"]
         hashed_password = generate_hashed_password(password)
         return JSONResponse(content={"success": True, "hashedPassword": hashed_password})
     except Exception as e:
-        return JSONResponse(content={"error": str(e)})
+        return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
 @app.post("/getHashedPassword")
 def get_hashed_password():
@@ -168,12 +169,12 @@ def get_hashed_password():
         else:
             return HTTPException(status_code=404, detail="Hashed password not found")
     except Exception as e:
-        return JSONResponse(content={"error": str(e)})
+        return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
 @app.post("/setHashedPassword")
 async def set_hashed_password(request: Request):
     try:
-        incoming_data = await request.json()
+        incoming_data = request.json()
         new_hashed_password = incoming_data["hashedPassword"]
         password_file_path = PARENT_DIRECTORY / "hashed_password.txt"
 
@@ -181,12 +182,12 @@ async def set_hashed_password(request: Request):
             f.write(new_hashed_password)
         return JSONResponse(content={"success": True})
     except Exception as e:
-        return JSONResponse(content={"error": str(e)})
+        return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
 @app.post("/changePassword")
 async def change_password(request: Request):
     try:
-        incoming_data = await request.json()
+        incoming_data = request.json()
         old_password = incoming_data["oldPassword"]
         new_password = incoming_data["newPassword"]
         password_file_path = PARENT_DIRECTORY / "hashed_password.txt"
@@ -211,4 +212,4 @@ async def change_password(request: Request):
         else:
             return HTTPException(status_code=404, detail="Hashed password not found")
     except Exception as e:
-        return JSONResponse(content={"error": str(e)})
+        return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
