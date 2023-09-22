@@ -8,6 +8,7 @@ const Settings: React.FC = () => {
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [oldPassword, setOldPassword] = useState<string>('');
   const [newPassword, setNewPassword] = useState<string>('');
+  const [confirmInput, setConfirmInput] = useState<string>('');
 
   useEffect(() => {
     axios.post('/settings', { action: 'read' }).then((response) => {
@@ -30,12 +31,21 @@ const Settings: React.FC = () => {
 
   const updateSettings = () => {
     // if old or new password is not empty, then change password
-    if (oldPassword !== '' || newPassword !== '') {
+    if (oldPassword !== '' || newPassword !== '' || confirmInput !== '') {
       if (oldPassword === '') {
         alert('Old password cannot be empty');
         return;
       } else if (newPassword === '') {
         alert('New password cannot be empty');
+        return;
+      } else if (newPassword.length < 6) {
+        alert('New password must be at least 6 characters long');
+        return;
+      } else if (newPassword === oldPassword) {
+        alert('New password cannot be the same as old password');
+        return;
+      } else if (newPassword !== confirmInput) {
+        alert('New password and confirm password must match');
         return;
       } else {
         changePassword();
@@ -149,6 +159,14 @@ const Settings: React.FC = () => {
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
+                />
+              </label>
+              <label>
+                Confirm New Password:<br />
+                <input
+                  type="password"
+                  value={confirmInput}
+                  onChange={(e) => setConfirmInput(e.target.value)}
                 />
               </label>
             </div>
