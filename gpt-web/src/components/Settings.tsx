@@ -29,6 +29,19 @@ const Settings: React.FC = () => {
   }, []);  
 
   const updateSettings = () => {
+    // if old or new password is not empty, then change password
+    if (oldPassword !== '' || newPassword !== '') {
+      if (oldPassword === '') {
+        alert('Old password cannot be empty');
+        return;
+      } else if (newPassword === '') {
+        alert('New password cannot be empty');
+        return;
+      } else {
+        changePassword();
+      }
+    }
+
     axios.post('/settings', { action: 'update', data: settings }).then((response) => {
       setSettings(response.data);
       alert('Settings updated!');
@@ -121,23 +134,24 @@ const Settings: React.FC = () => {
         {/* Change Password */}
         <div className="settings-section">
           <div className="settings-section-header">Change Password</div>
-          <label>
-            Old Password:<br />
-            <input
-              type="password"
-              value={oldPassword}
-              onChange={(e) => setOldPassword(e.target.value)}
-            />
-          </label>
-          <label>
-            New Password:<br />
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
-          </label>
-          <button onClick={changePassword}>Change Password</button>
+            <div className="settings-group">
+              <label>
+                Old Password:<br />
+                <input
+                  type="password"
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                />
+              </label>
+              <label>
+                New Password:<br />
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+              </label>
+            </div>
         </div>
 
         {/* Update Settings Button */}
