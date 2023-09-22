@@ -125,6 +125,7 @@ const EventLogs: React.FC = () => {
   const scrollToBottom = () => {
     if (logContainerRef.current) {
       logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+      setUserHasScrolled(false);
     }
   };
 
