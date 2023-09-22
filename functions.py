@@ -255,21 +255,25 @@ async def spotify_action(text: str):
     headers = {"Authorization": f"Bearer {access_token}"}
 
     if access_token:
-        async with aiohttp.ClientSession() as session:
-            if "play" in text:
-                # Assume that you've already fetched the playlist or song ID
-                playlist_id = "YOUR_PLAYLIST_ID"
-                await session.put(f"https://api.spotify.com/v1/playlists/{playlist_id}/play", headers=headers)
-                return "Playing music on Spotify."
-            elif "next song" in text:
-                await session.post("https://api.spotify.com/v1/me/player/next", headers=headers)
-                return "Playing next song on Spotify."
-            elif "go back" in text:
-                await session.post("https://api.spotify.com/v1/me/player/previous", headers=headers)
-                return "Going back to previous song on Spotify."
-            elif "pause" in text or "stop" in text:
-                await session.put("https://api.spotify.com/v1/me/player/pause", headers=headers)
-                return "Pausing music on Spotify."
+        try:
+            async with aiohttp.ClientSession() as session:
+                if "play" in text:
+                    # Assume that you've already fetched the playlist or song ID
+                    playlist_id = "YOUR_PLAYLIST_ID"
+                    await session.put(f"https://api.spotify.com/v1/playlists/{playlist_id}/play", headers=headers)
+                    return "Playing music on Spotify."
+                elif "next song" in text:
+                    await session.post("https://api.spotify.com/v1/me/player/next", headers=headers)
+                    return "Playing next song on Spotify."
+                elif "go back" in text:
+                    await session.post("https://api.spotify.com/v1/me/player/previous", headers=headers)
+                    return "Going back to previous song on Spotify."
+                elif "pause" in text or "stop" in text:
+                    await session.put("https://api.spotify.com/v1/me/player/pause", headers=headers)
+                    return "Pausing music on Spotify."
+        except Exception as e:
+            logger.error(f"Error: {traceback.format_exc()}")
+            return f"Something went wrong: {e}"
     return "No access token found. Please enter your access token in the web interface."
 
 async def google_calendar_action(text: str):
@@ -278,17 +282,21 @@ async def google_calendar_action(text: str):
     headers = {"Authorization": f"Bearer {access_token}"}
 
     if access_token:
-        async with aiohttp.ClientSession() as session:
-            if "schedule a meeting" in text:
-                # Parse the meeting details from `text` or through some dialog
-                meeting_details = {...}  # Add meeting details here
-                await session.post("https://www.googleapis.com/calendar/v3/calendars/primary/events", json=meeting_details, headers=headers)
-                return "Scheduled a meeting."
-            elif "delete event" in text:
-                # Parse the event ID from `text` or through some dialog
-                event_id = "YOUR_EVENT_ID"
-                await session.delete(f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{event_id}", headers=headers)
-                return "Deleted an event."
+        try:
+            async with aiohttp.ClientSession() as session:
+                if "schedule a meeting" in text:
+                    # Parse the meeting details from `text` or through some dialog
+                    meeting_details = {...}  # Add meeting details here
+                    await session.post("https://www.googleapis.com/calendar/v3/calendars/primary/events", json=meeting_details, headers=headers)
+                    return "Scheduled a meeting."
+                elif "delete event" in text:
+                    # Parse the event ID from `text` or through some dialog
+                    event_id = "YOUR_EVENT_ID"
+                    await session.delete(f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{event_id}", headers=headers)
+                    return "Deleted an event."
+        except Exception as e:
+            logger.error(f"Error: {traceback.format_exc()}")
+            return f"Something went wrong: {e}"
     return "No access token found. Please enter your access token in the web interface."
 
 async def philips_hue_action(text: str):
@@ -296,14 +304,18 @@ async def philips_hue_action(text: str):
     username = os.environ['PHILIPS_HUE_USERNAME']
 
     if bridge_ip and username:
-        async with aiohttp.ClientSession() as session:
-            if "turn on" in text:
-                await session.put(f"http://{bridge_ip}/api/{username}/lights/1/state", json={"on": True})
-                return "Lights turned on."
+        try:
+            async with aiohttp.ClientSession() as session:
+                if "turn on" in text:
+                    await session.put(f"http://{bridge_ip}/api/{username}/lights/1/state", json={"on": True})
+                    return "Lights turned on."
 
-            elif "turn off" in text:
-                await session.put(f"http://{bridge_ip}/api/{username}/lights/1/state", json={"on": False})
-                return "Lights turned off."
+                elif "turn off" in text:
+                    await session.put(f"http://{bridge_ip}/api/{username}/lights/1/state", json={"on": False})
+                    return "Lights turned off."
+        except Exception as e:
+            logger.error(f"Error: {traceback.format_exc()}")
+            return f"Something went wrong: {e}"
     return "No bridge IP or username found. Please enter your bridge IP and username in the web interface."
 
 async def query_openai(text, display, retries=3):
@@ -351,7 +363,7 @@ async def action_router(text: str, display):
         return await google_calendar_action(text)
 
     # For Philips Hue actions
-    elif re.search(r'turn\s(on|off)\slights', text, re.IGNORECASE):
+    elif re.search(r'turn\s(on|off).*\slights', text, re.IGNORECASE):
         return await philips_hue_action(text)
         
     # If no pattern matches, query OpenAI
