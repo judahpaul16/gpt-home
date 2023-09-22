@@ -355,11 +355,11 @@ async def query_openai(text, display, retries=3):
 
 async def action_router(text: str, display):
     # For Spotify actions
-    if re.search(r'(play|next song|go back|pause|stop)\s.*\son\sSpotify', text, re.IGNORECASE):
+    if re.search(r'^(play|resume|next song|go back|pause|stop)\s.*\son\sSpotify*', text, re.IGNORECASE):
         return await spotify_action(text)
         
     # For Google Calendar actions
-    elif re.search(r'(schedule a meeting|delete event)\s.*\son', text, re.IGNORECASE):
+    elif re.search(r'(schedule a meeting|delete.*event)\s.*\son*', text, re.IGNORECASE):
         return await google_calendar_action(text)
 
     # For Philips Hue actions
