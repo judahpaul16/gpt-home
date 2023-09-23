@@ -251,17 +251,15 @@ async def connect_service(request: Request):
 async def disconnect_service(request: Request):
     try:
         incoming_data = await request.json()
-        fields = incoming_data["fields"]
+        name = incoming_data["name"].lower().strip()
 
-        for field in fields:
-            unset_key(ENV_FILE_PATH, field)
-            # remove line from .env file
-            with open(ENV_FILE_PATH, "r") as f:
-                lines = f.readlines()
-            with open(ENV_FILE_PATH, "w") as f:
-                for line in lines:
-                    if field not in line:
-                        f.write(line)
+        if name == "spotify":
+            unset_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN")
+        elif name == "googlecalendar":
+            unset_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN")
+        elif name == "phillipshue":
+            unset_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP")
+            unset_key(ENV_FILE_PATH, "PHILIPS_HUE_USERNAME")
 
         subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
 
