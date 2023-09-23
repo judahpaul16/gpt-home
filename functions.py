@@ -324,7 +324,7 @@ async def google_calendar_action(text: str):
                     # await session.delete(f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{meeting_details['id']}", headers=headers)
                     # return "Deleted an event."
                     return "This feature is not yet implemented."
-                elif re.search(r'what.*on\smy\scalendar', text, re.IGNORECASE):
+                elif re.search(r'what.*on\smy\s(calendar|schedule)', text, re.IGNORECASE):
                     date = datetime.datetime.now().strftime("%Y-%m-%d")
                     await session.get(f"https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin={date}T00:00:00-00:00&timeMax={date}T23:59:59-00:00", headers=headers)
                     return "Retrieved events."
