@@ -36,9 +36,9 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
     const fetchStatuses = async () => {
       try {
         const response = await axios.post(`/get-service-statuses`, { });
-        for ( const name in response.data.service_statuses ) {
-          setStatus(name, response.data.service_statuses[name]);
-        }
+        response.data.statuses.forEach((status: { key: string; value: boolean; }) => {
+          setStatus(status.key, status.value);
+        });
       } catch (error) {
         console.log('Error fetching initial status:', error);
       }

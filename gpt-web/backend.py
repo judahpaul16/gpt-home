@@ -235,7 +235,7 @@ async def connect_service(request: Request):
                 set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", value)
             elif name == "googlecalendar":
                 set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN", value)
-            elif name == "phillipshue":
+            elif name == "philipshue":
                 if key == "Bridge IP Address":
                     set_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP", value)
                 elif key == "Username":
@@ -257,7 +257,7 @@ async def disconnect_service(request: Request):
             unset_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN")
         elif name == "googlecalendar":
             unset_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN")
-        elif name == "phillipshue":
+        elif name == "philipshue":
             unset_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP")
             unset_key(ENV_FILE_PATH, "PHILIPS_HUE_USERNAME")
 
