@@ -4,6 +4,7 @@ import axios from 'axios';
 
 interface Log {
   content: string;
+  line_number: number;
   isNew: boolean;
   type: string;
 }
@@ -43,27 +44,25 @@ const EventLogs: React.FC = () => {
   useEffect(() => {
     const fetchLastLog = async () => {
       try {
-        // Send last line number as a parameter
         const response = await fetch(`/last-logs?last_line_number=${lastLineNumber}`, { method: 'POST' });
         const data = await response.json();
         const newLogs = data.last_logs;
         const newLastLineNumber = data.new_last_line_number;
-  
+    
         if (newLogs.length > 0) {
-          const formattedNewLogs = newLogs.map((log: string) => ({
-            content: log.trim(),
+          const formattedNewLogs = newLogs.map((log: any) => ({
+            content: log.line,
+            line_number: log.line_number,
             isNew: true,
-            type: log.split(":")[0].toLowerCase().trim(),
+            type: log.line.split(":")[0].toLowerCase().trim(),
           }));
-          // Update logs state
           setLogs(prevLogs => [...prevLogs, ...formattedNewLogs]);
-          // Update last line number state
           setLastLineNumber(newLastLineNumber);
-          
+    
           if (logContainerRef.current && !userHasScrolled) {
             logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
           }
-  
+    
           setTimeout(() => {
             setLogs(prevLogs => prevLogs.map(log => ({ ...log, isNew: false })));
           }, 2000);
@@ -71,7 +70,7 @@ const EventLogs: React.FC = () => {
       } catch (error) {
         console.error('Error fetching last log:', error);
       }
-    };
+    };    
   
     const intervalId = setInterval(fetchLastLog, 500);
     return () => clearInterval(intervalId);
