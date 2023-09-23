@@ -275,7 +275,7 @@ async def spotify_action(text: str):
     raspberry_pi_device_id = await get_device_id(HOSTNAME, headers)
 
     if raspberry_pi_device_id is None:
-        return "Device 'ubuntu' not found."
+        return f"Device '{HOSTNAME}' not found."
 
     if access_token:
         try:
