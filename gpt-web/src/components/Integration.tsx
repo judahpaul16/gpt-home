@@ -68,8 +68,8 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
           toggleStatus(name);
           setShowOverlay(false);
           setShowForm(false);
-          // clear all fields except for PhilipsHue
-          if (name !== "PhilipsHue") setFormData({} as { [key: string]: string });
+          // clear all fields
+          setFormData({} as { [key: string]: string });
         } else {
           setError(`Error disconnecting from ${name}: ${response.data.error}`);
           console.log(response.data.traceback);
