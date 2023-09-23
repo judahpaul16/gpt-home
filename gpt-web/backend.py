@@ -256,13 +256,12 @@ async def disconnect_service(request: Request):
         for field in fields:
             unset_key(ENV_FILE_PATH, field)
             # remove line from .env file
-            with open(ENV_FILE_PATH, "rw+") as f:
+            with open(ENV_FILE_PATH, "r") as f:
                 lines = f.readlines()
-                f.seek(0)
+            with open(ENV_FILE_PATH, "w") as f:
                 for line in lines:
                     if not line.startswith(field):
                         f.write(line)
-                f.truncate()
 
         subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
 
