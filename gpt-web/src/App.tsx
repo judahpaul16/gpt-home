@@ -39,6 +39,18 @@ const App: React.FC = () => {
     setUnlocked(true);
   };
 
+  const setStatus = (name: string, status: boolean) => {
+    if (name in integrations) {
+      setIntegrations({
+        ...integrations,
+        [name as keyof typeof integrations]: {
+          ...integrations[name as keyof typeof integrations],
+          status
+        }
+      });
+    }
+  };
+
   const toggleStatus = (name: string) => {
     if (name in integrations) {
       setIntegrations({
@@ -157,7 +169,7 @@ const App: React.FC = () => {
             </Drawer>
             <Routes>
               <Route path="/event-logs" element={<EventLogs />} />
-              <Route path="/integrations" element={<Integrations toggleStatus={toggleStatus} toggleOverlay={toggleOverlay} integrations={integrations} />} />
+              <Route path="/integrations" element={<Integrations setStatus={setStatus} toggleStatus={toggleStatus} toggleOverlay={toggleOverlay} integrations={integrations} />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/about" element={<About />} />
               <Route index element={<Navigate to="/integrations" />} />

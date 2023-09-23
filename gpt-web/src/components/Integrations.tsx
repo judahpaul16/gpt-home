@@ -9,6 +9,7 @@ import '../css/Integrations.css';
 import axios from 'axios';
 
 interface IntegrationsProps {
+  setStatus: (name: string, status: boolean) => void;
   toggleStatus: (name: string) => void;
   toggleOverlay: (visible: boolean) => void;
   integrations: {
@@ -18,7 +19,7 @@ interface IntegrationsProps {
   };
 }
 
-const Integrations: React.FC<IntegrationsProps> = ({ toggleStatus, toggleOverlay, integrations }) => {
+const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, toggleOverlay, integrations }) => {
   const usage: { [key: string]: string[] } = {
     Spotify: ['Play.....on Spotify', 'Play / Pause / Stop', 'Next Song / Go Back'],
     GoogleCalendar: ['Schedule an event', 'What\'s on my calendar?',],
@@ -35,10 +36,8 @@ const Integrations: React.FC<IntegrationsProps> = ({ toggleStatus, toggleOverlay
     const fetchStatus = async (name: string) => {
       try {
         const response = await axios.post(`/get-service-statuses`, { });
-        for (const [key] of Object.entries(response.data.service_statuses)) {
-          if (key === name) {
-            toggleStatus(response.data.service_statuses[key]);
-          }
+        for (name in response.data.service_statuses) {
+          setStatus(name, response.data.service_statuses[name]);
         }
       } catch (error) {
         console.log('Error fetching initial status:', error);
@@ -48,7 +47,7 @@ const Integrations: React.FC<IntegrationsProps> = ({ toggleStatus, toggleOverlay
     Object.keys(integrations).forEach(name => {
       fetchStatus(name);
     });
-  }, [requiredFields, toggleStatus, integrations]);  
+  }, [requiredFields, setStatus, toggleStatus, integrations]);  
   
   return (
     <div className="dashboard integrations-dashboard">
