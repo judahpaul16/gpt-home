@@ -47,7 +47,8 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
     Object.keys(integrations).forEach(name => {
       fetchStatus(name);
     });
-  }, [requiredFields, setStatus, toggleStatus, integrations]);  
+    // eslint-disable-next-line
+  }, []);  
   
   return (
     <div className="dashboard integrations-dashboard">
