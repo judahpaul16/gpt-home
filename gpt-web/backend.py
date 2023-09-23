@@ -277,7 +277,7 @@ async def is_service_connected(request: Request):
         env_config = read_env_config()
         
         for field in fields:
-            if field not in env_config:
+            if fields[field] not in env_config:
                 return JSONResponse(content={"status": False})
 
         return JSONResponse(content={"status": True})
