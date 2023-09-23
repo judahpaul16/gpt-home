@@ -41,11 +41,15 @@ const App: React.FC = () => {
 
   const setStatus = (name: string, status: boolean) => {
     if (name in integrations) {
-      const updatedIntegrations = JSON.parse(JSON.stringify(integrations));
-      updatedIntegrations[name].status = status;
-      setIntegrations(updatedIntegrations);
+      setIntegrations({
+        ...integrations,
+        [name]: {
+          ...integrations[name as keyof typeof integrations],
+          status: status
+        }
+      });
     }
-  };  
+  };
 
   const toggleStatus = (name: string) => {
     if (name in integrations) {

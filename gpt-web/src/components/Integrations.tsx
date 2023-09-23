@@ -36,6 +36,7 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
     const fetchStatus = async (name: string) => {
       try {
         const response = await axios.post(`/get-service-status`, { name });
+        console.log(`Received status for ${name}: ${response.data.status}`);
         return response.data.status;
       } catch (error) {
         console.log('Error fetching initial status:', error);
@@ -44,10 +45,12 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
     
     Object.keys(integrations).forEach(async (name) => {
       const status = await fetchStatus(name);
+      console.log(`Setting status for ${name} to ${status}`);
       setStatus(name, status);
     });
     // eslint-disable-next-line
   }, []);
+  
   
   return (
     <div className="dashboard integrations-dashboard">
