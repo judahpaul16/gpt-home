@@ -48,6 +48,7 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
       console.log(`Current status for ${name}: ${integrations[name as keyof typeof integrations].status}`);
       console.log(`Setting status for ${name} to ${newStatus}`);
       setStatus(name, newStatus);
+      console.log(`Current status for ${name}: ${integrations[name as keyof typeof integrations].status}`);
     });
     // eslint-disable-next-line
   }, []);
