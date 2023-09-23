@@ -28,7 +28,6 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
   };
 
   const connectService = async () => {
-    setShowOverlay(true);
     for (const field of requiredFields[name]) {
       if (!formData[field as keyof typeof formData]) {
         setError(`Please enter a value for ${field}`);
@@ -78,6 +77,36 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
     });
   };
 
+  const editService = async () => {
+    for (const field of requiredFields[name]) {
+      if (!formData[field as keyof typeof formData]) {
+        setError(`Please enter a value for ${field}`);
+        setShowOverlay(false);
+        return;
+      }
+    }
+
+    let fields: { [key: string]: string } = {};
+    for (const field of requiredFields[name]) {
+      fields[field] = formData[field as keyof typeof formData];
+    }
+
+    axios.post('/connect-service', { name, fields }).then((response) => {
+      if (response.data.success) {
+        setShowOverlay(false);
+      } else {
+        setError(`Error connecting to ${name}: ${response.data.error}`);
+        console.log(response.data.traceback);
+        setShowOverlay(false);
+      }
+    }).catch((error) => {
+      setError(`Error editing ${name}: ${error}`);
+      console.log("Error: ", error);
+      console.log("Error Response: ", error.response);
+      setShowOverlay(false);
+    });
+  };
+
   return (
     <div className="integration">
       {usage.map((phrase) => (
@@ -109,7 +138,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
                 />
               </div>
             ))}
-            <button onClick={connectService}>Submit</button>
+            <button onClick={status ? editService : connectService}>Submit</button>
             <button onClick={() => setShowForm(false)}>Cancel</button>
             {error && <div className="error-text">{error}</div>}
           </div>
