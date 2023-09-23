@@ -271,18 +271,14 @@ async def get_device_id(device_name, headers=None):
 async def spotify_action(text: str):
     access_token = os.getenv('SPOTIFY_ACCESS_TOKEN')
     headers = {"Authorization": f"Bearer {access_token}"}
-
     raspberry_pi_device_id = await get_device_id(HOSTNAME, headers)
-
-    if raspberry_pi_device_id is None:
-        return f"Device '{HOSTNAME}' not found."
-
+    if raspberry_pi_device_id is None: return f"Device '{HOSTNAME}' not found."
+    payload = {"device_id": raspberry_pi_device_id}
     if access_token:
         try:
             async with aiohttp.ClientSession() as session:
                 if "play" in text:
                     song = text.split("play", 1)[1].strip()
-                    payload = {"device_id": raspberry_pi_device_id}  
                     if song:
                         if re.search(r'(a\s)?(song|track|music)?', song, re.IGNORECASE):
                             await session.put("https://api.spotify.com/v1/me/player/play", json=payload, headers=headers)
@@ -294,13 +290,13 @@ async def spotify_action(text: str):
                         await session.put("https://api.spotify.com/v1/me/player/play", json=payload, headers=headers)
                     return ""
                 elif "next song" in text:
-                    await session.post("https://api.spotify.com/v1/me/player/next", json={"device_id": raspberry_pi_device_id}, headers=headers)
+                    await session.post("https://api.spotify.com/v1/me/player/next", json=payload, headers=headers)
                     return "Playing next song."
                 elif "go back" in text:
-                    await session.post("https://api.spotify.com/v1/me/player/previous", json={"device_id": raspberry_pi_device_id}, headers=headers)
+                    await session.post("https://api.spotify.com/v1/me/player/previous", json=payload, headers=headers)
                     return "Going back."
                 elif "pause" in text or "stop" in text:
-                    await session.put("https://api.spotify.com/v1/me/player/pause", json={"device_id": raspberry_pi_device_id}, headers=headers)
+                    await session.put("https://api.spotify.com/v1/me/player/pause", json=payload, headers=headers)
                     return ""
         except Exception as e:
             logger.error(f"Error: {traceback.format_exc()}")
