@@ -35,7 +35,7 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
   useEffect(() => {
     const fetchStatus = async (name: string) => {
       try {
-        const response = await axios.post(`/get-service-status`, { });
+        const response = await axios.post(`/get-service-status`, { name });
         const status = response.data.status;
         setStatus(name, status);
       } catch (error) {
