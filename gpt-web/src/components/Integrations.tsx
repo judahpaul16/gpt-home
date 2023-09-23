@@ -35,8 +35,8 @@ const Integrations: React.FC<IntegrationsProps> = ({ toggleStatus, toggleOverlay
     const fetchStatus = async (name: string) => {
       try {
         const response = await axios.post(`/is-service-connected`, { fields: requiredFields[name] });
-        if (response.data.success) {
-          toggleStatus(name);
+        if (response.data.status) {
+          toggleStatus(response.data.status);
         }
       } catch (error) {
         console.log('Error fetching initial status:', error);

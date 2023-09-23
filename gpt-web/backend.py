@@ -276,11 +276,11 @@ async def is_service_connected(request: Request):
         incoming_data = await request.json()
         fields = incoming_data["fields"]
         env_config = read_env_config()
-
+        
         for field in fields:
             if field not in env_config:
-                return JSONResponse(content={"success": False})
+                return JSONResponse(content={"status": False})
 
-        return JSONResponse(content={"success": True})
+        return JSONResponse(content={"status": True})
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
