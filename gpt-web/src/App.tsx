@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Route, Routes, Link, Navigate, useLocation } from 'react-router-dom';
 import './css/App.css';
 import PasswordModal from './components/PasswordModal';
@@ -34,6 +34,7 @@ const App: React.FC = () => {
   const [showOverlay, setShowOverlay] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(window.innerWidth >= 768);
   const [unlocked, setUnlocked] = useState(false);
+  const memoizedIntegrations = useMemo(() => integrations, [integrations]);
 
   const unlockApp = () => {
     setUnlocked(true);
@@ -169,7 +170,7 @@ const App: React.FC = () => {
             </Drawer>
             <Routes>
               <Route path="/event-logs" element={<EventLogs />} />
-              <Route path="/integrations" element={<Integrations setStatus={setStatus} toggleStatus={toggleStatus} toggleOverlay={toggleOverlay} integrations={integrations} />} />
+              <Route path="/integrations" element={<Integrations setStatus={setStatus} toggleStatus={toggleStatus} toggleOverlay={toggleOverlay} integrations={memoizedIntegrations} />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/about" element={<About />} />
               <Route index element={<Navigate to="/integrations" />} />
