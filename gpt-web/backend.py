@@ -7,10 +7,12 @@ from typing import Optional
 from pathlib import Path
 import subprocess
 import traceback
+import requests
 import hashlib
 import openai
 import json
 import os
+import re
 
 ROOT_DIRECTORY = Path(__file__).parent
 PARENT_DIRECTORY = ROOT_DIRECTORY.parent
@@ -293,3 +295,53 @@ async def get_service_statuses(request: Request):
         return JSONResponse(content={"statuses": statuses})
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
+
+## Spotify Routes ##
+
+async def search_song_get_uri(song_name: str):
+    access_token = os.getenv('SPOTIFY_ACCESS_TOKEN')
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {"q": song_name, "type": "track", "limit": 1}
+    response = requests.get("https://api.spotify.com/v1/search", headers=headers, params=params)
+    
+    if response.status_code == 200:
+        json_response = response.json()
+        tracks = json_response.get("tracks", {}).get("items", [])
+        if tracks:
+            return tracks[0].get("uri", None)
+    return None
+
+@app.post("/spotify-control")
+async def spotify_control(request: Request):
+    try:
+        incoming_data = await request.json()
+        text = incoming_data.get("text", "").lower().strip()
+
+        if "play" in text:
+            song = re.sub(r'(play\s+)', '', text, count=1).strip()
+            if song:
+                spotify_uri = await search_song_get_uri(song)
+                if spotify_uri:
+                    subprocess.run(["playerctl", "open", spotify_uri])
+                    return JSONResponse(content={"success": True, "message": f"Playing {song} on Spotify."})
+            else:
+                subprocess.run(["playerctl", "play"])
+                return JSONResponse(content={"success": True, "message": "Resumed playback."})
+
+        elif "next" in text or "skip" in text:
+            subprocess.run(["playerctl", "next"])
+            return JSONResponse(content={"success": True, "message": "Playing next track."})
+
+        elif "previous" in text or "go back" in text:
+            subprocess.run(["playerctl", "previous"])
+            return JSONResponse(content={"success": True, "message": "Playing previous track."})
+
+        elif "pause" in text or "stop" in text:
+            subprocess.run(["playerctl", "pause"])
+            return JSONResponse(content={"success": True, "message": "Paused playback."})
+
+        else:
+            return JSONResponse(content={"success": False, "message": "Invalid command."})
+
+    except Exception as e:
+        return JSONResponse(content={"success": False, "message": str(e), "traceback": traceback.format_exc()})

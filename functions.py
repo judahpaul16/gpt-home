@@ -257,48 +257,18 @@ async def speak(text, stop_event):
         await loop.run_in_executor(executor, _speak)
         stop_event.set()
 
-async def get_device_id(device_name, headers=None):
-    async with aiohttp.ClientSession() as session:
-        async with session.get("https://api.spotify.com/v1/me/player/devices", headers=headers) as r:
-            devices_data = await r.text()
-            devices_json = json.loads(devices_data)
-            logger.info(f"Devices: {devices_json}")
-            for device in devices_json['devices']:
-                if device['name'] == device_name:
-                    return device['id']
-    return None
-
 async def spotify_action(text: str):
-    access_token = os.getenv('SPOTIFY_ACCESS_TOKEN')
-    headers = {"Authorization": f"Bearer {access_token}"}
-    raspberry_pi_device_id = await get_device_id(HOSTNAME, headers)
-    if raspberry_pi_device_id is None: return f"Device '{HOSTNAME}' not found."
-    payload = {"device_id": raspberry_pi_device_id}
-    if access_token:
+    ACCESS_TOKEN = os.getenv('SPOTIFY_ACCESS_TOKEN')
+    if ACCESS_TOKEN:
         try:
             async with aiohttp.ClientSession() as session:
-                if "play" in text:
-                    song = text.split("play", 1)[1].strip()
-                    if song:
-                        if re.search(r'(a\s)?(song|track|music)?', song, re.IGNORECASE):
-                            await session.put("https://api.spotify.com/v1/me/player/play", json=payload, headers=headers)
-                        else:
-                            payload["uris"] = [f"spotify:track:{song}"]
-                            await session.put("https://api.spotify.com/v1/me/player/play", json=payload, headers=headers)
-                            return f"Playing {song} on Spotify."
-                    else:
-                        await session.put("https://api.spotify.com/v1/me/player/play", json=payload, headers=headers)
-                    return ""
-                elif "next song" in text:
-                    await session.post("https://api.spotify.com/v1/me/player/next", json=payload, headers=headers)
-                    return "Playing next song."
-                elif "go back" in text:
-                    await session.post("https://api.spotify.com/v1/me/player/previous", json=payload, headers=headers)
-                    return "Going back."
-                elif "pause" in text or "stop" in text:
-                    await session.put("https://api.spotify.com/v1/me/player/pause", json=payload, headers=headers)
-                    return ""
+                response = await session.post("/spotify-control", json={"text": text})
+                if response.status == 200:
+                    return await response.text()
+                else:
+                    return f"Received a {response.status} status code."
         except Exception as e:
+            # Assuming `logger` and `traceback` are imported and configured
             logger.error(f"Error: {traceback.format_exc()}")
             return f"Something went wrong: {e}"
     raise Exception("No access token found. Please enter your access token for Spotify in the web interface.")

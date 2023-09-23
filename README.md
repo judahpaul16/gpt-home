@@ -194,6 +194,8 @@ check_and_install "cmake" "sudo apt-get install -y cmake"
 check_and_install "openssl" "sudo apt-get install -y openssl"
 check_and_install "git" "sudo apt-get install -y git"
 check_and_install "nginx" "sudo apt-get install -y nginx"
+check_and_install "playerctl" "sudo apt-get install -y playerctl"
+check_and_install "raspotify" "curl -sL https://dtcooper.github.io/raspotify/install.sh | sh"
 
 # Function to setup a systemd service
 setup_service() {
