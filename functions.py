@@ -314,17 +314,17 @@ async def google_calendar_action(text: str):
         try:
             async with aiohttp.ClientSession() as session:
                 if re.search(r'(schedule|set).*(meeting|event)', text, re.IGNORECASE):
-                    # Parse the meeting details from `text` or through some dialog
-                    meeting_details = {...}  # Add meeting details here
-                    await session.post("https://www.googleapis.com/calendar/v3/calendars/primary/events", json=meeting_details, headers=headers)
-                    return "Scheduled a meeting."
+                    # meeting_details = query_user_for_meeting_details()
+                    # await session.post("https://www.googleapis.com/calendar/v3/calendars/primary/events", json=meeting_details, headers=headers)
+                    # return "Scheduled a meeting."
+                    return "This feature is not yet implemented."
                 elif re.search(r'(delete|remove|cancel).*event', text, re.IGNORECASE):
                     # Parse the event ID from `text` or through some dialog
-                    event_id = "YOUR_EVENT_ID"
-                    await session.delete(f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{event_id}", headers=headers)
-                    return "Deleted an event."
+                    # meeting_details = query_user_for_meeting_details()
+                    # await session.delete(f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{meeting_details['id']}", headers=headers)
+                    # return "Deleted an event."
+                    return "This feature is not yet implemented."
                 elif re.search(r'what.*on\smy\scalendar', text, re.IGNORECASE):
-                    # Parse the date from `text` or through some dialog
                     date = datetime.datetime.now().strftime("%Y-%m-%d")
                     await session.get(f"https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin={date}T00:00:00-00:00&timeMax={date}T23:59:59-00:00", headers=headers)
                     return "Retrieved events."

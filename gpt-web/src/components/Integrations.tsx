@@ -43,9 +43,7 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
           setStatus(name, statuses[name]);
         }
       }
-    } catch (error) {
-      console.error("Error fetching statuses:", error);
-    }
+    } catch (error) {}
   };
   
   // fetch statuses on mount
