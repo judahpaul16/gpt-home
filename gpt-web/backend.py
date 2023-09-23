@@ -260,7 +260,7 @@ async def disconnect_service(request: Request):
                 lines = f.readlines()
             with open(ENV_FILE_PATH, "w") as f:
                 for line in lines:
-                    if not line.startswith(field):
+                    if field not in line:
                         f.write(line)
 
         subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
