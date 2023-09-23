@@ -255,7 +255,7 @@ async def connect_service(request: Request):
                 set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN", value)
             elif name == "philipshue":
                 set_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP", value)
-                await set_philips_hue_username()
+                await set_philips_hue_username(value)
 
         subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
 
@@ -353,22 +353,18 @@ async def spotify_control(request: Request):
 
 ## Philips Hue ##
 
-async def set_philips_hue_username():
-    bridge_ip = os.getenv('PHILIPS_HUE_BRIDGE_IP')
-    if bridge_ip:
-        try:
-            b = Bridge(bridge_ip)
-            b.connect()
-            logger.info("Press the button on the Philips Hue bridge in the next 60 seconds.")
-            speak("Press the button on the Philips Hue bridge in the next 60 seconds.")
-            await asyncio.sleep(60) # 60 second window to press the button
-            b.get_api()
-            logger.success("Successfully connected to Philips Hue bridge.")
-            username = b.username
-            os.environ['PHILIPS_HUE_USERNAME'] = username
-            logger.success(f"Successfully set Philips Hue username to {username}.")
-        except Exception as e:
-            logger.error(f"Error: {traceback.format_exc()}")
-            raise Exception(f"Something went wrong: {e}")
-    else:
-        raise Exception("No bridge IP found. Please enter your bridge IP for Phillips Hue in the web interface.")
+async def set_philips_hue_username(bridge_ip: str):
+    try:
+        b = Bridge(bridge_ip)
+        b.connect()
+        logger.info("Press the button on the Philips Hue bridge in the next 60 seconds.")
+        speak("Press the button on the Philips Hue bridge in the next 60 seconds.")
+        await asyncio.sleep(60) # 60 second window to press the button
+        b.get_api()
+        logger.success("Successfully connected to Philips Hue bridge.")
+        username = b.username
+        os.environ['PHILIPS_HUE_USERNAME'] = username
+        logger.success(f"Successfully set Philips Hue username to {username}.")
+    except Exception as e:
+        logger.error(f"Error: {traceback.format_exc()}")
+        raise Exception(f"Something went wrong: {e}")
