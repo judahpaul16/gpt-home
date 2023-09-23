@@ -169,7 +169,7 @@ const App: React.FC = () => {
             </Drawer>
             <Routes>
               <Route path="/event-logs" element={<EventLogs />} />
-              <Route path="/integrations" element={<Integrations key={JSON.stringify(integrations)} setStatus={setStatus} toggleStatus={toggleStatus} toggleOverlay={toggleOverlay} integrations={integrations} />} />
+              <Route path="/integrations" element={<Integrations setStatus={setStatus} toggleStatus={toggleStatus} toggleOverlay={toggleOverlay} integrations={integrations} />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/about" element={<About />} />
               <Route index element={<Navigate to="/integrations" />} />
