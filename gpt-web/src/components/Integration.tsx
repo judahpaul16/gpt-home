@@ -9,10 +9,9 @@ interface IntegrationProps {
   requiredFields: { [key: string]: string[] };
   toggleStatus: (name: string) => void;
   setShowOverlay: (visible: boolean) => void;
-  fetchStatuses: () => void;
 }
 
-const Integration: React.FC<IntegrationProps> = ({ name, usage, status, requiredFields, toggleStatus, setShowOverlay, fetchStatuses }) => {
+const Integration: React.FC<IntegrationProps> = ({ name, usage, status, requiredFields, toggleStatus, setShowOverlay }) => {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({} as { [key: string]: string });
   const [error, setError] = useState('');
@@ -49,7 +48,6 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
         setShowForm(false);
         // clear all fields
         setFormData({} as { [key: string]: string });
-        fetchStatuses(); 
       } else {
         setError(`Error connecting to ${name}: ${response.data.error}`);
         console.log(response.data.traceback);
@@ -72,7 +70,6 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
           setShowForm(false);
           // clear all fields
           setFormData({} as { [key: string]: string });
-          fetchStatuses(); 
         } else {
           setError(`Error disconnecting from ${name}: ${response.data.error}`);
           console.log(response.data.traceback);

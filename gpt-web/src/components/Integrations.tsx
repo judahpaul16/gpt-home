@@ -81,7 +81,6 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
                   requiredFields={requiredFields}
                   toggleStatus={toggleStatus}
                   setShowOverlay={(visible) => toggleOverlay(visible)}
-                  fetchStatuses={fetchStatuses}
                 />
                 </TableCell>
               </TableRow>

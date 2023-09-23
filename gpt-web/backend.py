@@ -220,13 +220,9 @@ async def change_password(request: Request):
 
 # Utility function to read environment config from .env file
 def read_env_config():
-    load_dotenv(ENV_FILE_PATH)
-    return {key: os.getenv(key) for key in os.environ if not key.startswith('_')}
-
-# Utility function to refresh environment variables
-def refresh_env():
-    env_config = read_env_config()
-    os.environ.update(env_config)
+    with open(ENV_FILE_PATH, "r") as f:
+        env_config = f.read()
+    return env_config
 
 @app.post("/connect-service")
 async def connect_service(request: Request):
@@ -266,7 +262,6 @@ async def disconnect_service(request: Request):
             unset_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP")
             unset_key(ENV_FILE_PATH, "PHILIPS_HUE_USERNAME")
 
-        refresh_env()
         subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
         return JSONResponse(content={"success": True})
     except Exception as e:
