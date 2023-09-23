@@ -236,11 +236,10 @@ async def connect_service(request: Request):
             elif name == "googlecalendar":
                 set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN", value)
             elif name == "phillipshue":
-                for i in range(len(value)):
-                    if value[i] == "Bridge IP Address":
-                        set_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP", value[i+1])
-                    elif value[i] == "Bridge Username":
-                        set_key(ENV_FILE_PATH, "PHILIPS_HUE_USERNAME", value[i+1])
+                if key == "Bridge IP Address":
+                    set_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP", value)
+                elif key == "Username":
+                    set_key(ENV_FILE_PATH, "PHILIPS_HUE_USERNAME", value)
 
         subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
 
