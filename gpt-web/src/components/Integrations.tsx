@@ -44,9 +44,10 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
     };
     
     Object.keys(integrations).forEach(async (name) => {
-      const status = await fetchStatus(name);
-      console.log(`Setting status for ${name} to ${status}`);
-      setStatus(name, status);
+      const newStatus = await fetchStatus(name);
+      console.log(`Current status for ${name}: ${integrations[name as keyof typeof integrations].status}`);
+      console.log(`Setting status for ${name} to ${newStatus}`);
+      setStatus(name, newStatus);
     });
     // eslint-disable-next-line
   }, []);
