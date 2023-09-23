@@ -48,10 +48,11 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
     }
   };
   
+  // fetch statuses on mount
   useEffect(() => {
     fetchStatuses();
     // eslint-disable-next-line
-  }, []);    
+  }, []);
   
   return (
     <div className="dashboard integrations-dashboard">
