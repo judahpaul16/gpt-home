@@ -45,6 +45,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
       if (response.data.success) {
         toggleStatus(name);
         setShowOverlay(false);
+        setShowForm(false);
       } else {
         setError(`Error connecting to ${name}: ${response.data.error}`);
         console.log(response.data.traceback);
@@ -64,6 +65,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
       if (response.data.success) {
         toggleStatus(name);
         setShowOverlay(false);
+        setShowForm(false);
       } else {
         setError(`Error disconnecting from ${name}: ${response.data.error}`);
         console.log(response.data.traceback);
@@ -94,6 +96,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
     axios.post('/connect-service', { name, fields }).then((response) => {
       if (response.data.success) {
         setShowOverlay(false);
+        setShowForm(false);
       } else {
         setError(`Error connecting to ${name}: ${response.data.error}`);
         console.log(response.data.traceback);
