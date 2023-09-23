@@ -63,7 +63,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
 
   const disconnectService = async () => {
     setShowOverlay(true);
-    axios.post('/disconnect-service', { fields : requiredFields[name] }).then((response) => {
+    axios.post('/disconnect-service', { name }).then((response) => {
       if (response.data.success) {
         toggleStatus(name);
         setShowOverlay(false);
