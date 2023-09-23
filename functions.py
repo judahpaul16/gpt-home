@@ -21,6 +21,8 @@ import time
 import os
 import re
 
+HOSTNAME = os.environ['HOSTNAME']
+
 # Load .env file
 load_dotenv(dotenv_path='gpt-web/.env')
 
@@ -254,26 +256,49 @@ async def speak(text, stop_event):
         await loop.run_in_executor(executor, _speak)
         stop_event.set()
 
+async def get_device_id(device_name='ubuntu', headers=None):
+    async with aiohttp.ClientSession() as session:
+        async with session.get("https://api.spotify.com/v1/me/player/devices", headers=headers) as r:
+            devices_data = await r.text()
+            devices_json = json.loads(devices_data)
+            for device in devices_json['devices']:
+                if device['name'] == device_name:
+                    return device['id']
+    return None
+
 async def spotify_action(text: str):
     access_token = os.getenv('SPOTIFY_ACCESS_TOKEN')
     headers = {"Authorization": f"Bearer {access_token}"}
+
+    raspberry_pi_device_id = await get_device_id(HOSTNAME, headers)
+
+    if raspberry_pi_device_id is None:
+        return "Device 'ubuntu' not found."
 
     if access_token:
         try:
             async with aiohttp.ClientSession() as session:
                 if "play" in text:
-                    # Assume that you've already fetched the playlist or song ID
-                    playlist_id = "YOUR_PLAYLIST_ID"
-                    await session.put(f"https://api.spotify.com/v1/playlists/{playlist_id}/play", headers=headers)
-                    return "Playing music on Spotify."
+                    song = text.split("play", 1)[1].strip()
+                    payload = {"device_id": raspberry_pi_device_id}  
+                    if song:
+                        if re.search(r'(a\s)?(song|track|music)?', song, re.IGNORECASE):
+                            await session.put("https://api.spotify.com/v1/me/player/play", json=payload, headers=headers)
+                        else:
+                            payload["uris"] = [f"spotify:track:{song}"]
+                            await session.put("https://api.spotify.com/v1/me/player/play", json=payload, headers=headers)
+                            return f"Playing {song} on Spotify."
+                    else:
+                        await session.put("https://api.spotify.com/v1/me/player/play", json=payload, headers=headers)
+                    return ""
                 elif "next song" in text:
-                    await session.post("https://api.spotify.com/v1/me/player/next", headers=headers)
+                    await session.post("https://api.spotify.com/v1/me/player/next", json={"device_id": raspberry_pi_device_id}, headers=headers)
                     return "Playing next song."
                 elif "go back" in text:
-                    await session.post("https://api.spotify.com/v1/me/player/previous", headers=headers)
+                    await session.post("https://api.spotify.com/v1/me/player/previous", json={"device_id": raspberry_pi_device_id}, headers=headers)
                     return "Going back."
                 elif "pause" in text or "stop" in text:
-                    await session.put("https://api.spotify.com/v1/me/player/pause", headers=headers)
+                    await session.put("https://api.spotify.com/v1/me/player/pause", json={"device_id": raspberry_pi_device_id}, headers=headers)
                     return ""
         except Exception as e:
             logger.error(f"Error: {traceback.format_exc()}")
