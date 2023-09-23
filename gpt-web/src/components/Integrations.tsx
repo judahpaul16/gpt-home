@@ -33,10 +33,10 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
   }), []);
 
   useEffect(() => {
-    const fetchStatus = async (name: string) => {
+    const fetchStatuses = async () => {
       try {
         const response = await axios.post(`/get-service-statuses`, { });
-        for (name in response.data.service_statuses) {
+        for ( const name in response.data.service_statuses ) {
           setStatus(name, response.data.service_statuses[name]);
         }
       } catch (error) {
@@ -44,9 +44,7 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
       }
     };
   
-    Object.keys(integrations).forEach(name => {
-      fetchStatus(name);
-    });
+    fetchStatuses();
     // eslint-disable-next-line
   }, []);  
   
