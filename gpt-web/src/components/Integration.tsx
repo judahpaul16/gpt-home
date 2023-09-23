@@ -62,26 +62,26 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
   };
 
   const disconnectService = async () => {
-    setShowOverlay(true);
-    axios.post('/disconnect-service', { name }).then((response) => {
-      if (response.data.success) {
-        toggleStatus(name);
-        setShowOverlay(false);
-        setShowForm(false);
-        // clear all fields
-        setFormData({} as { [key: string]: string });
+    if (window.confirm(`Are you sure you want to disconnect from ${name}?`))
+      axios.post('/disconnect-service', { name }).then((response) => {
+        if (response.data.success) {
+          toggleStatus(name);
+          setShowOverlay(false);
+          setShowForm(false);
+          // clear all fields
+          setFormData({} as { [key: string]: string });
 
-      } else {
-        setError(`Error disconnecting from ${name}: ${response.data.error}`);
-        console.log(response.data.traceback);
+        } else {
+          setError(`Error disconnecting from ${name}: ${response.data.error}`);
+          console.log(response.data.traceback);
+          setShowOverlay(false);
+        }
+      }).catch((error) => {
+        setError(`Error disconnecting from ${name}: ${error}`);
+        console.log("Error: ", error);
+        console.log("Error Response: ", error.response);
         setShowOverlay(false);
-      }
-    }).catch((error) => {
-      setError(`Error disconnecting from ${name}: ${error}`);
-      console.log("Error: ", error);
-      console.log("Error Response: ", error.response);
-      setShowOverlay(false);
-    });
+      });
   };
 
   const editService = async () => {
