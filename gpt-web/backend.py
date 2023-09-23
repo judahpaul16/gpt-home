@@ -256,7 +256,7 @@ async def disconnect_service(request: Request):
         for field in fields:
             unset_key(ENV_FILE_PATH, field)
             # remove line from .env file
-            with open(ENV_FILE_PATH, "r+") as f:
+            with open(ENV_FILE_PATH, "rw+") as f:
                 lines = f.readlines()
                 f.seek(0)
                 for line in lines:
