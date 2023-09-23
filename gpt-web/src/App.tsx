@@ -43,9 +43,9 @@ const App: React.FC = () => {
     if (name in integrations) {
       setIntegrations({
         ...integrations,
-        [name as keyof typeof integrations]: {
+        [name]: {
           ...integrations[name as keyof typeof integrations],
-          status
+          status: status
         }
       });
     }
