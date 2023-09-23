@@ -7,6 +7,7 @@ from phue import Bridge
 import adafruit_ssd1306
 import subprocess
 import traceback
+import datetime
 import textwrap
 import logging
 import asyncio
@@ -322,6 +323,11 @@ async def google_calendar_action(text: str):
                     event_id = "YOUR_EVENT_ID"
                     await session.delete(f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{event_id}", headers=headers)
                     return "Deleted an event."
+                elif re.search(r'what.*on\smy\scalendar', text, re.IGNORECASE):
+                    # Parse the date from `text` or through some dialog
+                    date = datetime.datetime.now().strftime("%Y-%m-%d")
+                    await session.get(f"https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin={date}T00:00:00-00:00&timeMax={date}T23:59:59-00:00", headers=headers)
+                    return "Retrieved events."
         except Exception as e:
             logger.error(f"Error: {traceback.format_exc()}")
             return f"Something went wrong: {e}"
