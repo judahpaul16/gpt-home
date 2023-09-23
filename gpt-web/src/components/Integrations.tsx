@@ -33,23 +33,25 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
     PhilipsHue: ['Bridge IP Address', 'Username'],
   }), []);
 
-  useEffect(() => {
-    const fetchStatuses = async () => {
-      try {
-        const response = await axios.post('/get-service-statuses');
-        const statuses = response.data.statuses;
+  const fetchStatuses = async () => {
+    try {
+      const response = await axios.post('/get-service-statuses');
+      const statuses = response.data.statuses;
   
-        for (const name of Object.keys(integrations)) {
+      for (const name of Object.keys(integrations)) {
+        if (statuses.hasOwnProperty(name)) {
           setStatus(name, statuses[name]);
         }
-      } catch (error) {
-        console.error("Error fetching statuses:", error);
       }
-    };
-    
+    } catch (error) {
+      console.error("Error fetching statuses:", error);
+    }
+  };
+  
+  useEffect(() => {
     fetchStatuses();
     // eslint-disable-next-line
-  }, []);
+  }, []);    
   
   return (
     <div className="dashboard integrations-dashboard">
