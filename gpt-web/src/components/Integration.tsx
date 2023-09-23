@@ -13,7 +13,7 @@ interface IntegrationProps {
 
 const Integration: React.FC<IntegrationProps> = ({ name, usage, status, requiredFields, toggleStatus, setShowOverlay }) => {
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ apiKey: '' });
+  const [formData, setFormData] = useState({} as { [key: string]: string });
   const [error, setError] = useState('');
   const apiRefs: { [key: string]: string[] } = {
     Spotify: ['https://developer.spotify.com/documentation/web-api/'],
@@ -46,6 +46,8 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
         toggleStatus(name);
         setShowOverlay(false);
         setShowForm(false);
+        // clear all fields
+        setFormData({} as { [key: string]: string });
       } else {
         setError(`Error connecting to ${name}: ${response.data.error}`);
         console.log(response.data.traceback);
@@ -66,6 +68,9 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
         toggleStatus(name);
         setShowOverlay(false);
         setShowForm(false);
+        // clear all fields
+        setFormData({} as { [key: string]: string });
+
       } else {
         setError(`Error disconnecting from ${name}: ${response.data.error}`);
         console.log(response.data.traceback);
@@ -97,6 +102,8 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
       if (response.data.success) {
         setShowOverlay(false);
         setShowForm(false);
+        // clear all fields
+        setFormData({} as { [key: string]: string });
       } else {
         setError(`Error connecting to ${name}: ${response.data.error}`);
         console.log(response.data.traceback);
