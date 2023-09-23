@@ -267,12 +267,10 @@ async def disconnect_service(request: Request):
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
     
-@app.post("/get-service-status")
-async def get_service_status(request: Request):
+@app.post("/get-service-statuses")
+async def get_service_statuses(request: Request):
     try:
         env_config = read_env_config()
-        incoming_data = await request.json()
-        name = incoming_data["name"].lower().strip()
 
         statuses = {
             "Spotify": "SPOTIFY_ACCESS_TOKEN" in env_config,
@@ -280,10 +278,6 @@ async def get_service_status(request: Request):
             "PhilipsHue": "HUE_BRIDGE_IP" in env_config and "HUE_BRIDGE_USERNAME" in env_config
         }
 
-        for key, value in statuses.items():
-            if key.lower() == name:
-                return JSONResponse(content={"status": value})
-            
-        return HTTPException(status_code=404, detail="Service not found")
+        return JSONResponse(content={"statuses": statuses})
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})

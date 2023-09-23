@@ -34,9 +34,10 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
 
   useEffect(() => {
     const fetchStatuses = async () => {
-      for (const name of Object.keys(integrations)) {
-        const newStatus = await fetchStatus(name);
-        setStatus(name, newStatus);
+      const response = await axios.post('/get-service-statuses');
+      const statuses = response.data.statuses;
+      for (const name of Object.keys(statuses)) {
+        setStatus(name, statuses[name as keyof typeof statuses]);
       }
     };
     
@@ -44,12 +45,6 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
     // eslint-disable-next-line
   }, []);
 
-  const fetchStatus = async (name: string) => {
-    const response = await axios.post('/get-service-status', { name });
-    const data = await response.data;
-    return data.status;
-  };
-  
   return (
     <div className="dashboard integrations-dashboard">
       <h2>Integrations Dashboard</h2>
