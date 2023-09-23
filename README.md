@@ -202,7 +202,8 @@ setup_service() {
     local EXEC_START=$2
     local AFTER=$3
     local ENV=$4
-    local LMEMLOCK=$5
+    local HOSTNAME=$5
+    local LMEMLOCK=$6
 
     # Stop the service if it's already running
     sudo systemctl stop "$SERVICE_NAME" &>/dev/null
@@ -228,6 +229,9 @@ $LMEMLOCK
 [Install]
 WantedBy=multi-user.target
 EOF
+    if [ -n "$HOSTNAME" ]; then
+        echo "Environment=\"HOSTNAME=$HOSTNAME\"" >>/etc/systemd/system/"$SERVICE_NAME"
+    fi
 
     # Reload systemd to recognize the new service, then enable and restart it
     sudo systemctl daemon-reload
@@ -297,10 +301,10 @@ npm run build
 
 ## Setup Services
 # Setup gpt-home service
-setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" "" "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"\nEnvironment=\"HOSTNAME=$HOSTNAME\"" "LimitMEMLOCK=infinity"
+setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" "" "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" "Environment=\"HOSTNAME=$HOSTNAME\"" "LimitMEMLOCK=infinity"
 
 # Setup fastapi service for FastAPI backend
-setup_service "gpt-web.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && uvicorn gpt-web.backend:app --host 0.0.0.0 --port 8000'" "" "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"\nEnvironment=\"HOSTNAME=$HOSTNAME\"" ""
+setup_service "gpt-web.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && uvicorn gpt-web.backend:app --host 0.0.0.0 --port 8000'" "" "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" "Environment=\"HOSTNAME=$HOSTNAME\"" ""
 
 # Mask systemd-networkd-wait-online.service to prevent boot delays
 sudo systemctl mask systemd-networkd-wait-online.service
