@@ -41,15 +41,13 @@ const App: React.FC = () => {
   };
 
   const setStatus = (name: string, status: boolean) => {
-    if (name in integrations) {
-      setIntegrations({
-        ...integrations,
-        [name as keyof typeof integrations]: {
-          ...integrations[name as keyof typeof integrations],
-          status
-        }
-      });      
-    }
+    setIntegrations(prevIntegrations => ({
+      ...prevIntegrations,
+      [name]: {
+        ...prevIntegrations[name as keyof typeof prevIntegrations],
+        status
+      }
+    }));
   };
   
   const toggleStatus = (name: string) => {
