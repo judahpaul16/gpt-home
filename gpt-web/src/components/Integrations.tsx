@@ -40,9 +40,7 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
         const statuses = response.data.statuses;
   
         for (const name of Object.keys(integrations)) {
-          if (statuses.hasOwnProperty(name) && integrations[name].status !== statuses[name]) {
-            setStatus(name, statuses[name]);
-          }
+          setStatus(name, statuses[name]);
         }
       } catch (error) {
         console.error("Error fetching statuses:", error);

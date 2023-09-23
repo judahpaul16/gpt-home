@@ -275,7 +275,7 @@ async def get_service_statuses(request: Request):
         statuses = {
             "Spotify": "SPOTIFY_ACCESS_TOKEN" in env_config,
             "GoogleCalendar": "GOOGLE_CALENDAR_ACCESS_TOKEN" in env_config,
-            "PhilipsHue": "HUE_BRIDGE_IP" in env_config and "HUE_BRIDGE_USERNAME" in env_config
+            "PhilipsHue": "PHILIPS_HUE_BRIDGE_IP" in env_config and "PHILIPS_HUE_USERNAME" in env_config
         }
 
         return JSONResponse(content={"statuses": statuses})
