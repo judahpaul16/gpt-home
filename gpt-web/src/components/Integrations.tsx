@@ -46,7 +46,7 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
         console.error("Error fetching statuses:", error);
       }
     };
-  
+    
     fetchStatuses();
     // eslint-disable-next-line
   }, []);
