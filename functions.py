@@ -257,7 +257,7 @@ async def speak(text, stop_event):
         await loop.run_in_executor(executor, _speak)
         stop_event.set()
 
-async def get_device_id(device_name='ubuntu', headers=None):
+async def get_device_id(device_name, headers=None):
     async with aiohttp.ClientSession() as session:
         async with session.get("https://api.spotify.com/v1/me/player/devices", headers=headers) as r:
             devices_data = await r.text()
