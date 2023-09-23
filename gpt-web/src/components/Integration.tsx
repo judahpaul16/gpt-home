@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
 import '../css/Integration.css';
 
@@ -6,11 +6,12 @@ interface IntegrationProps {
   name: string;
   status: boolean;
   usage: string[];
+  requiredFields: { [key: string]: string[] };
   toggleStatus: (name: string) => void;
   setShowOverlay: (visible: boolean) => void;
 }
 
-const Integration: React.FC<IntegrationProps> = ({ name, usage, status,  toggleStatus, setShowOverlay }) => {
+const Integration: React.FC<IntegrationProps> = ({ name, usage, status, requiredFields, toggleStatus, setShowOverlay }) => {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ apiKey: '' });
   const [error, setError] = useState('');
@@ -19,27 +20,6 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status,  toggleS
     GoogleCalendar: ['https://developers.google.com/calendar/api/quickstart/python'],
     PhilipsHue: ['https://developers.meethue.com/develop/get-started-2/', 'https://github.com/studioimaginaire/phue'],
   };
-
-  const requiredFields: { [key: string]: string[] } = useMemo(() => ({
-    Spotify: ['API Key'],
-    GoogleCalendar: ['API Key'],
-    PhilipsHue: ['Bridge IP Address', 'Username'],
-  }), []);
-  
-  useEffect(() => {
-    // Check if service is connected on page load
-    const fetchStatus = async () => {
-      try {
-        const response = await axios.post(`/is-service-connected`, { fields: requiredFields[name] });
-        if (response.data.success) {
-          toggleStatus(name);
-        }
-      } catch (error) {
-        console.log('Error fetching initial status:', error);
-      }
-    };
-    fetchStatus();
-  }, [name, requiredFields, toggleStatus]);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
@@ -98,45 +78,13 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status,  toggleS
     });
   };
 
-  const editService = async () => {
-    setShowOverlay(true);
-    for (const field of requiredFields[name]) {
-      if (!formData[field as keyof typeof formData]) {
-        setError(`Please enter a value for ${field}`);
-        setShowOverlay(false);
-        return;
-      }
-    }
-
-    let fields: { [key: string]: string } = {};
-    for (const field of requiredFields[name]) {
-      fields[field] = formData[field as keyof typeof formData];
-    }
-
-    axios.post('/connect-service', { name, fields }).then((response) => {
-      if (response.data.success) {
-        toggleStatus(name);
-        setShowOverlay(false);
-      } else {
-        setError(`Error editing ${name}: ${response.data.error}`);
-        console.log(response.data.traceback);
-        setShowOverlay(false);
-      }
-    }).catch((error) => {
-      setError(`Error editing ${name}: ${error}`);
-      console.log("Error: ", error);
-      console.log("Error Response: ", error.response);
-      setShowOverlay(false);
-    });
-  };
-
   return (
     <div className="integration">
       {usage.map((phrase) => (
         <h4 key={phrase}>{phrase}</h4>
       ))}
       {status && 
-        <button className="btn-edit" onClick={editService}>
+        <button className="btn-edit" onClick={() => setShowForm(true)}>
           Edit
         </button>
       }
