@@ -297,10 +297,10 @@ npm run build
 
 ## Setup Services
 # Setup gpt-home service
-setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" "" "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"  Environment=\"HOSTNAME=$HOSTNAME\"" "LimitMEMLOCK=infinity"
+setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" "" "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"\nEnvironment=\"HOSTNAME=$HOSTNAME\"" "LimitMEMLOCK=infinity"
 
 # Setup fastapi service for FastAPI backend
-setup_service "gpt-web.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && uvicorn gpt-web.backend:app --host 0.0.0.0 --port 8000'" "" "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"  Environment=\"HOSTNAME=$HOSTNAME\"" ""
+setup_service "gpt-web.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && uvicorn gpt-web.backend:app --host 0.0.0.0 --port 8000'" "" "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"\nEnvironment=\"HOSTNAME=$HOSTNAME\"" ""
 
 # Mask systemd-networkd-wait-online.service to prevent boot delays
 sudo systemctl mask systemd-networkd-wait-online.service
