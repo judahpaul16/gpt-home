@@ -306,7 +306,6 @@ async def spotify_action(text: str):
 async def google_calendar_action(text: str):
     access_token = os.getenv('GOOGLE_CALENDAR_ACCESS_TOKEN')
     headers = {"Authorization": f"Bearer {access_token}"}
-
     if access_token:
         try:
             async with aiohttp.ClientSession() as session:
@@ -333,7 +332,6 @@ async def google_calendar_action(text: str):
 async def philips_hue_action(text: str):
     bridge_ip = os.getenv('PHILIPS_HUE_BRIDGE_IP')
     username = os.getenv('PHILIPS_HUE_USERNAME')
-
     if bridge_ip and username:
         try:
             b = Bridge(bridge_ip, username)
@@ -362,7 +360,6 @@ async def philips_hue_action(text: str):
                 b.set_light(light_id, 'on', True)
                 b.set_light(light_id, 'bri', brightness)
                 return "Changing light brightness."
-
         except Exception as e:
             logger.error(f"Error: {traceback.format_exc()}")
             return f"Something went wrong: {e}"
@@ -373,7 +370,6 @@ async def query_openai(text, display, retries=3):
 
     # Load settings from settings.json
     settings = load_settings()
-
     max_tokens = settings.get("max_tokens")
     temperature = settings.get("temperature")
 
@@ -388,9 +384,7 @@ async def query_openai(text, display, retries=3):
                 max_tokens=max_tokens,
                 temperature=temperature
             )
-
             response_content = response['choices'][0]['message']['content'].strip()
-
             if response_content:  # Check if the response is not empty
                 message = f"Response: {response_content}"
                 return message
