@@ -33,26 +33,22 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
   }), []);
 
   useEffect(() => {
-    const fetchStatus = async (name: string) => {
-      try {
-        const response = await axios.post(`/get-service-status`, { name });
-        console.log(`Received status for ${name}: ${response.data.status}`);
-        return response.data.status;
-      } catch (error) {
-        console.log('Error fetching initial status:', error);
+    const fetchStatuses = async () => {
+      for (const name of Object.keys(integrations)) {
+        const newStatus = await fetchStatus(name);
+        setStatus(name, newStatus);
       }
     };
     
-    Object.keys(integrations).forEach(async (name) => {
-      const newStatus = await fetchStatus(name);
-      console.log(`Current status for ${name}: ${integrations[name as keyof typeof integrations].status}`);
-      console.log(`Setting status for ${name} to ${newStatus}`);
-      setStatus(name, newStatus);
-      console.log(`Current status for ${name}: ${integrations[name as keyof typeof integrations].status}`);
-    });
+    fetchStatuses();
     // eslint-disable-next-line
   }, []);
-  
+
+  const fetchStatus = async (name: string) => {
+    const response = await axios.post('/get-service-status', { name });
+    const data = await response.data;
+    return data.status;
+  };
   
   return (
     <div className="dashboard integrations-dashboard">
