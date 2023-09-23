@@ -13,6 +13,7 @@ interface IntegrationsProps {
   toggleStatus: (name: string) => void;
   toggleOverlay: (visible: boolean) => void;
   integrations: {
+    [key: string]: { status: boolean; usage: string[] };
     Spotify: { status: boolean; usage: string[] };
     GoogleCalendar: { status: boolean; usage: string[] };
     PhilipsHue: { status: boolean; usage: string[] };
@@ -34,17 +35,24 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
 
   useEffect(() => {
     const fetchStatuses = async () => {
-      const response = await axios.post('/get-service-statuses');
-      const statuses = response.data.statuses;
-      for (const name of Object.keys(integrations)) {
-        setStatus(name, statuses[name]);
+      try {
+        const response = await axios.post('/get-service-statuses');
+        const statuses = response.data.statuses;
+  
+        for (const name of Object.keys(integrations)) {
+          if (statuses.hasOwnProperty(name) && integrations[name].status !== statuses[name]) {
+            setStatus(name, statuses[name]);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching statuses:", error);
       }
     };
-    
+  
     fetchStatuses();
     // eslint-disable-next-line
   }, []);
-
+  
   return (
     <div className="dashboard integrations-dashboard">
       <h2>Integrations Dashboard</h2>
