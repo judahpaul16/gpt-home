@@ -36,8 +36,8 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
     const fetchStatuses = async () => {
       const response = await axios.post('/get-service-statuses');
       const statuses = response.data.statuses;
-      for (const name of Object.keys(statuses)) {
-        setStatus(name, statuses[name as keyof typeof statuses]);
+      for (const name of Object.keys(integrations)) {
+        setStatus(name, statuses[name]);
       }
     };
     
