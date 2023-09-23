@@ -313,7 +313,7 @@ async def google_calendar_action(text: str):
     if access_token:
         try:
             async with aiohttp.ClientSession() as session:
-                if re.search(r'(schedule|set).*meeting', text, re.IGNORECASE):
+                if re.search(r'(schedule|set).*(meeting|event)', text, re.IGNORECASE):
                     # Parse the meeting details from `text` or through some dialog
                     meeting_details = {...}  # Add meeting details here
                     await session.post("https://www.googleapis.com/calendar/v3/calendars/primary/events", json=meeting_details, headers=headers)
