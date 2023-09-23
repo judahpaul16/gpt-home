@@ -30,9 +30,13 @@ def read_favicon():
 def read_robot():
     return FileResponse(ROOT_DIRECTORY / "build" / "robot.gif")
 
+## React App ##
+
 @app.get("/{path:path}")
 def read_root(path: str):
     return FileResponse(ROOT_DIRECTORY / "build" / "index.html")
+
+## Event Log ##
 
 @app.post("/logs")
 def logs(request: Request):
@@ -70,6 +74,8 @@ def clear_logs(request: Request):
         return Response(status_code=status.HTTP_200_OK, content="Logs cleared")
     else:
         return Response(status_code=status.HTTP_404_NOT_FOUND, content="Log file not found")
+
+## Settings ##
 
 @app.post("/settings")
 async def settings(request: Request):
@@ -138,6 +144,8 @@ async def update_model(request: Request):
             return HTTPException(status_code=400, detail=f"Model {model_id} not supported")
     except Exception as e:
         return HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+
+## Password ##
 
 @app.on_event("startup")
 async def startup_event():
@@ -217,6 +225,8 @@ async def change_password(request: Request):
             return HTTPException(status_code=404, detail="Hashed password not found")
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
+
+## Integrations ##
 
 # Utility function to read environment config from .env file
 def read_env_config():

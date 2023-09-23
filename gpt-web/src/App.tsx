@@ -40,6 +40,7 @@ const App: React.FC = () => {
     setUnlocked(true);
   };
 
+  // Set status of integration
   const setStatus = (name: string, status: boolean) => {
     setIntegrations(prevIntegrations => ({
       ...prevIntegrations,
@@ -50,6 +51,7 @@ const App: React.FC = () => {
     }));
   };
   
+  // Toggle status of integration
   const toggleStatus = (name: string) => {
     if (name in integrations) {
       setIntegrations({
@@ -68,12 +70,14 @@ const App: React.FC = () => {
 
   const sidebarRef = useRef<HTMLDivElement>(null);
 
+  // Scroll to bottom of sidebar when it opens
   useEffect(() => {
     if (sidebarRef.current && sidebarVisible) {
       sidebarRef.current.scrollTop = sidebarRef.current.scrollHeight;
     }
   }, [sidebarVisible]);
 
+  // Close sidebar when window is resized to mobile size
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 768) {
