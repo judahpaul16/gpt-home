@@ -237,9 +237,9 @@ async def connect_service(request: Request):
                 set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN", value)
             elif name == "phillipshue":
                 if 'Bridge IP Address' in key:
-                    set_key(ENV_FILE_PATH, "HUE_BRIDGE_IP", value)
+                    set_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP", value)
                 elif 'Username' in key:
-                    set_key(ENV_FILE_PATH, "HUE_BRIDGE_USERNAME", value)
+                    set_key(ENV_FILE_PATH, "PHILIPS_HUE_USERNAME", value)
 
         subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
 
@@ -268,18 +268,18 @@ async def disconnect_service(request: Request):
         return JSONResponse(content={"success": True})
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
-
-@app.post("/is-service-connected")
-async def is_service_connected(request: Request):
+    
+@app.post("/get-service-statuses")
+async def get_service_statuses(request: Request):
     try:
-        incoming_data = await request.json()
-        fields = incoming_data["fields"]
         env_config = read_env_config()
-        
-        for field in fields:
-            if fields[field] not in env_config:
-                return JSONResponse(content={"status": False})
 
-        return JSONResponse(content={"status": True})
+        service_statuses = {
+            "Spotify": "SPOTIFY_ACCESS_TOKEN" in env_config,
+            "GoogleCalendar": "GOOGLE_CALENDAR_ACCESS_TOKEN" in env_config,
+            "PhilipsHue": "HUE_BRIDGE_IP" in env_config and "HUE_BRIDGE_USERNAME" in env_config
+        }
+
+        return JSONResponse(content={"status": True, "service_statuses": service_statuses})
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
