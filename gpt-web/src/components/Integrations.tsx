@@ -30,7 +30,7 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
   const requiredFields: { [key: string]: string[] } = useMemo(() => ({
     Spotify: ['API Key'],
     GoogleCalendar: ['API Key'],
-    PhilipsHue: ['Bridge IP Address', 'Username'],
+    PhilipsHue: ['Bridge IP Address'],
   }), []);
 
   const fetchStatuses = async () => {

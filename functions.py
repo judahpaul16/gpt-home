@@ -248,7 +248,7 @@ async def display_state(state, display, stop_event):
                 display.show()
                 await asyncio.sleep(0.5)
 
-async def speak(text, stop_event):
+async def speak(text, stop_event=asyncio.Event()):
     async with speak_lock:
         loop = asyncio.get_running_loop()
         def _speak():
@@ -333,7 +333,7 @@ async def philips_hue_action(text: str):
         except Exception as e:
             logger.error(f"Error: {traceback.format_exc()}")
             return f"Something went wrong: {e}"
-    raise Exception("No bridge IP or username found. Please enter your bridge IP and username for Phillips Hue in the web interface.")
+    raise Exception("No philips hue bridge IP found. Please enter your bridge IP for Phillips Hue in the web interface.")
 
 async def query_openai(text, display, retries=3):
     stop_event = asyncio.Event()

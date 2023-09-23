@@ -3,11 +3,14 @@ from fastapi import FastAPI, Request, Response, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.exceptions import HTTPException
+from functions import logger, speak
 from typing import Optional
 from pathlib import Path
+from phue import Bridge
 import subprocess
 import traceback
 import requests
+import asyncio
 import hashlib
 import openai
 import json
@@ -52,9 +55,9 @@ def logs(request: Request):
         return Response(status_code=status.HTTP_404_NOT_FOUND, content="Log file not found")
     
 @app.post("/last-logs")
-def last_logs(request: Request):
+async def last_logs(request: Request):
     log_file_path = PARENT_DIRECTORY / "events.log"
-    incoming_data = request.json()
+    incoming_data = await request.json()
     lastLineNumber = incoming_data["lastLineNumber"]
 
     if log_file_path.exists() and log_file_path.is_file():
@@ -251,10 +254,8 @@ async def connect_service(request: Request):
             elif name == "googlecalendar":
                 set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN", value)
             elif name == "philipshue":
-                if key == "Bridge IP Address":
-                    set_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP", value)
-                elif key == "Username":
-                    set_key(ENV_FILE_PATH, "PHILIPS_HUE_USERNAME", value)
+                set_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP", value)
+                await set_philips_hue_username()
 
         subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
 
@@ -296,7 +297,7 @@ async def get_service_statuses(request: Request):
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
-## Spotify Routes ##
+## Spotify ##
 
 async def search_song_get_uri(song_name: str):
     access_token = os.getenv('SPOTIFY_ACCESS_TOKEN')
@@ -345,3 +346,29 @@ async def spotify_control(request: Request):
 
     except Exception as e:
         return JSONResponse(content={"success": False, "message": str(e), "traceback": traceback.format_exc()})
+    
+
+## Google Calendar ##
+
+
+## Philips Hue ##
+
+async def set_philips_hue_username():
+    bridge_ip = os.getenv('PHILIPS_HUE_BRIDGE_IP')
+    if bridge_ip:
+        try:
+            b = Bridge(bridge_ip)
+            b.connect()
+            logger.info("Press the button on the Philips Hue bridge in the next 60 seconds.")
+            speak("Press the button on the Philips Hue bridge in the next 60 seconds.")
+            await asyncio.sleep(60) # 60 second window to press the button
+            b.get_api()
+            logger.success("Successfully connected to Philips Hue bridge.")
+            username = b.username
+            os.environ['PHILIPS_HUE_USERNAME'] = username
+            logger.success(f"Successfully set Philips Hue username to {username}.")
+        except Exception as e:
+            logger.error(f"Error: {traceback.format_exc()}")
+            raise Exception(f"Something went wrong: {e}")
+    else:
+        raise Exception("No bridge IP found. Please enter your bridge IP for Phillips Hue in the web interface.")
