@@ -108,6 +108,7 @@ const PasswordModal: React.FC<PasswordModalProps> = ({ unlockApp }) => {
         placeholder='Password'
         onChange={handleInput}
         onKeyDown={handleKeyDown}
+        autoFocus
       />
       {!hashedPassword && (
         <input
