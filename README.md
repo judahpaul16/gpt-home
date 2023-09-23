@@ -222,6 +222,7 @@ User=ubuntu
 WorkingDirectory=/home/ubuntu/gpt-home
 ExecStart=$EXEC_START
 $ENV
+$HOSTNAME
 Restart=always
 Type=simple
 $LMEMLOCK
@@ -229,9 +230,6 @@ $LMEMLOCK
 [Install]
 WantedBy=multi-user.target
 EOF
-    if [ -n "$HOSTNAME" ]; then
-        echo "Environment=\"HOSTNAME=$HOSTNAME\"" >>/etc/systemd/system/"$SERVICE_NAME"
-    fi
 
     # Reload systemd to recognize the new service, then enable and restart it
     sudo systemctl daemon-reload
