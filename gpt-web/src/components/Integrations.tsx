@@ -42,7 +42,7 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
     
     fetchStatuses();
     // eslint-disable-next-line
-  }, [integrations]);
+  }, []);
 
   const fetchStatus = async (name: string) => {
     const response = await axios.post('/get-service-status', { name });
