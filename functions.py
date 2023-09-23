@@ -262,6 +262,7 @@ async def get_device_id(device_name='ubuntu', headers=None):
         async with session.get("https://api.spotify.com/v1/me/player/devices", headers=headers) as r:
             devices_data = await r.text()
             devices_json = json.loads(devices_data)
+            logger.info(f"Devices: {devices_json}")
             for device in devices_json['devices']:
                 if device['name'] == device_name:
                     return device['id']
@@ -307,7 +308,7 @@ async def spotify_action(text: str):
     raise Exception("No access token found. Please enter your access token for Spotify in the web interface.")
 
 async def google_calendar_action(text: str):
-    access_token = os.getenv['GOOGLE_CALENDAR_ACCESS_TOKEN']
+    access_token = os.getenv('GOOGLE_CALENDAR_ACCESS_TOKEN')
     headers = {"Authorization": f"Bearer {access_token}"}
 
     if access_token:
@@ -334,8 +335,8 @@ async def google_calendar_action(text: str):
     raise Exception("No access token found. Please enter your access token for Google Calendar in the web interface.")
 
 async def philips_hue_action(text: str):
-    bridge_ip = os.getenv['PHILIPS_HUE_BRIDGE_IP']
-    username = os.getenv['PHILIPS_HUE_USERNAME']
+    bridge_ip = os.getenv('PHILIPS_HUE_BRIDGE_IP')
+    username = os.getenv('PHILIPS_HUE_USERNAME')
 
     if bridge_ip and username:
         try:
