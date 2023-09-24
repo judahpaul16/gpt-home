@@ -36,57 +36,9 @@ def read_favicon():
 def read_robot():
     return FileResponse(ROOT_DIRECTORY / "build" / "robot.gif")
 
-# Callback for Spotify
-@app.get("/callback")
-async def callback(request: Request):
-    try:
-        # Fetch the code from query parameters instead of JSON payload
-        code = request.query_params.get("code")
-        if not code:
-            raise Exception("Authorization code not found in query parameters")
-
-        load_dotenv(ENV_FILE_PATH)
-
-        # Get auth headers
-        client_id = os.getenv("SPOTIFY_CLIENT_ID")
-        client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
-        redirect_uri = os.getenv("SPOTIFY_REDIRECT_URI")
-
-        # Base64 encode the client ID and secret
-        base64_encoded = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
-
-        # Prepare the data and headers for the post request
-        auth_data = {
-            "redirect_uri": redirect_uri,
-            "code": code,
-            "grant_type": "authorization_code"
-        }
-        auth_headers = {'Authorization': f"Basic {base64_encoded}"}
-
-        # Asynchronously make the request
-        async with httpx.AsyncClient() as client:
-            response = await client.post("https://accounts.spotify.com/api/token", data=auth_data, headers=auth_headers)
-
-        if response.status_code == 200:
-            json_response = response.json()
-            access_token = json_response.get("access_token", None)
-            refresh_token = json_response.get("refresh_token", None)
-            if access_token and refresh_token:
-                set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", access_token)
-                set_key(ENV_FILE_PATH, "SPOTIFY_REFRESH_TOKEN", refresh_token)
-                print("Successfully connected to Spotify.")
-                subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
-                return JSONResponse(content={"success": True})
-            else:
-                raise Exception(f"Something went wrong: {response.text}")
-        else:
-            raise Exception(f"Something went wrong: {response.text}")
-
-    except Exception as e:
-        return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
-
 ## React App ##
-# Route all get requests to the react app except for the ones above
+
+# Route all get requests to the react app
 @app.get("/{path:path}")
 def read_root(path: str):
     return FileResponse(ROOT_DIRECTORY / "build" / "index.html")
@@ -384,6 +336,55 @@ async def get_service_statuses(request: Request):
 
 
 ## Spotify ##
+
+# Callback for Spotify
+@app.get("/api/callback")
+async def callback(request: Request):
+    try:
+        # Fetch the code from query parameters instead of JSON payload
+        code = request.query_params.get("code")
+        if not code:
+            raise Exception("Authorization code not found in query parameters")
+
+        load_dotenv(ENV_FILE_PATH)
+
+        # Get auth headers
+        client_id = os.getenv("SPOTIFY_CLIENT_ID")
+        client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+        redirect_uri = os.getenv("SPOTIFY_REDIRECT_URI")
+
+        # Base64 encode the client ID and secret
+        base64_encoded = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+
+        # Prepare the data and headers for the post request
+        auth_data = {
+            "redirect_uri": redirect_uri,
+            "code": code,
+            "grant_type": "authorization_code"
+        }
+        auth_headers = {'Authorization': f"Basic {base64_encoded}"}
+
+        # Asynchronously make the request
+        async with httpx.AsyncClient() as client:
+            response = await client.post("https://accounts.spotify.com/api/token", data=auth_data, headers=auth_headers)
+
+        if response.status_code == 200:
+            json_response = response.json()
+            access_token = json_response.get("access_token", None)
+            refresh_token = json_response.get("refresh_token", None)
+            if access_token and refresh_token:
+                set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", access_token)
+                set_key(ENV_FILE_PATH, "SPOTIFY_REFRESH_TOKEN", refresh_token)
+                print("Successfully connected to Spotify.")
+                subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
+                return JSONResponse(content={"success": True})
+            else:
+                raise Exception(f"Something went wrong: {response.text}")
+        else:
+            raise Exception(f"Something went wrong: {response.text}")
+
+    except Exception as e:
+        return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
 def search_song_get_uri(song_name: str):
     access_token = os.getenv('SPOTIFY_ACCESS_TOKEN')
