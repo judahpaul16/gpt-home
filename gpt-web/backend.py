@@ -267,7 +267,7 @@ async def connect_service(request: Request):
                     if key == "CLIENT ID": client_id = value
                     elif key == "CLIENT SECRET": client_secret = value
                     elif key == "REDIRECT URI": redirect_uri = value
-                accessToken = await get_refreshed_access_token(client_id, client_secret, redirect_uri)
+                accessToken = get_refreshed_access_token(client_id, client_secret, redirect_uri)
                 if accessToken: set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", accessToken)
             except Exception as e:
                 raise Exception("Failed to refresh Spotify access token.")
@@ -324,18 +324,21 @@ def get_refreshed_access_token(client_id: str, client_secret: str, redirect_uri:
             'clientSecret': client_secret,
             'redirectUri': redirect_uri
         })
-        if response.status_code == 200:
+        if response:
             data = response.json()
             return data.get("accessToken")
+        else:
+            logger.error(f"Error: {response.text}")
+            raise Exception(f"Something went wrong: {response.text}")
     except Exception as e:
         logger.error(f"Error: {traceback.format_exc()}")
         raise Exception(f"Something went wrong: {e}")
 
-async def search_song_get_uri(song_name: str):
+def search_song_get_uri(song_name: str):
     access_token = os.getenv('SPOTIFY_ACCESS_TOKEN')
     headers = {"Authorization": f"Bearer {access_token}"}
     params = {"q": song_name, "type": "track", "limit": 1}
-    response = await requests.get("https://api.spotify.com/v1/search", headers=headers, params=params)
+    response = requests.get("https://api.spotify.com/v1/search", headers=headers, params=params)
     
     if response.status_code == 200:
         json_response = response.json()
