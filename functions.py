@@ -382,7 +382,7 @@ async def action_router(text: str, display):
         return await spotify_action(text)
         
     # For Google Calendar actions
-    elif re.search(r'(schedule.*meeting|delete.*event)(\s.)*(\son)*', text, re.IGNORECASE):
+    elif re.search(r'(schedule\s|meeting|delete\s|create\s|event)', text, re.IGNORECASE):
         return await google_calendar_action(text)
 
     # For Philips Hue actions
