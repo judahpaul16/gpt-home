@@ -320,10 +320,12 @@ async def get_service_statuses(request: Request):
 
 async def get_refreshed_access_token(client_id: str, client_secret: str, redirect_uri: str):
     try:
-        response = requests.post(redirect_uri, data={
+        headers = {'Content-Type': 'application/json'}
+        response = requests.post(redirect_uri, json={
             'clientId': client_id,
             'clientSecret': client_secret
-        })
+        }, headers=headers)
+
         if response:
             data = await response.json()
             return data.get("accessToken")
