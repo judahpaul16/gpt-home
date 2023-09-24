@@ -4,7 +4,7 @@ import axios from 'axios';
 
 interface Log {
   content: string;
-  line_number?: number;
+  line_number: number;
   isNew: boolean;
   type: string;
 }
@@ -26,36 +26,26 @@ const EventLogs: React.FC = () => {
 
   useEffect(() => {
     const fetchAllLogs = async () => {
-      try {
-        const response = await axios.post('/logs');
-        const data = response.data;
-        
-        // Safely get log data and handle errors or unexpected data format
-        const allLogs = (data.log_data || '').split('\n').map((log: string) => {
-          const type = log.trim().split(":")[0].toLowerCase();
-          return {
-            content: log,
-            isNew: false,
-            type: type || 'unknown'
-          };
-        });
-        
-        setLogs(allLogs);
-        setCurrentLogLength(allLogs.length);
-        setLastLineNumber(allLogs.length);
-      } catch (error) {
-        console.error('Error fetching all logs:', error);
-      }
+      const response = await fetch('/logs', { method: 'POST' });
+      const data = await response.json();
+      const allLogs = data.log_data.split('\n').map((log: string) => ({
+        content: log,
+        isNew: false,
+        type: log.split(":")[0].toLowerCase(),
+      }));
+      setLogs(allLogs);
+      setCurrentLogLength(allLogs.length);
+      setLastLineNumber(allLogs.length);
     };
-
+  
     fetchAllLogs();
   }, []);
   
   useEffect(() => {
     const fetchLastLog = async () => {
       try {
-        const response = await axios.post('/last-logs', { lastLineNumber });
-        const data = response.data;
+        const response = await fetch(`/last-logs?last_line_number=${lastLineNumber}`, { method: 'POST' });
+        const data = await response.json();
         const newLogs = data.last_logs;
         const newLastLineNumber = data.new_last_line_number;
     
