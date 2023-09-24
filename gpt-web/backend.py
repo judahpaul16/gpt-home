@@ -317,7 +317,7 @@ async def get_service_statuses(request: Request):
 
 ## Spotify ##
 
-def get_refreshed_access_token(client_id: str, client_secret: str, redirect_uri: str):
+async def get_refreshed_access_token(client_id: str, client_secret: str, redirect_uri: str):
     try:
         response = requests.post(redirect_uri, data={
             'clientId': client_id,
@@ -325,7 +325,7 @@ def get_refreshed_access_token(client_id: str, client_secret: str, redirect_uri:
             'redirectUri': redirect_uri
         })
         if response:
-            data = response.json()
+            data = await response.json()
             return data.get("accessToken")
         else:
             logger.error(f"Error: {response.text}")
