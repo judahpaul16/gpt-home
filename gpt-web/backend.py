@@ -248,17 +248,25 @@ async def connect_service(request: Request):
 
         for key, value in fields.items():
             if name == "spotify":
-                set_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_ID", value)
-                set_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_SECRET", value)
-                set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", value)
-                accessToken = await get_refreshed_access_token()
-                if accessToken: set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", accessToken)
+                if key == "CLIENT ID":
+                    set_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_ID", value)
+                elif key == "CLIENT SECRET":
+                    set_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_SECRET", value)
+                elif key == "REDIRECT URI":
+                    set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", value)
                 else: raise Exception("Failed to refresh Spotify access token.")
             elif name == "googlecalendar":
                 set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN", value)
             elif name == "philipshue":
                 set_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP", value)
                 await set_philips_hue_username(value)
+
+        if name == "spotify":
+            try:
+                accessToken = await get_refreshed_access_token()
+                if accessToken: set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", accessToken)
+            except Exception as e:
+                raise Exception("Failed to refresh Spotify access token.")
 
         subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
 
@@ -305,9 +313,9 @@ async def get_service_statuses(request: Request):
 
 ## Spotify ##
 
-def get_refreshed_access_token():
+async def get_refreshed_access_token():
     try:
-        response = requests.get(os.getenv('SPOTIFY_REDIRECT_URI'), params={
+        response = await requests.get(os.getenv('SPOTIFY_REDIRECT_URI'), params={
             'clientId': os.getenv('SPOTIFY_CLIENT_ID'),
             'clientSecret': os.getenv('SPOTIFY_CLIENT_SECRET'),
             'redirectUri': os.getenv('SPOTIFY_REDIRECT_URI')
@@ -323,7 +331,7 @@ async def search_song_get_uri(song_name: str):
     access_token = os.getenv('SPOTIFY_ACCESS_TOKEN')
     headers = {"Authorization": f"Bearer {access_token}"}
     params = {"q": song_name, "type": "track", "limit": 1}
-    response = requests.get("https://api.spotify.com/v1/search", headers=headers, params=params)
+    response = await requests.get("https://api.spotify.com/v1/search", headers=headers, params=params)
     
     if response.status_code == 200:
         json_response = response.json()
