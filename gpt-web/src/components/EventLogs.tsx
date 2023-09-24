@@ -84,12 +84,18 @@ const EventLogs: React.FC = () => {
       }
     };
   
+    const newLogs = logs.filter(log => log.isNew);
+    if (!userHasScrolled && logContainerRef.current && newLogs.length > 0) {
+      scrollToBottom();
+    }
+
     const logRef = logContainerRef.current;
     logRef?.addEventListener('scroll', handleScroll);
   
     return () => {
       logRef?.removeEventListener('scroll', handleScroll);
     };
+    // eslint-disable-next-line
   }, []);  
 
   const toggleFilter = (type: string) => {
