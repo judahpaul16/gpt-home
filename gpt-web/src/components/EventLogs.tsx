@@ -50,11 +50,10 @@ const EventLogs: React.FC = () => {
         const newLastLineNumber = data.new_last_line_number;
     
         if (newLogs.length > 0) {
-          const formattedNewLogs = newLogs.map((log: any) => ({
-            content: log.line,
-            line_number: log.line_number,
+          const formattedNewLogs = newLogs.map((log: string) => ({
+            content: log,
             isNew: true,
-            type: log.line.split(":")[0].toLowerCase().trim(),
+            type: log.split(":")[0].toLowerCase(),
           }));
           setLogs(prevLogs => [...prevLogs, ...formattedNewLogs]);
           setLastLineNumber(newLastLineNumber);
