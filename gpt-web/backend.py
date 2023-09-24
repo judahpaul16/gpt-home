@@ -10,6 +10,7 @@ from phue import Bridge
 import subprocess
 import traceback
 import requests
+import aiohttp
 import asyncio
 import hashlib
 import openai
@@ -320,18 +321,21 @@ async def get_service_statuses(request: Request):
 
 async def get_refreshed_access_token(client_id: str, client_secret: str, redirect_uri: str):
     try:
-        headers = {'Content-Type': 'application/json'}
-        response = requests.post(redirect_uri, json={
-            'clientId': client_id,
-            'clientSecret': client_secret
-        }, headers=headers)
-
-        if response:
-            data = await response.json()
-            return data.get("accessToken")
-        else:
-            logger.error(f"Error: {response.text}")
-            raise Exception(f"Something went wrong: {response.text}")
+        async with aiohttp.ClientSession() as session:
+            headers = {'Content-Type': 'application/json'}
+            payload = json.dumps({
+                'clientId': client_id,
+                'clientSecret': client_secret
+            })
+            
+            async with session.post(redirect_uri, data=payload, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data.get("accessToken")
+                else:
+                    text = await response.text()
+                    logger.error(f"Error: {text}")
+                    raise Exception(f"Something went wrong: {text}")
     except Exception as e:
         logger.error(f"Error: {traceback.format_exc()}")
         raise Exception(f"Something went wrong: {e}")
