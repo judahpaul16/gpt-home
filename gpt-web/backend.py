@@ -1,19 +1,19 @@
 from dotenv import load_dotenv, set_key, unset_key, find_dotenv
-from fastapi import FastAPI, Request, Response, status
+from fastapi import FastAPI, Request, Response, status, redirect
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.exceptions import HTTPException
-from functions import logger, speak
+from functions import logger
 from typing import Optional
 from pathlib import Path
 from phue import Bridge
 import subprocess
 import traceback
 import requests
-import aiohttp
-import asyncio
 import hashlib
 import openai
+import base64
+import httpx
 import json
 import os
 import re
@@ -36,13 +36,9 @@ def read_favicon():
 def read_robot():
     return FileResponse(ROOT_DIRECTORY / "build" / "robot.gif")
 
-## React App ##
+## (NOTE: React route at the bottom of this file)
 
-@app.get("/{path:path}")
-def read_root(path: str):
-    return FileResponse(ROOT_DIRECTORY / "build" / "index.html")
-
-## Event Log ##
+## Event Logs ##
 
 @app.post("/logs")
 def logs(request: Request):
@@ -151,6 +147,7 @@ async def update_model(request: Request):
     except Exception as e:
         return HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
+
 ## Password ##
 
 @app.on_event("startup")
@@ -232,6 +229,7 @@ async def change_password(request: Request):
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
+
 ## Integrations ##
 
 # Utility function to read environment config from .env file
@@ -246,7 +244,7 @@ async def connect_service(request: Request):
         incoming_data = await request.json()
         name = incoming_data["name"].lower().strip()
         fields = incoming_data["fields"]
-        
+
         # Initialize variables for Spotify
         client_id = None
         client_secret = None
@@ -261,45 +259,39 @@ async def connect_service(request: Request):
                     set_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_SECRET", value)
                     client_secret = value
                 elif key == "REDIRECT URI":
-                    set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", value)
-                    redirect_uri = value
+                    # Setting REDIRECT URI explicitly to localhost
+                    set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", "http://localhost/callback")
+                    redirect_uri = "http://localhost/callback"
             elif name == "googlecalendar":
-                set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN", value)
+                if key == "ACCESS TOKEN":
+                    set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN", value)
             elif name == "philipshue":
-                set_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP", value)
-                await set_philips_hue_username(value)
+                if key == "BRIDGE IP":
+                    set_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP", value)
+                    await set_philips_hue_username(value)
 
         if name == "spotify" and client_id and client_secret and redirect_uri:
-            # Step 1: Initiate Spotify Authentication
-            response = requests.get(f"{redirect_uri.replace('/callback', '/initiate-auth')}", params={
-                'clientId': client_id,
-                'clientSecret': client_secret,
-                'redirectUri': redirect_uri
-            })
+            auth_params = {
+                "client_id": client_id,
+                "response_type": "code",
+                "redirect_uri": redirect_uri,
+                "scope": "user-library-read"
+            }
+            # Construct the authorization URL
+            auth_query = "&".join([f"{key}={value}" for key, value in auth_params.items()])
+            auth_url = f"https://accounts.spotify.com/authorize?{auth_query}"
 
-            if response.status_code == 200:
-                # Step 2: Poll for Token
-                await asyncio.sleep(5)
-                token_response = requests.get(f"{redirect_uri.replace('/callback', '/get-token')}")
-                
-                if token_response.status_code == 200:
-                    accessToken = token_response.json().get("accessToken")
-                    if accessToken:
-                        set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", accessToken)
-                    else:
-                        raise Exception("Failed to get Spotify access token.")
-                else:
-                    raise Exception("Failed to get Spotify access token.")
-            else:
-                raise Exception("Failed to initiate Spotify authentication.")
+            return RedirectResponse(url=auth_url)
 
-        # Restart service
+        # No further action specified for Google Calendar and Philips Hue as per original logic
+        # Restarting the service after setting up configurations for any of the services
         subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
 
         return JSONResponse(content={"success": True})
+
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
-    
+
 @app.post("/disconnect-service")
 async def disconnect_service(request: Request):
     try:
@@ -337,7 +329,57 @@ async def get_service_statuses(request: Request):
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
+
 ## Spotify ##
+
+# Callback for Spotify
+@app.get("/callback")
+async def callback(request: Request):
+    try:
+        # Fetch the code from query parameters instead of JSON payload
+        code = request.query_params.get("code")
+        if not code:
+            raise Exception("Authorization code not found in query parameters")
+
+        load_dotenv(ENV_FILE_PATH)
+
+        # Get auth headers
+        client_id = os.getenv("SPOTIFY_CLIENT_ID")
+        client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+        redirect_uri = os.getenv("SPOTIFY_REDIRECT_URI")
+
+        # Base64 encode the client ID and secret
+        base64_encoded = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+
+        # Prepare the data and headers for the post request
+        auth_data = {
+            "redirect_uri": redirect_uri,
+            "code": code,
+            "grant_type": "authorization_code"
+        }
+        auth_headers = {'Authorization': f"Basic {base64_encoded}"}
+
+        # Asynchronously make the request
+        async with httpx.AsyncClient() as client:
+            response = await client.post("https://accounts.spotify.com/api/token", data=auth_data, headers=auth_headers)
+
+        if response.status_code == 200:
+            json_response = response.json()
+            access_token = json_response.get("access_token", None)
+            refresh_token = json_response.get("refresh_token", None)
+            if access_token and refresh_token:
+                set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", access_token)
+                set_key(ENV_FILE_PATH, "SPOTIFY_REFRESH_TOKEN", refresh_token)
+                print("Successfully connected to Spotify.")
+                subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
+                return JSONResponse(content={"success": True})
+            else:
+                raise Exception(f"Something went wrong: {response.text}")
+        else:
+            raise Exception(f"Something went wrong: {response.text}")
+
+    except Exception as e:
+        return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
 def search_song_get_uri(song_name: str):
     access_token = os.getenv('SPOTIFY_ACCESS_TOKEN')
@@ -392,6 +434,8 @@ async def spotify_control(request: Request):
 
 ## Google Calendar ##
 
+# ...
+
 
 ## Philips Hue ##
 
@@ -407,3 +451,11 @@ async def set_philips_hue_username(bridge_ip: str):
     except Exception as e:
         logger.error(f"Error: {traceback.format_exc()}")
         raise Exception(f"Something went wrong: {e}")
+
+
+## React App ##
+
+# pass all get requests to the react app except for the ones above
+@app.get("/{path:path}")
+def read_root(path: str):
+    return FileResponse(ROOT_DIRECTORY / "build" / "index.html")

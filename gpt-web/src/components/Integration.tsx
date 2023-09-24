@@ -152,9 +152,8 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
             {name === 'PhilipsHue' && <div style={{ color: 'red' }}>NOTE: Press the button on the bridge before submitting.</div> }
             {name === 'Spotify' &&
               <div style={{ color: 'red' }}>
-                NOTE: You may provide your own redirect URI or use mine but be sure to also set it in your Spotify application settings:<br />
-                <span style={{color: 'green'}}>https://gpt-home.judahpaul.com/callback</span> <br />
-                See <a target='_blank' rel='noopener noreferrer' href="https://github.com/judahpaul16/gpt-home-spotify-callback">here</a> for how to implement your own callback server.
+                NOTE: The REDIRECT URI is set by default but be sure to also set it in your Spotify application settings:<br />
+                REDIRECT URI: <span style={{ color: 'green' }}>http://localhost/callback</span>
               </div>
             }
             {requiredFields[name].map((field) => (
