@@ -290,10 +290,19 @@ async def google_calendar_action(text: str):
                     # await session.delete(f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{meeting_details['id']}", headers=headers)
                     # return "Deleted an event."
                     return "This feature is not yet implemented."
-                elif re.search(r'what(s)?\s.*on\smy\s(calendar|schedule)', text, re.IGNORECASE):
+                elif re.search(r'what(s)?\s.*(in|on)?\smy\s(calendar|schedule)', text, re.IGNORECASE):
                     date = datetime.datetime.now().strftime("%Y-%m-%d")
-                    await session.get(f"https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin={date}T00:00:00-00:00&timeMax={date}T23:59:59-00:00", headers=headers)
-                    return "Retrieved events."
+                    try:
+                        response = await session.get(f"https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin={date}T00:00:00-00:00&timeMax={date}T23:59:59-00:00", headers=headers)
+                        data = await response.json()
+                        if data.get("items"):
+                            events = [event["summary"] for event in data["items"]]
+                            return f"Today you have {len(events)} events: {', '.join(events)}"
+                        else:
+                            return "You have no events today."
+                    except Exception as e:
+                        logger.error(f"Error: {traceback.format_exc()}")
+                        return f"Something went wrong: {e}"
         except Exception as e:
             logger.error(f"Error: {traceback.format_exc()}")
             return f"Something went wrong: {e}"
