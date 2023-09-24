@@ -263,7 +263,11 @@ async def connect_service(request: Request):
 
         if name == "spotify":
             try:
-                accessToken = await get_refreshed_access_token()
+                for key, value in fields.items():
+                    if key == "CLIENT ID": client_id = value
+                    elif key == "CLIENT SECRET": client_secret = value
+                    elif key == "REDIRECT URI": redirect_uri = value
+                accessToken = await get_refreshed_access_token(client_id, client_secret, redirect_uri)
                 if accessToken: set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", accessToken)
             except Exception as e:
                 raise Exception("Failed to refresh Spotify access token.")
@@ -313,12 +317,12 @@ async def get_service_statuses(request: Request):
 
 ## Spotify ##
 
-async def get_refreshed_access_token():
+async def get_refreshed_access_token(client_id: str, client_secret: str, redirect_uri: str):
     try:
-        response = await requests.get(os.getenv('SPOTIFY_REDIRECT_URI'), params={
-            'clientId': os.getenv('SPOTIFY_CLIENT_ID'),
-            'clientSecret': os.getenv('SPOTIFY_CLIENT_SECRET'),
-            'redirectUri': os.getenv('SPOTIFY_REDIRECT_URI')
+        response = await requests.get(redirect_uri, params={
+            'clientId': client_id,
+            'clientSecret': client_secret,
+            'redirectUri': redirect_uri
         })
         if response.status_code == 200:
             data = response.json()
