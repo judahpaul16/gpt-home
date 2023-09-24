@@ -323,8 +323,8 @@ async def get_refreshed_access_token(client_id: str, client_secret: str, redirec
     try:
         async with aiohttp.ClientSession() as session:
             params = {
-                'clientId': client_id,
-                'clientSecret': client_secret
+                'clientId': f'"{client_id}"',
+                'clientSecret': f'"{client_secret}"'
             }
             
             async with session.get(redirect_uri, params=params) as response:
