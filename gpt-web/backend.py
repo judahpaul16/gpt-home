@@ -321,8 +321,7 @@ async def get_refreshed_access_token(client_id: str, client_secret: str, redirec
     try:
         response = requests.post(redirect_uri, data={
             'clientId': client_id,
-            'clientSecret': client_secret,
-            'redirectUri': redirect_uri
+            'clientSecret': client_secret
         })
         if response:
             data = await response.json()
