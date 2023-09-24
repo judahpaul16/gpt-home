@@ -265,8 +265,8 @@ async def connect_service(request: Request):
                     client_secret = value
                 elif key == "REDIRECT URI":
                     # Setting REDIRECT URI explicitly to localhost
-                    set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", "http://localhost/callback")
-                    redirect_uri = "http://localhost/callback"
+                    set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", "http://localhost/api/callback")
+                    redirect_uri = "http://localhost/api/callback"
             elif name == "googlecalendar":
                 if key == "ACCESS TOKEN":
                     set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN", value)
