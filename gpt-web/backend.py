@@ -250,7 +250,7 @@ async def connect_service(request: Request):
             if name == "spotify":
                 set_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_ID", value)
                 set_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_SECRET", value)
-                set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", "https://gpt-home.judahpaul.com/callback")
+                set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", value)
                 accessToken = await get_refreshed_access_token()
                 if accessToken: set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", accessToken)
                 else: raise Exception("Failed to refresh Spotify access token.")
