@@ -358,7 +358,7 @@ async def set_philips_hue_username(bridge_ip: str):
         b.get_api()
         logger.success("Successfully connected to Philips Hue bridge.")
         username = b.username
-        os.environ['PHILIPS_HUE_USERNAME'] = username
+        set_key(ENV_FILE_PATH, "PHILIPS_HUE_USERNAME", username)
         logger.success(f"Successfully set Philips Hue username to {username}.")
     except Exception as e:
         logger.error(f"Error: {traceback.format_exc()}")
