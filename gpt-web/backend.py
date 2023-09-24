@@ -248,7 +248,12 @@ async def connect_service(request: Request):
 
         for key, value in fields.items():
             if name == "spotify":
-                set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", value)
+                set_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_ID", value)
+                set_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_SECRET", value)
+                set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", "https://gpt-home.judahpaul.com/callback")
+                accessToken = await get_refreshed_access_token()
+                if accessToken: set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", accessToken)
+                else: raise Exception("Failed to refresh Spotify access token.")
             elif name == "googlecalendar":
                 set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN", value)
             elif name == "philipshue":
@@ -268,6 +273,9 @@ async def disconnect_service(request: Request):
         name = incoming_data["name"].lower().strip()
 
         if name == "spotify":
+            unset_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_ID")
+            unset_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_SECRET")
+            unset_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI")
             unset_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN")
         elif name == "googlecalendar":
             unset_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN")
@@ -297,6 +305,20 @@ async def get_service_statuses(request: Request):
 
 ## Spotify ##
 
+def get_refreshed_access_token():
+    try:
+        response = requests.get(os.getenv('SPOTIFY_REDIRECT_URI'), params={
+            'clientId': os.getenv('SPOTIFY_CLIENT_ID'),
+            'clientSecret': os.getenv('SPOTIFY_CLIENT_SECRET'),
+            'redirectUri': os.getenv('SPOTIFY_REDIRECT_URI')
+        })
+        if response.status_code == 200:
+            data = response.json()
+            return data.get("accessToken")
+    except Exception as e:
+        logger.error(f"Error: {traceback.format_exc()}")
+        raise Exception(f"Something went wrong: {e}")
+
 async def search_song_get_uri(song_name: str):
     access_token = os.getenv('SPOTIFY_ACCESS_TOKEN')
     headers = {"Authorization": f"Bearer {access_token}"}
@@ -308,8 +330,10 @@ async def search_song_get_uri(song_name: str):
         tracks = json_response.get("tracks", {}).get("items", [])
         if tracks:
             return tracks[0].get("uri", None)
-    return None
-
+    else:
+        logger.error(f"Error: {response.text}")
+        raise Exception(f"Something went wrong: {response.text}")
+    
 @app.post("/spotify-control")
 async def spotify_control(request: Request):
     try:
@@ -344,7 +368,7 @@ async def spotify_control(request: Request):
 
     except Exception as e:
         return JSONResponse(content={"success": False, "message": str(e), "traceback": traceback.format_exc()})
-    
+
 
 ## Google Calendar ##
 
