@@ -246,40 +246,60 @@ async def connect_service(request: Request):
         incoming_data = await request.json()
         name = incoming_data["name"].lower().strip()
         fields = incoming_data["fields"]
+        
+        # Initialize variables for Spotify
+        client_id = None
+        client_secret = None
+        redirect_uri = None
 
         for key, value in fields.items():
             if name == "spotify":
                 if key == "CLIENT ID":
                     set_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_ID", value)
+                    client_id = value
                 elif key == "CLIENT SECRET":
                     set_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_SECRET", value)
+                    client_secret = value
                 elif key == "REDIRECT URI":
                     set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", value)
-                else: raise Exception("Failed to refresh Spotify access token.")
+                    redirect_uri = value
             elif name == "googlecalendar":
                 set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN", value)
             elif name == "philipshue":
                 set_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP", value)
                 await set_philips_hue_username(value)
 
-        if name == "spotify":
-            try:
-                for key, value in fields.items():
-                    if key == "CLIENT ID": client_id = value
-                    elif key == "CLIENT SECRET": client_secret = value
-                    elif key == "REDIRECT URI": redirect_uri = value
-                accessToken = await asyncio.wait_for(get_refreshed_access_token(client_id, client_secret, redirect_uri), timeout=30)
-                if accessToken and isinstance(accessToken, str): set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", accessToken)
-                else: raise Exception("Failed to refresh Spotify access token.")
-            except Exception as e:
-                raise Exception("Failed to refresh Spotify access token.")
+        if name == "spotify" and client_id and client_secret and redirect_uri:
+            # Step 1: Initiate Spotify Authentication
+            response = requests.get(f"{redirect_uri.replace('/callback', '/initiate-auth')}", params={
+                'clientId': client_id,
+                'clientSecret': client_secret,
+                'redirectUri': redirect_uri
+            })
 
+            if response.status_code == 200:
+                # Step 2: Poll for Token
+                await asyncio.sleep(5)
+                token_response = requests.get(f"{redirect_uri.replace('/callback', '/get-token')}")
+                
+                if token_response.status_code == 200:
+                    accessToken = token_response.json().get("accessToken")
+                    if accessToken:
+                        set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", accessToken)
+                    else:
+                        raise Exception("Failed to get Spotify access token.")
+                else:
+                    raise Exception("Failed to get Spotify access token.")
+            else:
+                raise Exception("Failed to initiate Spotify authentication.")
+
+        # Restart service
         subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
 
         return JSONResponse(content={"success": True})
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
-
+    
 @app.post("/disconnect-service")
 async def disconnect_service(request: Request):
     try:
@@ -318,26 +338,6 @@ async def get_service_statuses(request: Request):
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
 ## Spotify ##
-
-async def get_refreshed_access_token(client_id: str, client_secret: str, redirect_uri: str):
-    try:
-        async with aiohttp.ClientSession() as session:
-            params = {
-                'clientId': f'"{client_id}"',
-                'clientSecret': f'"{client_secret}"'
-            }
-            
-            async with session.get(redirect_uri, params=params) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data.get("accessToken")
-                else:
-                    text = await response.text()
-                    logger.error(f"Error: {text}")
-                    raise Exception(f"Something went wrong: {text}")
-    except Exception as e:
-        logger.error(f"Error: {traceback.format_exc()}")
-        raise Exception(f"Something went wrong: {e}")
 
 def search_song_get_uri(song_name: str):
     access_token = os.getenv('SPOTIFY_ACCESS_TOKEN')
