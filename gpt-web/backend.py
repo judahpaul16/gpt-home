@@ -12,6 +12,7 @@ import traceback
 import requests
 import asyncio
 import hashlib
+import httpx
 import openai
 import json
 import os
@@ -267,7 +268,7 @@ async def connect_service(request: Request):
                     if key == "CLIENT ID": client_id = value
                     elif key == "CLIENT SECRET": client_secret = value
                     elif key == "REDIRECT URI": redirect_uri = value
-                accessToken = get_refreshed_access_token(client_id, client_secret, redirect_uri)
+                accessToken = await get_refreshed_access_token(client_id, client_secret, redirect_uri)
                 if accessToken: set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", accessToken)
             except Exception as e:
                 raise Exception("Failed to refresh Spotify access token.")
@@ -317,15 +318,16 @@ async def get_service_statuses(request: Request):
 
 ## Spotify ##
 
-def get_refreshed_access_token(client_id: str, client_secret: str, redirect_uri: str):
+async def get_refreshed_access_token(client_id: str, client_secret: str, redirect_uri: str):
     try:
-        response = requests.post(redirect_uri, data={
-            'clientId': client_id,
-            'clientSecret': client_secret,
-            'redirectUri': redirect_uri
-        })
+        async with httpx.AsyncClient() as client:
+            response = await client.post(redirect_uri, data={
+                'clientId': client_id,
+                'clientSecret': client_secret,
+                'redirectUri': redirect_uri
+            })
         if response:
-            data = response.json()
+            data = await response.json()
             return data.get("accessToken")
         else:
             logger.error(f"Error: {response.text}")
