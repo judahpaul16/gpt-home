@@ -268,7 +268,8 @@ async def connect_service(request: Request):
                     elif key == "CLIENT SECRET": client_secret = value
                     elif key == "REDIRECT URI": redirect_uri = value
                 accessToken = await asyncio.wait_for(get_refreshed_access_token(client_id, client_secret, redirect_uri), timeout=10)
-                if accessToken: set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", accessToken)
+                if accessToken and isinstance(accessToken, str): set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", accessToken)
+                else: raise Exception("Failed to refresh Spotify access token.")
             except Exception as e:
                 raise Exception("Failed to refresh Spotify access token.")
 
