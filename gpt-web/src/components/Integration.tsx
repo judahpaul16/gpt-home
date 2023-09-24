@@ -116,6 +116,19 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
     });
   };
 
+  const handlePaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
+    event.preventDefault();
+    const text = event.clipboardData.getData('text/plain').replace(/\s+/g, '');
+    const { name } = event.currentTarget;
+    setFormData({ ...formData, [name]: text });
+  };  
+
+  const disallowSpace = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === ' ') {
+      event.preventDefault();
+    }
+  };
+
   return (
     <div className="integration">
       {usage.map((phrase) => (
@@ -139,9 +152,8 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
             {name === 'PhilipsHue' && <div style={{ color: 'red' }}>NOTE: Press the button on the bridge before submitting.</div> }
             {name === 'Spotify' &&
               <div style={{ color: 'red' }}>
-                NOTE: You may provide your own redirect URI<br/>
-                or use mine but be sure to set it in your application settings:<br />
-                My Callback Server: <span style={{color: 'green'}}>https://gpt-home.judahpaul.com/callback</span> <br />
+                NOTE: You may provide your own redirect URI or use mine but be sure to also set it in your Spotify application settings:<br />
+                <span style={{color: 'green'}}>https://gpt-home.judahpaul.com/callback</span> <br />
                 See <a target='_blank' rel='noopener noreferrer' href="https://github.com/judahpaul16/gpt-home-spotify-callback">here</a> for how to implement your own callback server.
               </div>
             }
@@ -153,6 +165,8 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
                   placeholder={field}
                   value={formData[field as keyof typeof formData]}
                   onChange={handleInputChange}
+                  onKeyDown={disallowSpace}
+                  onPaste={handlePaste}
                 />
               </div>
             ))}
