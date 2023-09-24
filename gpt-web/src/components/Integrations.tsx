@@ -24,7 +24,7 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
   const usage: { [key: string]: string[] } = {
     Spotify: ['Play.....on Spotify', 'Play / Pause / Stop', 'Next Song / Go Back'],
     GoogleCalendar: ['Schedule an event', 'What\'s on my calendar?',],
-    PhilipsHue: ['Dim the lights to...', 'Turn on / off....lights', 'Set the lights to red'],
+    PhilipsHue: ['Dim the lights to...', 'Turn on / off....lights', 'Change the lights to red'],
   };
 
   const requiredFields: { [key: string]: string[] } = useMemo(() => ({

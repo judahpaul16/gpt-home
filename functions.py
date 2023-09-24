@@ -316,10 +316,10 @@ async def philips_hue_action(text: str):
                     return "Turning off all lights."
                 else:
                     return "Turning on all lights."
-            elif re.search(r'(change|set).*\slight(s)?(\sto)?.*', text, re.IGNORECASE):
+            elif re.search(r'(((change|set|make).*\slight(s)?(\sto)?.*)|(.*color.*))', text, re.IGNORECASE):
                 # Parse the light ID and color from `text` or through some dialog
                 light_id = text.split("light", 1)[1].split(" ", 1)[0].strip()
-                color = text.split("to", 1)[1].strip()
+                color = re.search(r'(red|green|blue|yellow|purple|orange|pink|white|black)', text, re.IGNORECASE).group(1)
                 b.set_light(light_id, 'on', True)
                 b.set_light(light_id, 'hue', color)
                 return "Changing light color."
