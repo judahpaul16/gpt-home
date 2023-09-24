@@ -323,7 +323,7 @@ async def philips_hue_action(text: str):
                 b.set_light(light_id, 'on', True)
                 b.set_light(light_id, 'hue', color)
                 return "Changing light color."
-            elif re.search(r'(dim|brighten).*\slight(s)?(\sto)?.*', text, re.IGNORECASE):
+            elif re.search(r'(dim|brighten).*(\slight(s)?)?(\sto)?.*', text, re.IGNORECASE):
                 # Parse the light ID and brightness from `text` or through some dialog
                 light_id = text.split("light", 1)[1].split(" ", 1)[0].strip()
                 brightness = text.split("to", 1)[1].strip()
