@@ -136,6 +136,9 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
                 ))}
               </h4>
             }
+            {name === 'PhilipsHue' &&
+              <div style={{ color: 'red' }}>NOTE: Press the button on the bridge before submitting.</div>
+            }
             {requiredFields[name].map((field) => (
               <div key={field}>
                 <input

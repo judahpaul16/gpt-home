@@ -357,9 +357,6 @@ async def set_philips_hue_username(bridge_ip: str):
     try:
         b = Bridge(bridge_ip)
         b.connect()
-        logger.info("Press the button on the Philips Hue bridge in the next 60 seconds.")
-        speak("Press the button on the Philips Hue bridge in the next 60 seconds.")
-        await asyncio.sleep(60) # 60 second window to press the button
         b.get_api()
         logger.success("Successfully connected to Philips Hue bridge.")
         username = b.username
