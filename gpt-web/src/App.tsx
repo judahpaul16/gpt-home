@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Route, Routes, Link, Navigate, useLocation } from 'react-router-dom';
 import './css/App.css';
 import PasswordModal from './components/PasswordModal';
@@ -19,41 +19,65 @@ import IntegrationIcon from '@mui/icons-material/IntegrationInstructions';
 import IconButton from '@mui/material/IconButton';
 import MenuIcon from '@mui/icons-material/Menu';
 
-interface IntegrationStatus {
-  [key: string]: boolean;
-}
-
 const App: React.FC = () => {
   const location = useLocation();
-  const [integrations, setIntegrations] = useState<IntegrationStatus>({
-    Spotify: false,
-    GoogleCalendar: false,
-    PhilipsHue: false,
-  });
+  const [integrations, setIntegrations] = useState<{
+    Spotify: { status: boolean; usage: string[] };
+    GoogleCalendar: { status: boolean; usage: string[] };
+    PhilipsHue: { status: boolean; usage: string[] };
+  }>({
+    Spotify: { status: false, usage: [] },
+    GoogleCalendar: { status: false, usage: [] },
+    PhilipsHue: { status: false, usage: [] },
+  });  
+  
   const [showOverlay, setShowOverlay] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(window.innerWidth >= 768);
   const [unlocked, setUnlocked] = useState(false);
+  const memoizedIntegrations = useMemo(() => integrations, [integrations]);
 
   const unlockApp = () => {
     setUnlocked(true);
   };
 
-  const toggleStatus = (name: string) => {
-    setIntegrations({ ...integrations, [name]: !integrations[name] });
+  // Set status of integration
+  const setStatus = (name: string, status: boolean) => {
+    setIntegrations(prevIntegrations => ({
+      ...prevIntegrations,
+      [name]: {
+        ...prevIntegrations[name as keyof typeof prevIntegrations],
+        status
+      }
+    }));
   };
-
+  
+  // Toggle status of integration
+  const toggleStatus = (name: string) => {
+    if (name in integrations) {
+      setIntegrations({
+        ...integrations,
+        [name]: {
+          ...integrations[name as keyof typeof integrations],
+          status: !integrations[name as keyof typeof integrations].status
+        }
+      });      
+    }
+  };
+  
   const toggleOverlay = (visible: boolean) => {
     setShowOverlay(visible);
   };
 
   const sidebarRef = useRef<HTMLDivElement>(null);
 
+  // Scroll to bottom of sidebar when it opens
   useEffect(() => {
     if (sidebarRef.current && sidebarVisible) {
       sidebarRef.current.scrollTop = sidebarRef.current.scrollHeight;
     }
   }, [sidebarVisible]);
 
+  // Close sidebar when window is resized to mobile size
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 768) {
@@ -140,6 +164,7 @@ const App: React.FC = () => {
                     </Link>
                   </List>
                   <div className="robot-gif-container">
+                    {/* Attribtution: Andrew Bell - https://giphy.com/adnerwbell */}
                     <img width={"150px"} src={`${process.env.PUBLIC_URL}/robot.gif`} alt="robot" />
                   </div>
                 </div>
@@ -147,7 +172,7 @@ const App: React.FC = () => {
             </Drawer>
             <Routes>
               <Route path="/event-logs" element={<EventLogs />} />
-              <Route path="/integrations" element={<Integrations toggleStatus={toggleStatus} toggleOverlay={toggleOverlay} />} />
+              <Route path="/integrations" element={<Integrations setStatus={setStatus} toggleStatus={toggleStatus} toggleOverlay={toggleOverlay} integrations={memoizedIntegrations} />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/about" element={<About />} />
               <Route index element={<Navigate to="/integrations" />} />

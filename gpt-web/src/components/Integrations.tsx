@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo } from 'react';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -6,28 +6,52 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Integration from './Integration';
 import '../css/Integrations.css';
-
-interface IndividualIntegration {
-  status: boolean;
-  usage: string[];
-}
-
-interface IntegrationStatus {
-  [key: string]: IndividualIntegration;
-}
+import axios from 'axios';
 
 interface IntegrationsProps {
-    toggleStatus: (name: string) => void;
-    toggleOverlay: (visible: boolean) => void;
+  setStatus: (name: string, status: boolean) => void;
+  toggleStatus: (name: string) => void;
+  toggleOverlay: (visible: boolean) => void;
+  integrations: {
+    [key: string]: { status: boolean; usage: string[] };
+    Spotify: { status: boolean; usage: string[] };
+    GoogleCalendar: { status: boolean; usage: string[] };
+    PhilipsHue: { status: boolean; usage: string[] };
+  };
 }
 
-const Integrations: React.FC<IntegrationsProps> = ({ toggleStatus, toggleOverlay }) => {
-  const [integrations] = React.useState<IntegrationStatus>({
-    Spotify: { status: false, usage: ["Play....on Spotify", "Next Song / Go Back", "Play / Pause / Stop"] },
-    GoogleCalendar: { status: false, usage: ["Schedule a meeting for...", "Delete event on..."] },
-    PhilipsHue: { status: false, usage: ["Turn on lights", "Turn off lights", "Dim the lights to..."] },
-  });
+const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, toggleOverlay, integrations }) => {
+  const usage: { [key: string]: string[] } = {
+    Spotify: ['Play.....on Spotify', 'Play / Pause / Stop', 'Next Song / Go Back'],
+    GoogleCalendar: ['Schedule an event', 'What\'s on my calendar?',],
+    PhilipsHue: ['Dim the lights to...', 'Turn on / off....lights', 'Change the lights to red'],
+  };
 
+  const requiredFields: { [key: string]: string[] } = useMemo(() => ({
+    Spotify: ['CLIENT ID', 'CLIENT SECRET', 'REDIRECT URI'],
+    GoogleCalendar: ['API KEY'],
+    PhilipsHue: ['BRIDGE IP ADDRESS'],
+  }), []);
+
+  const fetchStatuses = async () => {
+    try {
+      const response = await axios.post('/get-service-statuses');
+      const statuses = response.data.statuses;
+  
+      for (const name of Object.keys(integrations)) {
+        if (statuses.hasOwnProperty(name)) {
+          setStatus(name, statuses[name]);
+        }
+      }
+    } catch (error) {}
+  };
+  
+  // fetch statuses on mount
+  useEffect(() => {
+    fetchStatuses();
+    // eslint-disable-next-line
+  }, []);
+  
   return (
     <div className="dashboard integrations-dashboard">
       <h2>Integrations Dashboard</h2>
@@ -43,18 +67,19 @@ const Integrations: React.FC<IntegrationsProps> = ({ toggleStatus, toggleOverlay
           <TableBody>
             {Object.keys(integrations).map((name) => (
               <TableRow key={name}>
-                <TableCell>{name}</TableCell>
+              <TableCell>{name}</TableCell>
                 <TableCell>
-                  {integrations[name].status ? 'Connected' : 'Not Connected'}
+                  {integrations[name as keyof typeof integrations].status ? 'Connected' : 'Not Connected'}
                 </TableCell>
                 <TableCell>
-                  <Integration
-                    name={name}
-                    status={integrations[name].status}
-                    usage={integrations[name].usage}
-                    toggleStatus={toggleStatus}
-                    setShowOverlay={(visible) => toggleOverlay(visible)}
-                  />
+                <Integration
+                  name={name}
+                  status={integrations[name as keyof typeof integrations]?.status}
+                  usage={usage[name as keyof typeof usage]}
+                  requiredFields={requiredFields}
+                  toggleStatus={toggleStatus}
+                  setShowOverlay={(visible) => toggleOverlay(visible)}
+                />
                 </TableCell>
               </TableRow>
             ))}

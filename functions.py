@@ -1,14 +1,18 @@
 from concurrent.futures import ThreadPoolExecutor
 import speech_recognition as sr
 from asyncio import create_task
+from dotenv import load_dotenv
 from board import SCL, SDA
+from phue import Bridge
 import adafruit_ssd1306
 import subprocess
 import traceback
+import datetime
 import textwrap
 import logging
 import asyncio
 import pyttsx3
+import aiohttp
 import string
 import struct
 import openai
@@ -17,6 +21,11 @@ import json
 import time
 import os
 import re
+
+HOSTNAME = os.environ['HOSTNAME']
+
+# Load .env file
+load_dotenv(dotenv_path='gpt-web/.env')
 
 # Add a new 'SUCCESS' logging level
 logging.SUCCESS = 25  # Between INFO and WARNING
@@ -45,6 +54,9 @@ engine.setProperty('volume', 1.0)
 engine.setProperty('alsa_device', 'hw:Headphones,0')
 speak_lock = asyncio.Lock()
 display_lock = asyncio.Lock()
+
+def network_connected():
+    return os.system("ping -c 1 google.com") == 0
 
 # Manually draw a degree symbol °
 def degree_symbol(display, x, y, radius, color):
@@ -236,7 +248,7 @@ async def display_state(state, display, stop_event):
                 display.show()
                 await asyncio.sleep(0.5)
 
-async def speak(text, stop_event):
+async def speak(text, stop_event=asyncio.Event()):
     async with speak_lock:
         loop = asyncio.get_running_loop()
         def _speak():
@@ -245,14 +257,100 @@ async def speak(text, stop_event):
         await loop.run_in_executor(executor, _speak)
         stop_event.set()
 
+async def spotify_action(text: str):
+    ACCESS_TOKEN = os.getenv('SPOTIFY_ACCESS_TOKEN')
+    if ACCESS_TOKEN:
+        try:
+            async with aiohttp.ClientSession() as session:
+                response = await session.post("/spotify-control", json={"text": text})
+                if response.status == 200:
+                    return await response.text()
+                else:
+                    return f"Received a {response.status} status code."
+        except Exception as e:
+            # Assuming `logger` and `traceback` are imported and configured
+            logger.error(f"Error: {traceback.format_exc()}")
+            return f"Something went wrong: {e}"
+    raise Exception("No access token found. Please provide the necessary credentials in the web interface.")
+
+async def google_calendar_action(text: str):
+    access_token = os.getenv('GOOGLE_CALENDAR_ACCESS_TOKEN')
+    headers = {"Authorization": f"Bearer {access_token}"}
+    if access_token:
+        try:
+            async with aiohttp.ClientSession() as session:
+                if re.search(r'(schedule|set).*(meeting|event)', text, re.IGNORECASE):
+                    # meeting_details = query_user_for_meeting_details()
+                    # await session.post("https://www.googleapis.com/calendar/v3/calendars/primary/events", json=meeting_details, headers=headers)
+                    # return "Scheduled a meeting."
+                    return "This feature is not yet implemented."
+                elif re.search(r'(delete|remove|cancel).*event', text, re.IGNORECASE):
+                    # Parse the event ID from `text` or through some dialog
+                    # meeting_details = query_user_for_meeting_details()
+                    # await session.delete(f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{meeting_details['id']}", headers=headers)
+                    # return "Deleted an event."
+                    return "This feature is not yet implemented."
+                elif re.search(r'what(s)?\s.*(in|on)?\smy\s(calendar|schedule)', text, re.IGNORECASE):
+                    date = datetime.datetime.now().strftime("%Y-%m-%d")
+                    try:
+                        response = await session.get(f"https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin={date}T00:00:00-00:00&timeMax={date}T23:59:59-00:00", headers=headers)
+                        data = await response.json()
+                        if data.get("items"):
+                            events = [event["summary"] for event in data["items"]]
+                            return f"Today you have {len(events)} events: {', '.join(events)}"
+                        else:
+                            return "You have no events today."
+                    except Exception as e:
+                        logger.error(f"Error: {traceback.format_exc()}")
+                        return f"Something went wrong: {e}"
+        except Exception as e:
+            logger.error(f"Error: {traceback.format_exc()}")
+            return f"Something went wrong: {e}"
+    raise Exception("No access token found. Please enter your access token for Google Calendar in the web interface.")
+
+async def philips_hue_action(text: str):
+    bridge_ip = os.getenv('PHILIPS_HUE_BRIDGE_IP')
+    username = os.getenv('PHILIPS_HUE_USERNAME')
+    if bridge_ip and username:
+        try:
+            b = Bridge(bridge_ip, username)
+            b.connect()
+            # turn on or off all lights
+            if re.search(r'((turn|shut|cut|put)(\son|\soff).*\s)?light(s)?(\son|\soff)?', text, re.IGNORECASE):
+                if "on" in text:
+                    b.set_group(0, 'on', True)
+                    return "Turning on all lights."
+                elif "off" in text:
+                    b.set_group(0, 'on', False)
+                    return "Turning off all lights."
+                else:
+                    return "Turning on all lights."
+            elif re.search(r'(((change|set|make).*\slight(s)?(\sto)?.*)|(.*color.*))', text, re.IGNORECASE):
+                # Parse the light ID and color from `text` or through some dialog
+                light_id = text.split("light", 1)[1].split(" ", 1)[0].strip()
+                color = re.search(r'(red|green|blue|yellow|purple|orange|pink|white|black)', text, re.IGNORECASE).group(1)
+                b.set_light(light_id, 'on', True)
+                b.set_light(light_id, 'hue', color)
+                return "Changing light color."
+            elif re.search(r'(dim|brighten).*(\slight(s)?)?(\sto)?.*', text, re.IGNORECASE):
+                # Parse the light ID and brightness from `text` or through some dialog
+                light_id = text.split("light", 1)[1].split(" ", 1)[0].strip()
+                brightness = text.split("to", 1)[1].strip()
+                b.set_light(light_id, 'on', True)
+                b.set_light(light_id, 'bri', brightness)
+                return "Changing light brightness."
+        except Exception as e:
+            logger.error(f"Error: {traceback.format_exc()}")
+            return f"Something went wrong: {e}"
+    raise Exception("No philips hue bridge IP found. Please enter your bridge IP for Phillips Hue in the web interface or try reconnecting the service.")
+
 async def query_openai(text, display, retries=3):
     stop_event = asyncio.Event()
 
     # Load settings from settings.json
     settings = load_settings()
-
-    max_tokens = settings.get("max_tokens", 150)  # Default to 150 if not in settings
-    temperature = settings.get("temperature", 0.7)  # Default to 0.7 if not in settings
+    max_tokens = settings.get("max_tokens")
+    temperature = settings.get("temperature")
 
     for i in range(retries):
         try:
@@ -265,9 +363,7 @@ async def query_openai(text, display, retries=3):
                 max_tokens=max_tokens,
                 temperature=temperature
             )
-
             response_content = response['choices'][0]['message']['content'].strip()
-
             if response_content:  # Check if the response is not empty
                 message = f"Response: {response_content}"
                 return message
@@ -280,8 +376,22 @@ async def query_openai(text, display, retries=3):
                 handle_error(error_message, None, display)
         await asyncio.sleep(0.5)  # Wait before retrying
 
-def network_connected():
-    return os.system("ping -c 1 google.com") == 0
+async def action_router(text: str, display):
+    # For Spotify actions
+    if re.search(r'(play|resume|next song|go back|pause|stop)(\s.)*(\son\sSpotify)*', text, re.IGNORECASE):
+        return await spotify_action(text)
+        
+    # For Google Calendar actions
+    elif re.search(r'(schedule\s|meeting|delete\s|create\s|event)', text, re.IGNORECASE):
+        return await google_calendar_action(text)
+
+    # For Philips Hue actions
+    elif re.search(r'(turn)?(\son|\soff)?.*\slight(s)?(\son|\soff)?', text, re.IGNORECASE):
+        return await philips_hue_action(text)
+        
+    # If no pattern matches, query OpenAI
+    else:
+        return await query_openai(text, display)
 
 async def handle_error(message, state_task, display):
     if state_task: 

@@ -194,6 +194,8 @@ check_and_install "cmake" "sudo apt-get install -y cmake"
 check_and_install "openssl" "sudo apt-get install -y openssl"
 check_and_install "git" "sudo apt-get install -y git"
 check_and_install "nginx" "sudo apt-get install -y nginx"
+check_and_install "playerctl" "sudo apt-get install -y playerctl"
+check_and_install "raspotify" "curl -sL https://dtcooper.github.io/raspotify/install.sh | sh"
 
 # Function to setup a systemd service
 setup_service() {
@@ -202,7 +204,8 @@ setup_service() {
     local EXEC_START=$2
     local AFTER=$3
     local ENV=$4
-    local LMEMLOCK=$5
+    local HOSTNAME=$5
+    local LMEMLOCK=$6
 
     # Stop the service if it's already running
     sudo systemctl stop "$SERVICE_NAME" &>/dev/null
@@ -221,6 +224,7 @@ User=ubuntu
 WorkingDirectory=/home/ubuntu/gpt-home
 ExecStart=$EXEC_START
 $ENV
+$HOSTNAME
 Restart=always
 Type=simple
 $LMEMLOCK
@@ -297,10 +301,10 @@ npm run build
 
 ## Setup Services
 # Setup gpt-home service
-setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" "" "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" "LimitMEMLOCK=infinity"
+setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" "" "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" "Environment=\"HOSTNAME=$HOSTNAME\"" "LimitMEMLOCK=infinity"
 
 # Setup fastapi service for FastAPI backend
-setup_service "gpt-web.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && uvicorn gpt-web.backend:app --host 0.0.0.0 --port 8000'" "" "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" ""
+setup_service "gpt-web.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && uvicorn gpt-web.backend:app --host 0.0.0.0 --port 8000'" "" "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" "Environment=\"HOSTNAME=$HOSTNAME\"" ""
 
 # Mask systemd-networkd-wait-online.service to prevent boot delays
 sudo systemctl mask systemd-networkd-wait-online.service
@@ -389,28 +393,39 @@ alias web-error="tail -n 100 -f /var/log/nginx/error.log"
 <tr>
 <td>
 
+- [OpenAI API Docs](https://beta.openai.com/docs/introduction)
 - [Raspberry Pi Docs](https://www.raspberrypi.com/documentation)
 - [GPIO Pinout](https://www.raspberrypi.com/documentation/computers/images/GPIO-Pinout-Diagram-2.png)
-- [OpenAI API Docs](https://beta.openai.com/docs/introduction)
 - [Requests Docs](https://pypi.org/project/requests/)
-- [PortAudio Docs](http://www.portaudio.com/docs/v19-doxydocs/index.html)
 - [Python3 Docs](https://docs.python.org/3/)
 - [Node.js Docs](https://nodejs.org/en/docs/)
 - [npm Docs](https://docs.npmjs.com/)
-- [Fritzing Schematics](https://fritzing.org/)
+- [NGINX Docs](https://nginx.org/en/docs/)
+- [SpeechRecognition Docs](https://pypi.org/project/SpeechRecognition/)
 
 </td>
 <td>
 
 - [React Docs](https://reactjs.org/docs/getting-started.html)
 - [FastAPI Docs](https://fastapi.tiangolo.com/)
-- [NGINX Docs](https://nginx.org/en/docs/)
-- [JACK Audio Connection Kit Docs](https://jackaudio.org/api/index.html)
-- [SpeechRecognition Docs](https://pypi.org/project/SpeechRecognition/)
+- [PortAudio Docs](http://www.portaudio.com/docs/v19-doxydocs/index.html)
+- [Adafruit SSD1306 Docs](https://circuitpython.readthedocs.io/projects/ssd1306/en/latest/)
 - [pyttsx3 Docs](https://pypi.org/project/pyttsx3/)
 - [eSpeak Docs](http://espeak.sourceforge.net/commands.html)
 - [I2C Docs](https://i2c.readthedocs.io/en/latest/)
 - [ALSA Docs](https://www.alsa-project.org/wiki/Documentation)
+
+</td>
+<td>
+
+- [Spotify API Docs](https://developer.spotify.com/documentation/web-api/)
+- [Raspotify Docs](https://github.com/dtcooper/raspotify)
+- [Google Calendar API Docs](https://developers.google.com/calendar)
+- [Google Calendar Python API Docs](https://developers.google.com/calendar/quickstart/python)
+- [Phillips Hue API Docs](https://developers.meethue.com/develop/get-started-2/)
+- [Phillips Hue Python API Docs](https://github.com/studioimaginaire/phue)
+- [OpenWeatherMap API Docs](https://openweathermap.org/api)
+- [Fritzing Schematics](https://fritzing.org/)
 
 </td>
 </tr>

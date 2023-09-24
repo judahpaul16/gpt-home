@@ -195,7 +195,6 @@ a {
   padding: 1em;
   z-index: 9999;
   display: grid;
-  width: 20vw;
 }
 
 .password {

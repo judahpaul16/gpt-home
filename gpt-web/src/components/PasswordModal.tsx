@@ -93,11 +93,32 @@ const PasswordModal: React.FC<PasswordModalProps> = ({ unlockApp }) => {
       }
     }
   };
+  
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleUnlock();
+    }
+  };
 
   return (
     <div className="password-modal">
-      <input className="password" type="password" placeholder='Password' onChange={handleInput} />
-      {!hashedPassword && <input className='password2' type="password" placeholder="Confirm Password" onChange={handleConfirmInput} />}
+      <input
+        className="password"
+        type="password"
+        placeholder='Password'
+        onChange={handleInput}
+        onKeyDown={handleKeyDown}
+        autoFocus
+      />
+      {!hashedPassword && (
+        <input
+          className='password2'
+          type="password"
+          placeholder="Confirm Password"
+          onChange={handleConfirmInput}
+          onKeyDown={handleKeyDown}
+        />
+      )}
       <button className="password-button" onClick={handleUnlock}>
         {hashedPassword ? "Unlock" : "Set Password"}
       </button>
