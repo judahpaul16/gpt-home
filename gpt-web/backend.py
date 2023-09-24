@@ -322,13 +322,12 @@ async def get_service_statuses(request: Request):
 async def get_refreshed_access_token(client_id: str, client_secret: str, redirect_uri: str):
     try:
         async with aiohttp.ClientSession() as session:
-            headers = {'Content-Type': 'application/json'}
-            payload = json.dumps({
+            params = {
                 'clientId': client_id,
                 'clientSecret': client_secret
-            })
+            }
             
-            async with session.post(redirect_uri, data=payload, headers=headers) as response:
+            async with session.get(redirect_uri, params=params) as response:
                 if response.status == 200:
                     data = await response.json()
                     return data.get("accessToken")
