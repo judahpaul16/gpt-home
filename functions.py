@@ -316,7 +316,7 @@ async def philips_hue_action(text: str):
             b = Bridge(bridge_ip, username)
             b.connect()
             # turn on or off all lights
-            if re.search(r'(turn)?(\son|\soff)?.*\slight(s)?(\son|\soff)?', text, re.IGNORECASE):
+            if re.search(r'((turn|shut|cut|put)(\son|\soff).*\s)?light(s)?(\son|\soff)?', text, re.IGNORECASE):
                 if "on" in text:
                     b.set_group(0, 'on', True)
                     return "Turning on all lights."
