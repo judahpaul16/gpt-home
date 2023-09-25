@@ -132,7 +132,8 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
             {name === 'Spotify' &&
               <div style={{ color: 'red' }}>
                 NOTE: The REDIRECT URI is set by default but be sure to also set it in your Spotify application settings:<br />
-                REDIRECT URI: <span style={{ color: 'green' }}>http://localhost/api/callback</span>
+                REDIRECT URI: <span style={{ color: 'green', fontFamily: 'monospace' }}><br />
+                  http://&#123;your_raspbery_pi_ip&#125;/api/callback</span>
               </div>
             }
             {requiredFields[name].map((field) => (

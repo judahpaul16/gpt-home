@@ -276,8 +276,9 @@ async def connect_service(request: Request):
                     await set_philips_hue_username(value)
 
         if name == "spotify" and client_id and client_secret:
-            # Setting REDIRECT URI explicitly to localhost
-            redirect_uri = "http://localhost/api/callback"
+            # Setting REDIRECT URI explicitly to local ip
+            ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip()
+            redirect_uri = f"http://{ip}/api/callback"
             set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", redirect_uri)
             auth_params = {
                 "client_id": client_id,
