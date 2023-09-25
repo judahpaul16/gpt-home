@@ -36,13 +36,16 @@ def read_favicon():
 def read_robot():
     return FileResponse(ROOT_DIRECTORY / "build" / "robot.gif")
 
-## React App ##
+## React App + API Calls ##
 
-# Route all get requests to the react app
+# Catch-all route for React and other specific FastAPI routes
 @app.get("/{path:path}")
-def read_root(path: str):
-    return FileResponse(ROOT_DIRECTORY / "build" / "index.html")
-
+async def read_root(request: Request, path: str):
+    if path == 'api/callback':
+        return await handle_callback(request)
+    else:
+        return FileResponse(ROOT_DIRECTORY / "build" / "index.html")
+    
 ## Event Logs ##
 
 @app.post("/logs")
@@ -338,8 +341,7 @@ async def get_service_statuses(request: Request):
 ## Spotify ##
 
 # Callback for Spotify
-@app.get("/api/callback")
-async def callback(request: Request):
+async def handle_callback(request: Request):
     try:
         # Fetch the code from query parameters instead of JSON payload
         code = request.query_params.get("code")
