@@ -29,7 +29,7 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
 
   const requiredFields: { [key: string]: string[] } = useMemo(() => ({
     Spotify: ['CLIENT ID', 'CLIENT SECRET'],
-    GoogleCalendar: ['API KEY'],
+    GoogleCalendar: ['CLIENT ID', 'CLIENT SECRET'],
     PhilipsHue: ['BRIDGE IP ADDRESS'],
   }), []);
 

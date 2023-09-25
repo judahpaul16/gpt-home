@@ -1,4 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from dotenv.main import set_key
@@ -26,8 +30,6 @@ import json
 import time
 import os
 import re
-
-HOSTNAME = os.environ['HOSTNAME']
 
 # Load .env file
 load_dotenv(dotenv_path='gpt-web/.env')
@@ -59,6 +61,11 @@ engine.setProperty('volume', 1.0)
 engine.setProperty('alsa_device', 'hw:Headphones,0')
 speak_lock = asyncio.Lock()
 display_lock = asyncio.Lock()
+
+HOSTNAME = os.environ['HOSTNAME']
+
+# Google Calendar Scopes
+SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 
 def network_connected():
     return os.system("ping -c 1 google.com") == 0
@@ -314,75 +321,98 @@ async def spotify_action(text: str):
             raise Exception(f"Something went wrong: {e}")
     raise Exception("No access token found. Please provide the necessary credentials in the web interface.")
 
-async def google_calendar_action(text: str):
-    access_token = os.getenv('GOOGLE_CALENDAR_ACCESS_TOKEN')
-    headers = {"Authorization": f"Bearer {access_token}"}
-    if access_token:
-        try:
-            async with aiohttp.ClientSession() as session:
-                if re.search(r'(schedule|set).*(meeting|event)', text, re.IGNORECASE):
-                    # meeting_details = query_user_for_meeting_details()
-                    # await session.post("https://www.googleapis.com/calendar/v3/calendars/primary/events", json=meeting_details, headers=headers)
-                    # return "Scheduled a meeting."
-                    return "This feature is not yet implemented."
-                elif re.search(r'(delete|remove|cancel).*event', text, re.IGNORECASE):
-                    # Parse the event ID from `text` or through some dialog
-                    # meeting_details = query_user_for_meeting_details()
-                    # await session.delete(f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{meeting_details['id']}", headers=headers)
-                    # return "Deleted an event."
-                    return "This feature is not yet implemented."
-                elif re.search(r'what(s)?\s.*(in|on)?\smy\s(calendar|schedule)', text, re.IGNORECASE):
-                    date = datetime.datetime.now().strftime("%Y-%m-%d")
-                    try:
-                        response = await session.get(f"https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin={date}T00:00:00-00:00&timeMax={date}T23:59:59-00:00", headers=headers)
-                        data = await response.json()
-                        if data.get("items"):
-                            events = [event["summary"] for event in data["items"]]
-                            return f"Today you have {len(events)} events: {', '.join(events)}"
-                        else:
-                            return "You have no events today."
-                    except Exception as e:
-                        logger.error(f"Error: {traceback.format_exc()}")
-                        return f"Something went wrong: {e}"
-        except Exception as e:
-            logger.error(f"Error: {traceback.format_exc()}")
-            return f"Something went wrong: {e}"
-    raise Exception("No access token found. Please enter your access token for Google Calendar in the web interface.")
 
+async def google_calendar_action(text: str):
+    """
+    Execute various actions on Google Calendar based on the text received.
+
+    :param text: User input text.
+    :return: String indicating the result of the action.
+    """
+    
+    creds_data = {
+        'token': os.getenv('TOKEN'),
+        'refresh_token': os.getenv('REFRESH_TOKEN'),
+        'token_uri': 'https://oauth2.googleapis.com/token',
+        'client_id': os.getenv('CLIENT_ID'),
+        'client_secret': os.getenv('CLIENT_SECRET'),
+        'scopes': SCOPES
+    }
+    
+    creds = Credentials(**creds_data)
+
+    if not creds.valid:
+        if creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+    
+    service = build('calendar', 'v3', credentials=creds)
+
+    if re.search(r'(schedule|set).*(meeting|event)', text, re.IGNORECASE):
+        # event = service.events().insert(calendarId='primary', body=meeting_details).execute()
+        return "This feature is not yet implemented."
+    
+    elif re.search(r'(delete|remove|cancel).*event', text, re.IGNORECASE):
+        # service.events().delete(calendarId='primary', eventId=event_id).execute()
+        return "This feature is not yet implemented."
+
+    elif re.search(r'what(s)?\s.*(upcoming|next|future)?.*events?', text, re.IGNORECASE):
+        now = datetime.datetime.utcnow().isoformat() + 'Z'
+        events_result = service.events().list(calendarId='primary', timeMin=now,
+                                              maxResults=10, singleEvents=True,
+                                              orderBy='startTime').execute()
+        events = events_result.get('items', [])
+
+        if not events:
+            return "You have no upcoming events."
+        
+        event_details = [f"{event['start'].get('dateTime', event['start'].get('date'))}: {event['summary']}" for event in events]
+        return f"You have the following upcoming events: {', '.join(event_details)}"
+
+    else:
+        return "Invalid action."
+    
 async def philips_hue_action(text: str):
     bridge_ip = os.getenv('PHILIPS_HUE_BRIDGE_IP')
     username = os.getenv('PHILIPS_HUE_USERNAME')
+    
     if bridge_ip and username:
         try:
             b = Bridge(bridge_ip, username)
             b.connect()
-            # turn on or off all lights
-            if re.search(r'((turn|shut|cut|put)(\son|\soff).*\s)?light(s)?(\son|\soff)?', text, re.IGNORECASE):
-                if "on" in text:
+
+            # Turn on or off all lights
+            on_off_pattern = r'\b(turn|shut|cut|put)\s(on|off)\b'
+            match = re.search(on_off_pattern, text, re.IGNORECASE)
+            if match:
+                if "on" in match.group(2):
                     b.set_group(0, 'on', True)
                     return "Turning on all lights."
-                elif "off" in text:
+                else:
                     b.set_group(0, 'on', False)
                     return "Turning off all lights."
-                else:
-                    return "Turning on all lights."
-            elif re.search(r'(((change|set|make).*\slight(s)?(\sto)?.*)|(.*color.*))', text, re.IGNORECASE):
-                # Parse the light ID and color from `text` or through some dialog
-                light_id = text.split("light", 1)[1].split(" ", 1)[0].strip()
-                color = re.search(r'(red|green|blue|yellow|purple|orange|pink|white|black)', text, re.IGNORECASE).group(1)
-                b.set_light(light_id, 'on', True)
-                b.set_light(light_id, 'hue', color)
-                return "Changing light color."
-            elif re.search(r'(dim|brighten).*(\slight(s)?)?(\sto)?.*', text, re.IGNORECASE):
-                # Parse the light ID and brightness from `text` or through some dialog
-                light_id = text.split("light", 1)[1].split(" ", 1)[0].strip()
-                brightness = text.split("to", 1)[1].strip()
-                b.set_light(light_id, 'on', True)
-                b.set_light(light_id, 'bri', brightness)
-                return "Changing light brightness."
+
+            # Change light color
+            color_pattern = r'\b(change|set|make|color)\b.*?\blight\s(\d+)?\b.*?\b(red|green|blue|yellow|purple|orange|pink|white|black)\b'
+            match = re.search(color_pattern, text, re.IGNORECASE)
+            if match:
+                color = match.group(3)
+                b.set_group(0, 'on', True)
+                b.set_group(0, 'hue', color)
+                return f"Changing lights to {color}."
+
+            # Change light brightness
+            brightness_pattern = r'\b(dim|brighten)\b.*?\blight\s(\d+)\s.*?to\s(\d{1,3})\b'
+            match = re.search(brightness_pattern, text, re.IGNORECASE)
+            if match:
+                brightness = int(match.group(3))
+                b.set_group(0, 'on', True)
+                b.set_group(0, 'bri', brightness)
+                return f"Brightening lights to {brightness}."
+
         except Exception as e:
             logger.error(f"Error: {traceback.format_exc()}")
             return f"Something went wrong: {e}"
+
     raise Exception("No philips hue bridge IP found. Please enter your bridge IP for Phillips Hue in the web interface or try reconnecting the service.")
 
 async def query_openai(text, display, retries=3):
