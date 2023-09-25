@@ -289,15 +289,17 @@ async def connect_service(request: Request):
             auth_query = "&".join([f"{key}={value}" for key, value in auth_params.items()])
             auth_url = f"https://accounts.spotify.com/authorize?{auth_query}"
 
-            return RedirectResponse(url=auth_url)
+            return RedirectResponse(url=auth_url, status_code=303)
 
         # No further action specified for Google Calendar and Philips Hue as per original logic
         # Restarting the service after setting up configurations for any of the services
         subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
 
+        logger.success(f"Successfully connected to {name}.")
         return JSONResponse(content={"success": True})
 
     except Exception as e:
+        logger.error(f"Error: {traceback.format_exc()}")
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
 @app.post("/disconnect-service")
