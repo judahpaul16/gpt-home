@@ -1,7 +1,7 @@
-from dotenv import load_dotenv, set_key, unset_key, find_dotenv
+from dotenv import load_dotenv, set_key, unset_key
 from fastapi import FastAPI, Request, Response, status
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.exceptions import HTTPException
 from functions import logger
 from typing import Optional
@@ -289,7 +289,7 @@ async def connect_service(request: Request):
             auth_query = "&".join([f"{key}={value}" for key, value in auth_params.items()])
             auth_url = f"https://accounts.spotify.com/authorize?{auth_query}"
 
-            return RedirectResponse(url=auth_url, status_code=303)
+            return JSONResponse(content={"success": True, "redirect_url": auth_url})
 
         # No further action specified for Google Calendar and Philips Hue as per original logic
         # Restarting the service after setting up configurations for any of the services
