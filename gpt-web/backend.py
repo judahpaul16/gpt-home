@@ -1,5 +1,5 @@
 from dotenv import load_dotenv, set_key, unset_key, find_dotenv
-from fastapi import FastAPI, Request, Response, status, redirect
+from fastapi import FastAPI, Request, Response, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.exceptions import HTTPException
