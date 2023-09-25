@@ -262,7 +262,8 @@ async def spotify_action(text: str):
     if ACCESS_TOKEN:
         try:
             async with aiohttp.ClientSession() as session:
-                response = await session.post("/spotify-control", json={"text": text})
+                ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip()
+                response = await session.post(f"http://{ip}/spotify-control", json={"text": text})
                 if response.status == 200:
                     return await response.text()
                 else:
