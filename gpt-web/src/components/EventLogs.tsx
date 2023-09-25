@@ -71,7 +71,7 @@ const EventLogs: React.FC = () => {
       }
     };    
   
-    const intervalId = setInterval(fetchLastLog, 500);
+    const intervalId = setInterval(fetchLastLog, 1500);
     return () => clearInterval(intervalId);
   }, [logs, lastLineNumber, userHasScrolled]);
   
