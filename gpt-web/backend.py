@@ -47,6 +47,11 @@ async def read_root(request: Request, path: str):
     else:
         return FileResponse(ROOT_DIRECTORY / "build" / "index.html")
     
+@app.post("/get-local-ip")
+def get_local_ip():
+    ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip()
+    return JSONResponse(content={"ip": ip})
+
 ## Event Logs ##
 
 @app.post("/logs")
