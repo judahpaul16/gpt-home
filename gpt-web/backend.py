@@ -267,10 +267,6 @@ async def connect_service(request: Request):
                 elif key == "CLIENT SECRET":
                     set_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_SECRET", value)
                     client_secret = value
-                elif key == "REDIRECT URI":
-                    # Setting REDIRECT URI explicitly to localhost
-                    set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", "http://localhost/api/callback")
-                    redirect_uri = "http://localhost/api/callback"
             elif name == "googlecalendar":
                 if key == "ACCESS TOKEN":
                     set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN", value)
@@ -279,7 +275,10 @@ async def connect_service(request: Request):
                     set_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP", value)
                     await set_philips_hue_username(value)
 
-        if name == "spotify" and client_id and client_secret and redirect_uri:
+        if name == "spotify" and client_id and client_secret:
+            # Setting REDIRECT URI explicitly to localhost
+            redirect_uri = "http://localhost/api/callback"
+            set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", redirect_uri)
             auth_params = {
                 "client_id": client_id,
                 "response_type": "code",
