@@ -321,21 +321,13 @@ async def spotify_action(text: str):
             raise Exception(f"Something went wrong: {e}")
     raise Exception("No access token found. Please provide the necessary credentials in the web interface.")
 
-
-async def google_calendar_action(text: str):
-    """
-    Execute various actions on Google Calendar based on the text received.
-
-    :param text: User input text.
-    :return: String indicating the result of the action.
-    """
-    
+async def google_calendar_action(text: str):    
     creds_data = {
-        'token': os.getenv('TOKEN'),
-        'refresh_token': os.getenv('REFRESH_TOKEN'),
+        'token': os.getenv('GOOGLE_CALENDAR_TOKEN'),
+        'refresh_token': os.getenv('GOOGLE_CALENDAR_REFRESH_TOKEN'),
         'token_uri': 'https://oauth2.googleapis.com/token',
-        'client_id': os.getenv('CLIENT_ID'),
-        'client_secret': os.getenv('CLIENT_SECRET'),
+        'client_id': os.getenv('GOOGLE_CALENDAR_CLIENT_ID'),
+        'client_secret': os.getenv('GOOGLE_CALENDAR_CLIENT_SECRET'),
         'scopes': SCOPES
     }
     
