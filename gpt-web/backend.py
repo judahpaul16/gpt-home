@@ -257,6 +257,7 @@ async def connect_service(request: Request):
         client_id = None
         client_secret = None
         redirect_uri = None
+        auth_url = None
 
         for key, value in fields.items():
             if name == "spotify":
@@ -293,7 +294,10 @@ async def connect_service(request: Request):
         subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
 
         logger.success(f"Successfully connected to {name}.")
-        content = {"success": True} if name != "spotify" else {"success": True, "redirect_url": auth_url}
+        content = {"success": True}
+        if auth_url:  # Only include auth_url if it has been set
+            content["redirect_url"] = auth_url
+
         return JSONResponse(content=content)
 
     except Exception as e:
