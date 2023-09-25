@@ -271,7 +271,7 @@ async def connect_service(request: Request):
                 if key == "ACCESS TOKEN":
                     set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN", value)
             elif name == "philipshue":
-                if key == "BRIDGE IP":
+                if key == "BRIDGE IP ADDRESS":
                     set_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP", value)
                     await set_philips_hue_username(value)
 
