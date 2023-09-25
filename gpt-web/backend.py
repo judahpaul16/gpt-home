@@ -59,7 +59,7 @@ def logs(request: Request):
     else:
         return Response(status_code=status.HTTP_404_NOT_FOUND, content="Log file not found")
     
-@app.post("/last-logs")
+@app.post("/new-logs")
 def last_logs(request: Request, last_line_number: Optional[int] = 0):
     log_file_path = PARENT_DIRECTORY / "events.log"
 
