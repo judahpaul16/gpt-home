@@ -329,7 +329,7 @@ alias gpt-enable="sudo systemctl enable gpt-home"
 alias gpt-log="tail -n 100 -f /home/ubuntu/gpt-home/events.log"
 
 alias web-start="sudo systemctl start gpt-web"
-alias web-restart="sudo systemctl restart gpt-web"
+alias web-restart="sudo systemctl restart gpt-web && sudo systemctl restart nginx"
 alias web-stop="sudo systemctl stop gpt-web"
 alias web-disable="sudo systemctl disable gpt-web"
 alias web-status="sudo systemctl status gpt-web"

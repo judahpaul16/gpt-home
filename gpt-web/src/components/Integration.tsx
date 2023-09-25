@@ -28,6 +28,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
   };
 
   const connectService = async () => {
+    // Validate that all required fields have values
     for (const field of requiredFields[name]) {
       if (!formData[field as keyof typeof formData]) {
         setError(`Please enter a value for ${field}`);
@@ -35,31 +36,42 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
         return;
       }
     }
-
+  
+    // Prepare the payload with all the required fields
     let fields: { [key: string]: string } = {};
     for (const field of requiredFields[name]) {
       fields[field] = formData[field as keyof typeof formData];
     }
-
-    axios.post('/connect-service', { name, fields }).then((response) => {
-      if (response.data.success) {
-        toggleStatus(name);
+  
+    // Make the Axios POST request
+    axios.post('/connect-service', { name, fields })
+    .then((response) => {
+      if (response.data.redirect_url) {
+        window.location.replace(response.data.redirect_url)
+      } else if (response.data.success) {
+          // If successfully connected, toggle the status and reset the form
+          if (!status) toggleStatus(name); // only toggle if not already connected
+          setShowOverlay(false);
+          setShowForm(false);
+          if (name !== "PhilipsHue") {
+            // Clear all fields except for PhilipsHue
+            setFormData({} as { [key: string]: string });
+          }
+        } else {
+          // Handle errors returned from the server
+          setError(`Error connecting to ${name}: ${response.data.error}`);
+          console.log(response.data.traceback);
+          setShowOverlay(false);
+        }
+      })
+      .catch((error) => {
+        // Handle network or server errors
+        setError(`Error connecting to ${name}: ${error}`);
+        console.log("Error: ", error);
+        console.log("Error Response: ", error.response);
         setShowOverlay(false);
-        setShowForm(false);
-        // clear all fields except for PhilipsHue
-        if (name !== "PhilipsHue") setFormData({} as { [key: string]: string });
-      } else {
-        setError(`Error connecting to ${name}: ${response.data.error}`);
-        console.log(response.data.traceback);
-        setShowOverlay(false);
-      }
-    }).catch((error) => {
-      setError(`Error connecting to ${name}: ${error}`);
-      console.log("Error: ", error);
-      console.log("Error Response: ", error.response);
-      setShowOverlay(false);
-    });
-  };
+      });
+  };  
 
   const disconnectService = async () => {
     if (window.confirm(`Are you sure you want to disconnect from ${name}?`))
@@ -81,39 +93,6 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
         console.log("Error Response: ", error.response);
         setShowOverlay(false);
       });
-  };
-
-  const editService = async () => {
-    for (const field of requiredFields[name]) {
-      if (!formData[field as keyof typeof formData]) {
-        setError(`Please enter a value for ${field}`);
-        setShowOverlay(false);
-        return;
-      }
-    }
-
-    let fields: { [key: string]: string } = {};
-    for (const field of requiredFields[name]) {
-      fields[field] = formData[field as keyof typeof formData];
-    }
-
-    axios.post('/connect-service', { name, fields }).then((response) => {
-      if (response.data.success) {
-        setShowOverlay(false);
-        setShowForm(false);
-        // clear all fields except for PhilipsHue
-        if (name !== "PhilipsHue") setFormData({} as { [key: string]: string });
-      } else {
-        setError(`Error connecting to ${name}: ${response.data.error}`);
-        console.log(response.data.traceback);
-        setShowOverlay(false);
-      }
-    }).catch((error) => {
-      setError(`Error editing ${name}: ${error}`);
-      console.log("Error: ", error);
-      console.log("Error Response: ", error.response);
-      setShowOverlay(false);
-    });
   };
 
   const handlePaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
@@ -149,12 +128,12 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
                 ))}
               </h4>
             }
-            {name === 'PhilipsHue' && <div style={{ color: 'red' }}>NOTE: Press the button on the bridge before submitting.</div> }
+            {name === 'PhilipsHue' && <div style={{ color: 'red' }}>NOTE: Press the button on the bridge before submitting if connecting for the first time.</div> }
             {name === 'Spotify' &&
               <div style={{ color: 'red' }}>
-                NOTE: You may provide your own redirect URI or use mine but be sure to also set it in your Spotify application settings:<br />
-                <span style={{color: 'green'}}>https://gpt-home.judahpaul.com/callback</span> <br />
-                See <a target='_blank' rel='noopener noreferrer' href="https://github.com/judahpaul16/gpt-home-spotify-callback">here</a> for how to implement your own callback server.
+                NOTE: The REDIRECT URI is set by default but be sure to also set it in your Spotify application settings:<br />
+                REDIRECT URI: <span style={{ color: 'green', fontFamily: 'monospace' }}><br />
+                  http://&#123;your_raspbery_pi_ip&#125;/api/callback</span>
               </div>
             }
             {requiredFields[name].map((field) => (
@@ -170,7 +149,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
                 />
               </div>
             ))}
-            <button onClick={status ? editService : connectService}>Submit</button>
+            <button onClick={connectService}>Submit</button>
             <button onClick={() => setShowForm(false)}>Cancel</button>
             {error && <div className="error-text">{error}</div>}
           </div>

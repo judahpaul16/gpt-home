@@ -1,18 +1,20 @@
-from dotenv import load_dotenv, set_key, unset_key, find_dotenv
+from dotenv import load_dotenv, set_key, unset_key
 from fastapi import FastAPI, Request, Response, status
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.exceptions import HTTPException
-from functions import logger, speak
+from datetime import datetime, timedelta
+from functions import logger, refresh_token
 from typing import Optional
 from pathlib import Path
 from phue import Bridge
 import subprocess
 import traceback
 import requests
-import asyncio
 import hashlib
 import openai
+import base64
+import httpx
 import json
 import os
 import re
@@ -35,13 +37,17 @@ def read_favicon():
 def read_robot():
     return FileResponse(ROOT_DIRECTORY / "build" / "robot.gif")
 
-## React App ##
+## React App + API Calls ##
 
+# Catch-all route for React and other specific FastAPI routes
 @app.get("/{path:path}")
-def read_root(path: str):
-    return FileResponse(ROOT_DIRECTORY / "build" / "index.html")
-
-## Event Log ##
+async def read_root(request: Request, path: str):
+    if path == 'api/callback':
+        return await handle_callback(request)
+    else:
+        return FileResponse(ROOT_DIRECTORY / "build" / "index.html")
+    
+## Event Logs ##
 
 @app.post("/logs")
 def logs(request: Request):
@@ -54,14 +60,14 @@ def logs(request: Request):
     else:
         return Response(status_code=status.HTTP_404_NOT_FOUND, content="Log file not found")
     
-@app.post("/last-logs")
+@app.post("/new-logs")
 def last_logs(request: Request, last_line_number: Optional[int] = 0):
     log_file_path = PARENT_DIRECTORY / "events.log"
 
     if log_file_path.exists() and log_file_path.is_file():
         with log_file_path.open("r") as f:
             lines = f.readlines()
-            if last_line_number < len(lines):
+            if len(lines) != last_line_number:
                 new_logs = lines[last_line_number:]
                 return JSONResponse(content={"last_logs": new_logs, "new_last_line_number": len(lines)})
             else:
@@ -150,6 +156,7 @@ async def update_model(request: Request):
     except Exception as e:
         return HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
+
 ## Password ##
 
 @app.on_event("startup")
@@ -231,6 +238,7 @@ async def change_password(request: Request):
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
+
 ## Integrations ##
 
 # Utility function to read environment config from .env file
@@ -246,36 +254,55 @@ async def connect_service(request: Request):
         name = incoming_data["name"].lower().strip()
         fields = incoming_data["fields"]
 
+        # Initialize variables for Spotify
+        client_id = None
+        client_secret = None
+        redirect_uri = None
+        auth_url = None
+
         for key, value in fields.items():
             if name == "spotify":
                 if key == "CLIENT ID":
                     set_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_ID", value)
+                    client_id = value
                 elif key == "CLIENT SECRET":
                     set_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_SECRET", value)
-                elif key == "REDIRECT URI":
-                    set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", value)
-                else: raise Exception("Failed to refresh Spotify access token.")
+                    client_secret = value
             elif name == "googlecalendar":
-                set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN", value)
+                if key == "ACCESS TOKEN":
+                    set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN", value)
             elif name == "philipshue":
-                set_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP", value)
-                await set_philips_hue_username(value)
+                if key == "BRIDGE IP ADDRESS":
+                    set_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP", value)
+                    await set_philips_hue_username(value)
 
-        if name == "spotify":
-            try:
-                for key, value in fields.items():
-                    if key == "CLIENT ID": client_id = value
-                    elif key == "CLIENT SECRET": client_secret = value
-                    elif key == "REDIRECT URI": redirect_uri = value
-                accessToken = get_refreshed_access_token(client_id, client_secret, redirect_uri)
-                if accessToken: set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", accessToken)
-            except Exception as e:
-                raise Exception("Failed to refresh Spotify access token.")
+        if name == "spotify" and client_id and client_secret:
+            # Setting REDIRECT URI explicitly to local ip
+            ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip()
+            redirect_uri = f"http://{ip}/api/callback"
+            set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", redirect_uri)
+            auth_params = {
+                "client_id": client_id,
+                "response_type": "code",
+                "redirect_uri": redirect_uri,
+                "scope": "user-library-read"
+            }
+            # Construct the authorization URL
+            auth_query = "&".join([f"{key}={value}" for key, value in auth_params.items()])
+            auth_url = f"https://accounts.spotify.com/authorize?{auth_query}"
 
+        # Restarting the service after setting up configurations for any of the services
         subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
 
-        return JSONResponse(content={"success": True})
+        logger.success(f"Successfully connected to {name}.")
+        content = {"success": True}
+        if auth_url:  # Only include auth_url if it has been set
+            content["redirect_url"] = auth_url
+
+        return JSONResponse(content=content)
+
     except Exception as e:
+        logger.error(f"Error: {traceback.format_exc()}")
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
 @app.post("/disconnect-service")
@@ -315,24 +342,58 @@ async def get_service_statuses(request: Request):
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
+
 ## Spotify ##
 
-def get_refreshed_access_token(client_id: str, client_secret: str, redirect_uri: str):
+# Callback for Spotify
+async def handle_callback(request: Request):
     try:
-        response = requests.post(redirect_uri, data={
-            'clientId': client_id,
-            'clientSecret': client_secret,
-            'redirectUri': redirect_uri
-        })
-        if response:
-            data = response.json()
-            return data.get("accessToken")
+        # Fetch the code from query parameters instead of JSON payload
+        code = request.query_params.get("code")
+        if not code:
+            raise Exception("Authorization code not found in query parameters")
+
+        load_dotenv(ENV_FILE_PATH)
+
+        # Get auth headers
+        client_id = os.getenv("SPOTIFY_CLIENT_ID")
+        client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+        redirect_uri = os.getenv("SPOTIFY_REDIRECT_URI")
+
+        # Base64 encode the client ID and secret
+        base64_encoded = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+
+        # Prepare the data and headers for the post request
+        auth_data = {
+            "redirect_uri": redirect_uri,
+            "code": code,
+            "grant_type": "authorization_code"
+        }
+        auth_headers = {'Authorization': f"Basic {base64_encoded}"}
+
+        # Asynchronously make the request
+        async with httpx.AsyncClient() as client:
+            response = await client.post("https://accounts.spotify.com/api/token", data=auth_data, headers=auth_headers)
+
+        if response.status_code == 200:
+            json_response = response.json()
+            access_token = json_response.get("access_token", None)
+            refresh_token = json_response.get("refresh_token", None)
+            expires_in = json_response.get("expires_in", None)
+            if access_token and refresh_token:
+                set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", access_token)
+                set_key(ENV_FILE_PATH, "SPOTIFY_REFRESH_TOKEN", refresh_token)
+                set_key(ENV_FILE_PATH, "SPOTIFY_TOKEN_EXPIRES_IN", str(expires_in))
+                print("Successfully connected to Spotify.")
+                subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
+                return RedirectResponse(url="/", status_code=302)
+            else:
+                raise Exception(f"Something went wrong: {response.text}")
         else:
-            logger.error(f"Error: {response.text}")
             raise Exception(f"Something went wrong: {response.text}")
+
     except Exception as e:
-        logger.error(f"Error: {traceback.format_exc()}")
-        raise Exception(f"Something went wrong: {e}")
+        return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
 def search_song_get_uri(song_name: str):
     access_token = os.getenv('SPOTIFY_ACCESS_TOKEN')
@@ -340,6 +401,14 @@ def search_song_get_uri(song_name: str):
     params = {"q": song_name, "type": "track", "limit": 1}
     response = requests.get("https://api.spotify.com/v1/search", headers=headers, params=params)
     
+    if response.status_code == 401:
+        # Attempt to refresh the token
+        refresh_token()
+        # Retry the request
+        access_token = os.getenv('SPOTIFY_ACCESS_TOKEN')
+        headers = {"Authorization": f"Bearer {access_token}"}
+        response = requests.get("https://api.spotify.com/v1/search", headers=headers, params=params)
+
     if response.status_code == 200:
         json_response = response.json()
         tracks = json_response.get("tracks", {}).get("items", [])
@@ -386,6 +455,8 @@ async def spotify_control(request: Request):
 
 
 ## Google Calendar ##
+
+# ...
 
 
 ## Philips Hue ##
