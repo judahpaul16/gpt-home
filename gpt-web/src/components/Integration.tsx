@@ -47,7 +47,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
     axios.post('/connect-service', { name, fields })
     .then((response) => {
       if (response.data.redirect_url) {
-        window.location.href = response.data.redirect_url;
+        window.location.replace(response.data.redirect_url)
       } else if (response.data.success) {
           // If successfully connected, toggle the status and reset the form
           if (!status) toggleStatus(name); // only toggle if not already connected

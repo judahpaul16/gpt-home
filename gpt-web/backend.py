@@ -1,7 +1,7 @@
 from dotenv import load_dotenv, set_key, unset_key
 from fastapi import FastAPI, Request, Response, status
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.exceptions import HTTPException
 from functions import logger
 from typing import Optional
@@ -381,7 +381,7 @@ async def handle_callback(request: Request):
                 set_key(ENV_FILE_PATH, "SPOTIFY_REFRESH_TOKEN", refresh_token)
                 print("Successfully connected to Spotify.")
                 subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
-                return JSONResponse(content={"success": True})
+                return RedirectResponse(url="/", status_code=302)
             else:
                 raise Exception(f"Something went wrong: {response.text}")
         else:
