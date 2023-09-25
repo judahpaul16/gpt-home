@@ -67,8 +67,11 @@ def last_logs(request: Request, last_line_number: Optional[int] = 0):
     if log_file_path.exists() and log_file_path.is_file():
         with log_file_path.open("r") as f:
             lines = f.readlines()
-            new_logs = lines[last_line_number:]
-            return JSONResponse(content={"last_logs": new_logs, "new_last_line_number": len(lines)})
+            if len(lines) != last_line_number:
+                new_logs = lines[last_line_number:]
+                return JSONResponse(content={"last_logs": new_logs, "new_last_line_number": len(lines)})
+            else:
+                return JSONResponse(content={"last_logs": [], "new_last_line_number": len(lines)})
     else:
         return Response(status_code=status.HTTP_404_NOT_FOUND, content="Log file not found")
 
