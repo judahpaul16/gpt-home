@@ -1,4 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta
+from dotenv import load_dotenv
+from dotenv.main import set_key
 import speech_recognition as sr
 from asyncio import create_task
 from dotenv import load_dotenv
@@ -9,10 +12,12 @@ import subprocess
 import traceback
 import datetime
 import textwrap
+import requests
 import logging
 import asyncio
 import pyttsx3
 import aiohttp
+import base64
 import string
 import struct
 import openai
@@ -256,6 +261,41 @@ async def speak(text, stop_event=asyncio.Event()):
             engine.runAndWait()
         await loop.run_in_executor(executor, _speak)
         stop_event.set()
+
+# Refresh the Spotify access token
+def refresh_token():
+    client_id = os.getenv('SPOTIFY_CLIENT_ID')
+    client_secret = os.getenv('SPOTIFY_CLIENT_SECRET')
+    refresh_token = os.getenv('SPOTIFY_REFRESH_TOKEN')
+
+    # Base64 encode the client ID and secret
+    base64_encoded = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+
+    headers = {
+        "Authorization": f"Basic {base64_encoded}"
+    }
+    
+    data = {
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token
+    }
+
+    response = requests.post('https://accounts.spotify.com/api/token', headers=headers, data=data)
+
+    if response.status_code == 200:
+        json_response = response.json()
+        new_access_token = json_response.get('access_token')
+        expires_in = json_response.get('expires_in')  # Time in seconds until the token expires
+
+        # Calculate the expiry time and save it
+        expiry_time = datetime.now() + timedelta(seconds=expires_in)
+
+        # Update the environment variables
+        set_key('ENV_FILE_PATH', 'SPOTIFY_ACCESS_TOKEN', new_access_token)
+        set_key('ENV_FILE_PATH', 'SPOTIFY_TOKEN_EXPIRY_TIME', expiry_time.strftime('%Y-%m-%d %H:%M:%S'))
+        set_key('ENV_FILE_PATH', 'SPOTIFY_TOKEN_EXPIRES_IN', str(expires_in))
+    else:
+        print(f"Failed to refresh token: {response.content.decode()}")
 
 async def spotify_action(text: str):
     ACCESS_TOKEN = os.getenv('SPOTIFY_ACCESS_TOKEN')

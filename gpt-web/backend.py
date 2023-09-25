@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.exceptions import HTTPException
 from datetime import datetime, timedelta
-from functions import logger
+from functions import logger, refresh_token
 from typing import Optional
 from pathlib import Path
 from phue import Bridge
@@ -394,42 +394,6 @@ async def handle_callback(request: Request):
 
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
-
-# Refresh the Spotify access token
-def refresh_token():
-    client_id = os.getenv('SPOTIFY_CLIENT_ID')
-    client_secret = os.getenv('SPOTIFY_CLIENT_SECRET')
-    refresh_token = os.getenv('SPOTIFY_REFRESH_TOKEN')
-
-    # Base64 encode the client ID and secret
-    base64_encoded = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
-
-    headers = {
-        "Authorization": f"Basic {base64_encoded}"
-    }
-    
-    data = {
-        "grant_type": "refresh_token",
-        "refresh_token": refresh_token
-    }
-
-    response = requests.post('https://accounts.spotify.com/api/token', headers=headers, data=data)
-
-    if response.status_code == 200:
-        json_response = response.json()
-        new_access_token = json_response.get('access_token')
-        expires_in = json_response.get('expires_in')  # Time in seconds until the token expires
-
-        # Calculate the expiry time and save it
-        expiry_time = datetime.now() + timedelta(seconds=expires_in)
-
-        # Update the environment variables
-        set_key('ENV_FILE_PATH', 'SPOTIFY_ACCESS_TOKEN', new_access_token)
-        set_key('ENV_FILE_PATH', 'SPOTIFY_TOKEN_EXPIRY_TIME', expiry_time.strftime('%Y-%m-%d %H:%M:%S'))
-        set_key('ENV_FILE_PATH', 'SPOTIFY_TOKEN_EXPIRES_IN', str(expires_in))
-    else:
-        print(f"Failed to refresh token: {response.content.decode()}")
-
 
 def search_song_get_uri(song_name: str):
     access_token = os.getenv('SPOTIFY_ACCESS_TOKEN')
