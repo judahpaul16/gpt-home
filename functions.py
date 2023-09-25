@@ -307,11 +307,11 @@ async def spotify_action(text: str):
                 if response.status == 200:
                     return await response.text()
                 else:
+                    logger.warning(f"Received a {response.status} status code.")
                     return f"Received a {response.status} status code."
         except Exception as e:
-            # Assuming `logger` and `traceback` are imported and configured
             logger.error(f"Error: {traceback.format_exc()}")
-            return f"Something went wrong: {e}"
+            raise Exception(f"Something went wrong: {e}")
     raise Exception("No access token found. Please provide the necessary credentials in the web interface.")
 
 async def google_calendar_action(text: str):
