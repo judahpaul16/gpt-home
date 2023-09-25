@@ -45,12 +45,10 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
   
     // Make the Axios POST request
     axios.post('/connect-service', { name, fields })
-      .then((response) => {
-        // Check for a 303 status code for redirects
-        if (response.status === 303) {
-          // Manually redirect the client to the URL specified in the Location header
-          window.location.href = response.headers.location;
-        } else if (response.data.success) {
+    .then((response) => {
+      if (response.data.redirect_url) {
+        window.location.href = response.data.redirect_url;
+      } else if (response.data.success) {
           // If successfully connected, toggle the status and reset the form
           if (!status) toggleStatus(name); // only toggle if not already connected
           setShowOverlay(false);
