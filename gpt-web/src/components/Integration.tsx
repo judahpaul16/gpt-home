@@ -128,7 +128,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
                 ))}
               </h4>
             }
-            {name === 'PhilipsHue' && <div style={{ color: 'red' }}>NOTE: Press the button on the bridge before submitting.</div> }
+            {name === 'PhilipsHue' && <div style={{ color: 'red' }}>NOTE: Press the button on the bridge before submitting if connecting for the first time.</div> }
             {name === 'Spotify' &&
               <div style={{ color: 'red' }}>
                 NOTE: The REDIRECT URI is set by default but be sure to also set it in your Spotify application settings:<br />
