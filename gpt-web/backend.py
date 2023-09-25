@@ -3,6 +3,7 @@ from fastapi import FastAPI, Request, Response, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.exceptions import HTTPException
+from datetime import datetime, timedelta
 from functions import logger
 from typing import Optional
 from pathlib import Path
@@ -378,9 +379,11 @@ async def handle_callback(request: Request):
             json_response = response.json()
             access_token = json_response.get("access_token", None)
             refresh_token = json_response.get("refresh_token", None)
+            expires_in = json_response.get("expires_in", None)
             if access_token and refresh_token:
                 set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", access_token)
                 set_key(ENV_FILE_PATH, "SPOTIFY_REFRESH_TOKEN", refresh_token)
+                set_key(ENV_FILE_PATH, "SPOTIFY_TOKEN_EXPIRES_IN", str(expires_in))
                 print("Successfully connected to Spotify.")
                 subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
                 return RedirectResponse(url="/", status_code=302)
@@ -392,12 +395,56 @@ async def handle_callback(request: Request):
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
+# Refresh the Spotify access token
+def refresh_token():
+    client_id = os.getenv('SPOTIFY_CLIENT_ID')
+    client_secret = os.getenv('SPOTIFY_CLIENT_SECRET')
+    refresh_token = os.getenv('SPOTIFY_REFRESH_TOKEN')
+
+    # Base64 encode the client ID and secret
+    base64_encoded = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+
+    headers = {
+        "Authorization": f"Basic {base64_encoded}"
+    }
+    
+    data = {
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token
+    }
+
+    response = requests.post('https://accounts.spotify.com/api/token', headers=headers, data=data)
+
+    if response.status_code == 200:
+        json_response = response.json()
+        new_access_token = json_response.get('access_token')
+        expires_in = json_response.get('expires_in')  # Time in seconds until the token expires
+
+        # Calculate the expiry time and save it
+        expiry_time = datetime.now() + timedelta(seconds=expires_in)
+
+        # Update the environment variables
+        set_key('ENV_FILE_PATH', 'SPOTIFY_ACCESS_TOKEN', new_access_token)
+        set_key('ENV_FILE_PATH', 'SPOTIFY_TOKEN_EXPIRY_TIME', expiry_time.strftime('%Y-%m-%d %H:%M:%S'))
+        set_key('ENV_FILE_PATH', 'SPOTIFY_TOKEN_EXPIRES_IN', str(expires_in))
+    else:
+        print(f"Failed to refresh token: {response.content.decode()}")
+
+
 def search_song_get_uri(song_name: str):
     access_token = os.getenv('SPOTIFY_ACCESS_TOKEN')
     headers = {"Authorization": f"Bearer {access_token}"}
     params = {"q": song_name, "type": "track", "limit": 1}
     response = requests.get("https://api.spotify.com/v1/search", headers=headers, params=params)
     
+    if response.status_code == 401:
+        # Attempt to refresh the token
+        refresh_token()
+        # Retry the request
+        access_token = os.getenv('SPOTIFY_ACCESS_TOKEN')
+        headers = {"Authorization": f"Bearer {access_token}"}
+        response = requests.get("https://api.spotify.com/v1/search", headers=headers, params=params)
+
     if response.status_code == 200:
         json_response = response.json()
         tracks = json_response.get("tracks", {}).get("items", [])
