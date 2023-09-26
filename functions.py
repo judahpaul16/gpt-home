@@ -343,7 +343,7 @@ async def open_weather_action(text: str):
 
                 # Current weather
                 if not re.search(r'(forecast|future)', text, re.IGNORECASE):
-                    coords = await asyncio.get_running_loop().run_in_executor(executor, coords_from_city)
+                    coords = await coords_from_city()
                     response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&dt={int(time.time())}")
                     if response.status == 200:
                         json_response = await response.json()
@@ -353,7 +353,7 @@ async def open_weather_action(text: str):
 
                 # Weather forecast
                 else:
-                    coords = await asyncio.get_running_loop().run_in_executor(executor, coords_from_city)
+                    coords = await coords_from_city()
                     tomorrow = datetime.now() + timedelta(days=1)
                     response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&dt={int(tomorrow.timestamp())}")
                     if response.status == 200:
@@ -365,8 +365,8 @@ async def open_weather_action(text: str):
 
             else:
                 # General weather based on IP address location
-                city = await asyncio.get_running_loop().run_in_executor(executor, city_from_ip)
-                coords = await asyncio.get_running_loop().run_in_executor(executor, coords_from_city)
+                city = await city_from_ip()
+                coords = await coords_from_city()
                 response = await session.get(f"http://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&dt={int(time.time())}")
                 if response.status == 200:
                     json_response = await response.json()
