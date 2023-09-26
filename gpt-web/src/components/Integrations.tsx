@@ -23,7 +23,7 @@ interface IntegrationsProps {
 const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, toggleOverlay, integrations }) => {
   const usage: { [key: string]: string[] } = {
     Spotify: ['Play.....on Spotify', 'Play / Pause / Stop', 'Next Song / Go Back'],
-    OpenWeather: ['What\'s the weather like in....', 'What\'s the temperature in....'],
+    OpenWeather: ['How\'s the weather?', 'What\'s the temperature in....'],
     PhilipsHue: ['Dim the lights to...', 'Turn on / off....lights', 'Change the lights to red'],
   };
 
