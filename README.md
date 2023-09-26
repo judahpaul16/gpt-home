@@ -401,7 +401,6 @@ alias web-error="tail -n 100 -f /var/log/nginx/error.log"
 - [Node.js Docs](https://nodejs.org/en/docs/)
 - [npm Docs](https://docs.npmjs.com/)
 - [NGINX Docs](https://nginx.org/en/docs/)
-- [SpeechRecognition Docs](https://pypi.org/project/SpeechRecognition/)
 
 </td>
 <td>
@@ -414,6 +413,7 @@ alias web-error="tail -n 100 -f /var/log/nginx/error.log"
 - [eSpeak Docs](http://espeak.sourceforge.net/commands.html)
 - [I2C Docs](https://i2c.readthedocs.io/en/latest/)
 - [ALSA Docs](https://www.alsa-project.org/wiki/Documentation)
+- [SpeechRecognition Docs](https://pypi.org/project/SpeechRecognition/)
 
 </td>
 <td>
