@@ -166,6 +166,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
                   onChange={handleInputChange}
                   onKeyDown={disallowSpace}
                   onPaste={handlePaste}
+                  autoFocus={requiredFields[name].indexOf(field) === 0}
                 />
               </div>
             ))}
