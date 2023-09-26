@@ -390,10 +390,10 @@ async def philips_hue_action(text: str):
             b.connect()
 
             # Turn on or off all lights
-            on_off_pattern = r'\b(turn|shut|cut|put)\s(on|off)\b'
+            on_off_pattern = r'(\b(turn|shut|cut|put)\s)?.*(on|off)\b'
             match = re.search(on_off_pattern, text, re.IGNORECASE)
             if match:
-                if "on" in match.group(2):
+                if 'on' in match.group(0):
                     b.set_group(0, 'on', True)
                     return "Turning on all lights."
                 else:
@@ -401,16 +401,16 @@ async def philips_hue_action(text: str):
                     return "Turning off all lights."
 
             # Change light color
-            color_pattern = r'\b(change|set|make|color)\b.*?\blight\s(\d+)?\b.*?\b(red|green|blue|yellow|purple|orange|pink|white|black)\b'
+            color_pattern = r'\b(red|green|blue|yellow|purple|orange|pink|white|black)\b'
             match = re.search(color_pattern, text, re.IGNORECASE)
             if match:
-                color = match.group(3)
+                color = match.group(1)
                 b.set_group(0, 'on', True)
                 b.set_group(0, 'hue', color)
                 return f"Changing lights to {color}."
 
             # Change light brightness
-            brightness_pattern = r'\b(dim|brighten)\b.*?\blight\s(\d+)\s.*?to\s(\d{1,3})\b'
+            brightness_pattern = r'(\b(dim|brighten)\b)?.*?\s.*?to\s(\d{1,3})\b'
             match = re.search(brightness_pattern, text, re.IGNORECASE)
             if match:
                 brightness = int(match.group(3))
@@ -418,6 +418,7 @@ async def philips_hue_action(text: str):
                 b.set_group(0, 'bri', brightness)
                 return f"Brightening lights to {brightness}."
 
+            raise Exception("I'm sorry, I don't know how to handle that request.")
         except Exception as e:
             logger.error(f"Error: {traceback.format_exc()}")
             return f"Something went wrong: {e}"
