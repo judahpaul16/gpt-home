@@ -414,14 +414,13 @@ async def philips_hue_action(text: str):
                     'blue': 46920,
                     'yellow': 12750,
                     'purple': 56100,
-                    'orange': 10000,
-                    'pink': 56100,
-                    'white': 0,
-                    'black': 0
+                    'orange': 6000,
+                    'pink': 56100,  # Closest to purple for hue
+                    'white': 15330,  # Closest to a neutral white
                 }.get(match.group(1).lower())
                 b.set_group(0, 'on', True)
                 b.set_group(0, 'hue', color)
-                return f"Changing lights {color}."
+                return f"Changing lights {match.group(1)}."
 
             # Change light brightness
             brightness_pattern = r'(\b(dim|brighten)\b)?.*?\s.*?to\s(\d{1,3})\b'
