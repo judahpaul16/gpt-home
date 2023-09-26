@@ -361,9 +361,9 @@ async def handle_callback(request: Request):
             raise Exception("Authorization code not found in query parameters")
 
         # Initialize the Spotipy OAuth object with the environment variables
-        sp_oauth = SpotifyOAuth(client_id=os.getenv('SPOTIFY_CLIENT_ID'),
-                                client_secret=os.getenv('SPOTIFY_CLIENT_SECRET'),
-                                redirect_uri=os.getenv('SPOTIFY_REDIRECT_URI'),
+        sp_oauth = SpotifyOAuth(client_id=os.environ('SPOTIFY_CLIENT_ID'),
+                                client_secret=os.environ('SPOTIFY_CLIENT_SECRET'),
+                                redirect_uri=os.environ('SPOTIFY_REDIRECT_URI'),
                                 scope="user-library-read,user-modify-playback-state")
 
         # Get the access token
@@ -383,9 +383,9 @@ async def handle_callback(request: Request):
 @app.post("/spotify-control")
 async def spotify_control(request: Request):
     try:
-        sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id=os.getenv('SPOTIFY_CLIENT_ID'),
-                                               client_secret=os.getenv('SPOTIFY_CLIENT_SECRET'),
-                                               redirect_uri=os.getenv('SPOTIFY_REDIRECT_URI'),
+        sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id=os.environ('SPOTIFY_CLIENT_ID'),
+                                               client_secret=os.environ('SPOTIFY_CLIENT_SECRET'),
+                                               redirect_uri=os.environ('SPOTIFY_REDIRECT_URI'),
                                                scope="user-library-read,user-modify-playback-state"))
         incoming_data = await request.json()
         text = incoming_data.get("text", "").lower().strip()
