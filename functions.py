@@ -298,21 +298,21 @@ def refresh_token():
         print(f"Failed to refresh token: {response.content.decode()}")
 
 async def spotify_action(text: str):
-    ACCESS_TOKEN = os.getenv('SPOTIFY_ACCESS_TOKEN')
-    if ACCESS_TOKEN:
-        try:
-            async with aiohttp.ClientSession() as session:
-                ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip()
-                response = await session.post(f"http://{ip}/spotify-control", json={"text": text})
-                if response.status == 200:
-                    return await response.text()
-                else:
-                    logger.warning(f"Received a {response.status} status code.")
-                    return f"Received a {response.status} status code."
-        except Exception as e:
-            logger.error(f"Error: {traceback.format_exc()}")
-            raise Exception(f"Something went wrong: {e}")
-    raise Exception("No access token found. Please provide the necessary credentials in the web interface.")
+    # ACCESS_TOKEN = os.getenv('SPOTIFY_ACCESS_TOKEN')
+    # if ACCESS_TOKEN:
+    try:
+        async with aiohttp.ClientSession() as session:
+            ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip()
+            response = await session.post(f"http://{ip}/spotify-control", json={"text": text})
+            if response.status == 200:
+                return await response.text()
+            else:
+                logger.warning(f"Received a {response.status} status code.")
+                return f"Received a {response.status} status code."
+    except Exception as e:
+        logger.error(f"Error: {traceback.format_exc()}")
+        raise Exception(f"Something went wrong: {e}")
+    # raise Exception("No access token found. Please provide the necessary credentials in the web interface.")
 
 # Open Weather Helper Functions
 async def coords_from_city(city, api_key):
