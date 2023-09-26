@@ -248,12 +248,6 @@ async def change_password(request: Request):
 
 ## Integrations ##
 
-# Utility function to read environment config from .env file
-def read_env_config():
-    with open(ENV_FILE_PATH, "r") as f:
-        env_config = f.read()
-    return env_config
-
 @app.post("/connect-service")
 async def connect_service(request: Request):
     try:
@@ -271,16 +265,20 @@ async def connect_service(request: Request):
             if name == "spotify":
                 if key == "CLIENT ID":
                     set_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_ID", value)
+                    os.environ["SPOTIFY_CLIENT_ID"] = value
                     spotify_client_id = value
                 elif key == "CLIENT SECRET":
                     set_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_SECRET", value)
+                    os.environ["SPOTIFY_CLIENT_SECRET"] = value
                     spotify_client_secret = value
             elif name == "openweather":
                 if key == "API KEY":
                     set_key(ENV_FILE_PATH, "OPEN_WEATHER_API_KEY", value)
+                    os.environ["OPEN_WEATHER_API_KEY"] = value
             elif name == "philipshue":
                 if key == "BRIDGE IP ADDRESS":
                     set_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP", value)
+                    os.environ["PHILIPS_HUE_BRIDGE_IP"] = value
                     await set_philips_hue_username(value)
 
         if name == "spotify" and spotify_client_id and spotify_client_secret:
@@ -288,6 +286,7 @@ async def connect_service(request: Request):
             ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip()
             redirect_uri = f"http://{ip}/api/callback"
             set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", redirect_uri)
+            os.environ["SPOTIFY_REDIRECT_URI"] = redirect_uri
             auth_params = {
                 "client_id": spotify_client_id,
                 "response_type": "code",
@@ -335,15 +334,18 @@ async def disconnect_service(request: Request):
 @app.post("/get-service-statuses")
 async def get_service_statuses(request: Request):
     try:
-        env_config = read_env_config()
+        env_config = None
+        with open(ENV_FILE_PATH, "r") as f:
+            env_config = f.read()
 
-        statuses = {
-            "Spotify": "SPOTIFY_CLIENT_ID" in env_config and "SPOTIFY_CLIENT_SECRET" in env_config,
-            "OpenWeather": "OPEN_WEATHER_API_KEY" in env_config,
-            "PhilipsHue": "PHILIPS_HUE_BRIDGE_IP" in env_config and "PHILIPS_HUE_USERNAME" in env_config
-        }
-
-        return JSONResponse(content={"statuses": statuses})
+        if env_config:
+            statuses = {
+                "Spotify": "SPOTIFY_CLIENT_ID" in env_config and "SPOTIFY_CLIENT_SECRET" in env_config,
+                "OpenWeather": "OPEN_WEATHER_API_KEY" in env_config,
+                "PhilipsHue": "PHILIPS_HUE_BRIDGE_IP" in env_config and "PHILIPS_HUE_USERNAME" in env_config
+            }
+            return JSONResponse(content={"statuses": statuses})
+        return HTTPException(status_code=404, detail="Environment file not found")
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
