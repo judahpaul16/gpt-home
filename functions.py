@@ -337,51 +337,52 @@ async def city_from_ip():
 async def open_weather_action(text: str):
     try:
         api_key = os.getenv('OPEN_WEATHER_API_KEY')
-        async with aiohttp.ClientSession() as session:
-            if re.search(r'weather\s.*\sin\s', text, re.IGNORECASE):
-                city = re.search(r'weather.*\sin\s([\w\s]+)', text, re.IGNORECASE).group(1).strip()
+        if api_key:
+            async with aiohttp.ClientSession() as session:
+                if re.search(r'weather\s.*\sin\s', text, re.IGNORECASE):
+                    city = re.search(r'weather.*\sin\s([\w\s]+)', text, re.IGNORECASE).group(1).strip()
 
-                # Current weather
-                if not re.search(r'(forecast|future)', text, re.IGNORECASE):
+                    # Current weather
+                    if not re.search(r'(forecast|future)', text, re.IGNORECASE):
+                        coords = await coords_from_city(city, api_key)
+                        response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&dt={int(time.time())}")
+                        if response.status == 200:
+                            json_response = await response.json()
+                            weather = json_response.get('weather')[0].get('main')
+                            temp = json_response.get('main').get('temp')
+                            return f"It is currently {temp}°F and {weather} in {city}."
+
+                    # Weather forecast
+                    else:
+                        coords = await coords_from_city(city, api_key)
+                        tomorrow = datetime.now() + timedelta(days=1)
+                        response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&dt={int(tomorrow.timestamp())}")
+                        if response.status == 200:
+                            json_response = await response.json()
+                            tomorrow_data = json_response.get('list')[8]  # Roughly 24 hours from now
+                            weather = tomorrow_data.get('weather')[0].get('main')
+                            temp = tomorrow_data.get('main').get('temp')
+                            return f"Tomorrow's weather in {city} is expected to be {weather} with a temperature of {temp}°F."
+
+                else:
+                    # General weather based on IP address location
+                    city = await city_from_ip()
                     coords = await coords_from_city(city, api_key)
-                    response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&dt={int(time.time())}")
+                    response = await session.get(f"http://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&dt={int(time.time())}")
                     if response.status == 200:
                         json_response = await response.json()
                         weather = json_response.get('weather')[0].get('main')
                         temp = json_response.get('main').get('temp')
-                        return f"It is currently {temp}°F and {weather} in {city}."
-
-                # Weather forecast
-                else:
-                    coords = await coords_from_city(city, api_key)
-                    tomorrow = datetime.now() + timedelta(days=1)
-                    response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&dt={int(tomorrow.timestamp())}")
-                    if response.status == 200:
-                        json_response = await response.json()
-                        tomorrow_data = json_response.get('list')[8]  # Roughly 24 hours from now
-                        weather = tomorrow_data.get('weather')[0].get('main')
-                        temp = tomorrow_data.get('main').get('temp')
-                        return f"Tomorrow's weather in {city} is expected to be {weather} with a temperature of {temp}°F."
-
-            else:
-                # General weather based on IP address location
-                city = await city_from_ip()
-                coords = await coords_from_city(city, api_key)
-                response = await session.get(f"http://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&dt={int(time.time())}")
-                if response.status == 200:
-                    json_response = await response.json()
-                    weather = json_response.get('weather')[0].get('main')
-                    temp = json_response.get('main').get('temp')
-                    return f"It is currently {temp}°F and {weather} in your location."
+                        return f"It is currently {temp}°F and {weather} in your location."
+        else:
+            raise Exception("No Open Weather API key found. Please enter your API key for Open Weather in the web interface or try reconnecting the service.")
 
     except Exception as e:
-        # Handle city not found error gracefully
         if '404' in str(e):
             return f"Weather information for {city} is not available."
         else:
-            # You can log the traceback for debugging purposes and provide a generic error message to the user
             logger.error(f"Error: {traceback.format_exc()}")
-            return f"Something went wrong. Please try again later."
+            return f"Something went wrong. {e}"
 
 async def philips_hue_action(text: str):
     bridge_ip = os.getenv('PHILIPS_HUE_BRIDGE_IP')
@@ -435,8 +436,8 @@ async def philips_hue_action(text: str):
         except Exception as e:
             logger.error(f"Error: {traceback.format_exc()}")
             return f"Something went wrong: {e}"
-
-    raise Exception("No philips hue bridge IP found. Please enter your bridge IP for Phillips Hue in the web interface or try reconnecting the service.")
+    else:
+        raise Exception("No philips hue bridge IP found. Please enter your bridge IP for Phillips Hue in the web interface or try reconnecting the service.")
 
 async def query_openai(text, display, retries=3):
     # Load settings from settings.json
