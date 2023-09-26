@@ -374,8 +374,8 @@ async def open_weather_action(text: str):
                         weather = json_response.get('weather')[0].get('main')
                         temp = json_response.get('main').get('temp')
                         return f"It is currently {temp}°F and {weather} in your location."
-        else:
-            raise Exception("No Open Weather API key found. Please enter your API key for Open Weather in the web interface or try reconnecting the service.")
+        
+        raise Exception("No Open Weather API key found. Please enter your API key for Open Weather in the web interface or try reconnecting the service.")
 
     except Exception as e:
         if '404' in str(e):
@@ -436,8 +436,8 @@ async def philips_hue_action(text: str):
         except Exception as e:
             logger.error(f"Error: {traceback.format_exc()}")
             return f"Something went wrong: {e}"
-    else:
-        raise Exception("No philips hue bridge IP found. Please enter your bridge IP for Phillips Hue in the web interface or try reconnecting the service.")
+    
+    raise Exception("No philips hue bridge IP found. Please enter your bridge IP for Phillips Hue in the web interface or try reconnecting the service.")
 
 async def query_openai(text, display, retries=3):
     # Load settings from settings.json
