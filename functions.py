@@ -375,6 +375,7 @@ async def open_weather_action(text: str):
                         temp = json_response.get('main').get('temp')
                         return f"It is currently {temp}°F and {weather} in your location."
         
+        logger.warning("api_key: " + api_key)
         raise Exception("No Open Weather API key found. Please enter your API key for Open Weather in the web interface or try reconnecting the service.")
 
     except Exception as e:
