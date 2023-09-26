@@ -345,7 +345,7 @@ async def open_weather_action(text: str):
                     # Current weather
                     if not re.search(r'(forecast|future)', text, re.IGNORECASE):
                         coords = await coords_from_city(city, api_key)
-                        response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&dt={int(time.time())}")
+                        response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}")
                         if response.status == 200:
                             json_response = await response.json()
                             weather = json_response.get('weather')[0].get('main')
@@ -355,32 +355,35 @@ async def open_weather_action(text: str):
                             raise Exception(f"Received a {response.status} status code. {response.content.decode()}")
 
                     # Weather forecast
-                    else:
-                        coords = await coords_from_city(city, api_key)
-                        tomorrow = datetime.now() + timedelta(days=1)
-                        response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&dt={int(tomorrow.timestamp())}")
-                        if response.status == 200:
-                            json_response = await response.json()
-                            tomorrow_data = json_response.get('list')[8]  # Roughly 24 hours from now
-                            weather = tomorrow_data.get('weather')[0].get('main')
-                            temp = tomorrow_data.get('main').get('temp')
-                            return f"Tomorrow's weather in {city} is expected to be {weather} with a temperature of {temp}°F."
-                        else:
-                            raise Exception(f"Received a {response.status} status code. {response.content.decode()}")
+                    # else:
+                    #     coords = await coords_from_city(city, api_key)
+                    #     tomorrow = datetime.now() + timedelta(days=1)
+                    #     response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}")
+                    #     if response.status == 200:
+                    #         json_response = await response.json()
+                    #         tomorrow_data = json_response.get('list')[8]  # Roughly 24 hours from now
+                    #         weather = tomorrow_data.get('weather')[0].get('main')
+                    #         temp = tomorrow_data.get('main').get('temp')
+                    #         return f"Tomorrow's weather in {city} is expected to be {weather} with a temperature of {temp}°F."
+                    #     else:
+                    #         raise Exception(f"Received a {response.status} status code. {response.content.decode()}")
 
                 else:
                     # General weather based on IP address location
                     city = await city_from_ip()
                     coords = await coords_from_city(city, api_key)
-                    response = await session.get(f"http://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&dt={int(time.time())}")
+                    response = await session.get(f"http://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}")
                     if response.status == 200:
                         json_response = await response.json()
                         weather = json_response.get('weather')[0].get('main')
                         temp = json_response.get('main').get('temp')
                         return f"It is currently {temp}°F and {weather} in your location."
                     else:
-                        raise Exception(f"Received a {response.status} status code. {response.content.decode()}")
-        
+                        content = await response.content.read()
+                        raise Exception(f"Received a {response.status} status code. {content.decode()}")
+                    
+            raise Exception("I'm sorry, I don't know how to handle that request.")
+
         raise Exception("No Open Weather API key found. Please enter your API key for Open Weather in the web interface or try reconnecting the service.")
 
     except Exception as e:
