@@ -457,15 +457,16 @@ async def query_openai(text, display, retries=3):
 
 async def action_router(text: str, display):
     # For Spotify actions
-    if re.search(r'(play|resume|next song|go back|pause|stop)(\s.)*(\son\sSpotify)*', text, re.IGNORECASE):
+    if re.search(r'\b(play|resume|next song|go back|pause|stop)(\s.*)?(\bon\b\sSpotify)?\b', text, re.IGNORECASE):
         return await spotify_action(text)
         
     # For Open Weather actions
-    elif re.search(r'(what\'?s|what is|how\'?s|how is).*\s(weather|temperature|forecast|outside|today|tomorrow|this week)', text, re.IGNORECASE):
+    elif re.search(r'\b(weather|forecast|temperature)\b.*\b(in|for|at)?\b(\w+)?', text, re.IGNORECASE) or \
+        re.search(r'\b(is|will)\sit\b.*\b(hot|cold|rain(ing|y)?|sun(ny|ning)?|cloud(y|ing)?|wind(y|ing)?|storm(y|ing)?|snow(ing)?)\b', text, re.IGNORECASE):
         return await open_weather_action(text)
 
     # For Philips Hue actions
-    elif re.search(r'(turn)?(\son|\soff)?.*\slight(s)?(\son|\soff)?', text, re.IGNORECASE):
+    elif re.search(r'\b(turn)?\b(\son|\soff)?.*\slight(s)?(\son|\soff)?\b', text, re.IGNORECASE):
         return await philips_hue_action(text)
         
     # If no pattern matches, query OpenAI
