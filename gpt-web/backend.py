@@ -368,7 +368,7 @@ async def handle_callback(request: Request):
         sp_oauth = SpotifyOAuth(client_id=os.environ['SPOTIFY_CLIENT_ID'],
                                 client_secret=os.environ['SPOTIFY_CLIENT_SECRET'],
                                 redirect_uri=os.environ['SPOTIFY_REDIRECT_URI'],
-                                scope="user-library-read,user-modify-playback-state")
+                                scope="user-library-read,user-modify-playback-state,user-read-playback-state,streaming")
 
         # Get the access token
         token_info = sp_oauth.get_access_token(code)
@@ -415,13 +415,13 @@ async def spotify_control(request: Request):
                 client_id=os.environ['SPOTIFY_CLIENT_ID'],
                 client_secret=os.environ['SPOTIFY_CLIENT_SECRET'],
                 redirect_uri=os.environ['SPOTIFY_REDIRECT_URI'],
-                scope="user-library-read,user-modify-playback-state"
+                scope="user-library-read,user-modify-playback-state,user-read-playback-state,streaming"
             )
             token_info = sp_oauth.refresh_access_token(token_info.get("refresh_token"))
             if not token_info:  # Check again after refreshing
                 raise Exception("Failed to refresh the Spotify token.")
             store_token(token_info)
-            
+
         # Use the refreshed token_info for Spotipy calls.
         sp = spotipy.Spotify(auth=token_info.get("access_token"))
         
