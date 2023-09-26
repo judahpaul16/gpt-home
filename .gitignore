@@ -29,3 +29,6 @@ yarn-error.log*
 
 # Logs
 events.log
+
+# Auth
+spotify_token.json

@@ -376,6 +376,8 @@ async def handle_callback(request: Request):
         if not token_info:
             raise Exception("Failed to get token info")
 
+        store_token(token_info)
+
         # Restarting the service
         subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
             
@@ -403,6 +405,10 @@ def valid_token(token_info):
 async def spotify_control(request: Request):
     try:
         token_info = get_stored_token()
+
+        if not token_info:  # Check if the token_info is None or not
+            raise Exception("No token information available. Please re-authenticate with Spotify.")
+
         if not valid_token(token_info):
             # Refresh the token
             sp_oauth = SpotifyOAuth(
@@ -412,8 +418,10 @@ async def spotify_control(request: Request):
                 scope="user-library-read,user-modify-playback-state"
             )
             token_info = sp_oauth.refresh_access_token(token_info.get("refresh_token"))
+            if not token_info:  # Check again after refreshing
+                raise Exception("Failed to refresh the Spotify token.")
             store_token(token_info)
-
+            
         # Use the refreshed token_info for Spotipy calls.
         sp = spotipy.Spotify(auth=token_info.get("access_token"))
         
