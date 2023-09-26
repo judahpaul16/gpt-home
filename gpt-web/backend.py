@@ -17,6 +17,7 @@ import hashlib
 import openai
 import base64
 import httpx
+import time
 import json
 import os
 import re
@@ -24,6 +25,7 @@ import re
 ROOT_DIRECTORY = Path(__file__).parent
 PARENT_DIRECTORY = ROOT_DIRECTORY.parent
 ENV_FILE_PATH = ROOT_DIRECTORY / ".env"
+TOKEN_PATH = "spotify_token.json"
 
 load_dotenv(ENV_FILE_PATH)
 
@@ -320,6 +322,8 @@ async def disconnect_service(request: Request):
         if name == "spotify":
             unset_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_ID")
             unset_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_SECRET")
+            if os.path.exists(TOKEN_PATH):
+                os.remove(TOKEN_PATH)
         elif name == "openweather":
             unset_key(ENV_FILE_PATH, "OPEN_WEATHER_API_KEY")
         elif name == "philipshue":
@@ -379,14 +383,40 @@ async def handle_callback(request: Request):
 
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
-    
+
+def get_stored_token():
+    try:
+        with open(TOKEN_PATH, 'r') as f:
+            return json.load(f)
+    except:
+        return None
+
+def store_token(token_info):
+    with open(TOKEN_PATH, 'w') as f:
+        json.dump(token_info, f)
+
+def valid_token(token_info):
+    now = time.time()
+    return token_info and token_info["expires_at"] > now
+
 @app.post("/spotify-control")
 async def spotify_control(request: Request):
     try:
-        sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id=os.environ['SPOTIFY_CLIENT_ID'],
-                                               client_secret=os.environ['SPOTIFY_CLIENT_SECRET'],
-                                               redirect_uri=os.environ['SPOTIFY_REDIRECT_URI'],
-                                               scope="user-library-read,user-modify-playback-state"))
+        token_info = get_stored_token()
+        if not valid_token(token_info):
+            # Refresh the token
+            sp_oauth = SpotifyOAuth(
+                client_id=os.environ['SPOTIFY_CLIENT_ID'],
+                client_secret=os.environ['SPOTIFY_CLIENT_SECRET'],
+                redirect_uri=os.environ['SPOTIFY_REDIRECT_URI'],
+                scope="user-library-read,user-modify-playback-state"
+            )
+            token_info = sp_oauth.refresh_access_token(token_info.get("refresh_token"))
+            store_token(token_info)
+
+        # Use the refreshed token_info for Spotipy calls.
+        sp = spotipy.Spotify(auth=token_info.get("access_token"))
+        
         incoming_data = await request.json()
         text = incoming_data.get("text", "").lower().strip()
 
