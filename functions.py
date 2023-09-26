@@ -315,9 +315,9 @@ async def spotify_action(text: str):
     raise Exception("No access token found. Please provide the necessary credentials in the web interface.")
 
 # Open Weather Helper Functions
-async def coords_from_city():
+async def coords_from_city(city, api_key):
     async with aiohttp.ClientSession() as session:
-        response = session.get(f"http://api.openweathermap.org/geo/1.0/direct?q={city}&appid={api_key}")
+        response = await session.get(f"http://api.openweathermap.org/geo/1.0/direct?q={city}&appid={api_key}")
         if response.status == 200:
             json_response = await response.json()
             coords = {
@@ -328,7 +328,7 @@ async def coords_from_city():
     
 async def city_from_ip():
     async with aiohttp.ClientSession() as session:
-        response = session.get(f"https://ipinfo.io/json")
+        response = await session.get(f"https://ipinfo.io/json")
         if response.status == 200:
             json_response = await response.json()
             city = json_response.get('city')
@@ -343,7 +343,7 @@ async def open_weather_action(text: str):
 
                 # Current weather
                 if not re.search(r'(forecast|future)', text, re.IGNORECASE):
-                    coords = await coords_from_city()
+                    coords = await coords_from_city(city, api_key)
                     response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&dt={int(time.time())}")
                     if response.status == 200:
                         json_response = await response.json()
@@ -353,7 +353,7 @@ async def open_weather_action(text: str):
 
                 # Weather forecast
                 else:
-                    coords = await coords_from_city()
+                    coords = await coords_from_city(city, api_key)
                     tomorrow = datetime.now() + timedelta(days=1)
                     response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&dt={int(tomorrow.timestamp())}")
                     if response.status == 200:
@@ -366,7 +366,7 @@ async def open_weather_action(text: str):
             else:
                 # General weather based on IP address location
                 city = await city_from_ip()
-                coords = await coords_from_city()
+                coords = await coords_from_city(city, api_key)
                 response = await session.get(f"http://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&dt={int(time.time())}")
                 if response.status == 200:
                     json_response = await response.json()
