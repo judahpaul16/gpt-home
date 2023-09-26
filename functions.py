@@ -299,7 +299,7 @@ async def city_from_ip():
             json_response = await response.json()
             city = json_response.get('city')
             return city
-    
+
 async def open_weather_action(text: str):
     try:
         api_key = os.getenv('OPEN_WEATHER_API_KEY')
@@ -311,7 +311,7 @@ async def open_weather_action(text: str):
                     # Current weather
                     if not re.search(r'(forecast|future)', text, re.IGNORECASE):
                         coords = await coords_from_city(city, api_key)
-                        response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}")
+                        response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&units=imperial")
                         if response.status == 200:
                             json_response = await response.json()
                             logger.debug(json_response)
@@ -325,7 +325,7 @@ async def open_weather_action(text: str):
                     else:
                         coords = await coords_from_city(city, api_key)
                         tomorrow = datetime.now() + timedelta(days=1)
-                        response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}")
+                        response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&units=imperial")
                         if response.status == 200:
                             json_response = await response.json()
                             # next few days
@@ -348,7 +348,7 @@ async def open_weather_action(text: str):
                     # General weather based on IP address location
                     city = await city_from_ip()
                     coords = await coords_from_city(city, api_key)
-                    response = await session.get(f"http://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}")
+                    response = await session.get(f"http://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&units=imperial")
                     if response.status == 200:
                         json_response = await response.json()
                         logger.debug(json_response)
