@@ -314,29 +314,30 @@ async def spotify_action(text: str):
             raise Exception(f"Something went wrong: {e}")
     raise Exception("No access token found. Please provide the necessary credentials in the web interface.")
 
+# Open Weather Helper Functions
+def coords_from_city():
+    response = requests.get(f"http://api.openweathermap.org/geo/1.0/direct?q={city}&appid={api_key}")
+    if response.status_code == 200:
+        json_response = response.json()
+        coords = {
+            "lat": json_response[0].get('lat'),
+            "lon": json_response[0].get('lon')
+        }
+        return coords
+    
+def city_from_ip():
+    response = requests.get(f"https://ipinfo.io/json")
+    if response.status_code == 200:
+        json_response = response.json()
+        city = json_response.get('city')
+        return city
+    
 async def open_weather_action(text: str):
     try:
         api_key = os.getenv('OPEN_WEATHER_API_KEY')
         async with aiohttp.ClientSession() as session:
             if re.search(r'weather\s.*\sin\s', text, re.IGNORECASE):
                 city = re.search(r'weather.*\sin\s([\w\s]+)', text, re.IGNORECASE).group(1).strip()
-
-                def coords_from_city():
-                    response = requests.get(f"http://api.openweathermap.org/geo/1.0/direct?q={city}&appid={api_key}")
-                    if response.status_code == 200:
-                        json_response = response.json()
-                        coords = {
-                            "lat": json_response[0].get('lat'),
-                            "lon": json_response[0].get('lon')
-                        }
-                        return coords
-                    
-                def city_from_ip():
-                    response = requests.get(f"https://ipinfo.io/json")
-                    if response.status_code == 200:
-                        json_response = response.json()
-                        city = json_response.get('city')
-                        return city
 
                 # Current weather
                 if not re.search(r'(forecast|future)', text, re.IGNORECASE):
