@@ -351,6 +351,8 @@ async def open_weather_action(text: str):
                             weather = json_response.get('weather')[0].get('main')
                             temp = json_response.get('main').get('temp')
                             return f"It is currently {temp}°F and {weather} in {city}."
+                        else:
+                            raise Exception(f"Received a {response.status} status code. {response.content.decode()}")
 
                     # Weather forecast
                     else:
@@ -363,6 +365,8 @@ async def open_weather_action(text: str):
                             weather = tomorrow_data.get('weather')[0].get('main')
                             temp = tomorrow_data.get('main').get('temp')
                             return f"Tomorrow's weather in {city} is expected to be {weather} with a temperature of {temp}°F."
+                        else:
+                            raise Exception(f"Received a {response.status} status code. {response.content.decode()}")
 
                 else:
                     # General weather based on IP address location
@@ -374,6 +378,8 @@ async def open_weather_action(text: str):
                         weather = json_response.get('weather')[0].get('main')
                         temp = json_response.get('main').get('temp')
                         return f"It is currently {temp}°F and {weather} in your location."
+                    else:
+                        raise Exception(f"Received a {response.status} status code. {response.content.decode()}")
         
         logger.warning("api_key: " + api_key)
         raise Exception("No Open Weather API key found. Please enter your API key for Open Weather in the web interface or try reconnecting the service.")
