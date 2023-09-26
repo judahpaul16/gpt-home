@@ -256,8 +256,8 @@ async def connect_service(request: Request):
         fields = incoming_data["fields"]
 
         # Initialize variables for Spotify
-        client_id = None
-        client_secret = None
+        spotify_client_id = None
+        spotify_client_secret = None
         redirect_uri = None
         auth_url = None
 

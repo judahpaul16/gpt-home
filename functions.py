@@ -314,26 +314,36 @@ async def open_weather_action(text: str):
                         response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}")
                         if response.status == 200:
                             json_response = await response.json()
-                            weather = json_response.get('weather')[0].get('main')
-                            temp = json_response.get('main').get('temp')
+                            logger.debug(json_response)
+                            weather = json_response.get('current').get('weather')[0].get('main')
+                            temp = json_response.get('current').get('temp')
                             return f"It is currently {temp}°F and {weather} in {city}."
                         else:
                             raise Exception(f"Received a {response.status} status code. {response.content.decode()}")
 
                     # Weather forecast
-                    # else:
-                    #     coords = await coords_from_city(city, api_key)
-                    #     tomorrow = datetime.now() + timedelta(days=1)
-                    #     response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}")
-                    #     if response.status == 200:
-                    #         json_response = await response.json()
-                    #         tomorrow_data = json_response.get('list')[8]  # Roughly 24 hours from now
-                    #         weather = tomorrow_data.get('weather')[0].get('main')
-                    #         temp = tomorrow_data.get('main').get('temp')
-                    #         return f"Tomorrow's weather in {city} is expected to be {weather} with a temperature of {temp}°F."
-                    #     else:
-                    #         raise Exception(f"Received a {response.status} status code. {response.content.decode()}")
-
+                    else:
+                        coords = await coords_from_city(city, api_key)
+                        tomorrow = datetime.now() + timedelta(days=1)
+                        response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}")
+                        if response.status == 200:
+                            json_response = await response.json()
+                            # next few days
+                            forecast = []
+                            for day in json_response.get('daily'):
+                                forecast.append({
+                                    'weather': day.get('weather')[0].get('main'),
+                                    'temp': day.get('temp').get('day'),
+                                    'date': datetime.fromtimestamp(day.get('dt')).strftime('%A')
+                                })
+                            # tomorrow
+                            tomorrow_forecast = list(filter(lambda x: x.get('date') == tomorrow.strftime('%A'), forecast))[0]
+                            speech_responses = []
+                            speech_responses.append(f"Tomorrow, it will be {tomorrow_forecast.get('temp')}°F and {tomorrow_forecast.get('weather')} in {city}.")
+                            for day in forecast:
+                                if day.get('date') != tomorrow.strftime('%A'):
+                                    speech_responses.append(f"On {day.get('date')}, it will be {day.get('temp')}°F and {day.get('weather')} in {city}.")
+                            return ' '.join(speech_responses)
                 else:
                     # General weather based on IP address location
                     city = await city_from_ip()
@@ -341,8 +351,9 @@ async def open_weather_action(text: str):
                     response = await session.get(f"http://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}")
                     if response.status == 200:
                         json_response = await response.json()
-                        weather = json_response.get('weather')[0].get('main')
-                        temp = json_response.get('main').get('temp')
+                        logger.debug(json_response)
+                        weather = json_response.get('current').get('weather')[0].get('main')
+                        temp = json_response.get('current').get('temp')
                         return f"It is currently {temp}°F and {weather} in your location."
                     else:
                         content = await response.content.read()
