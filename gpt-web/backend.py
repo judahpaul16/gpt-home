@@ -430,7 +430,8 @@ async def spotify_control(request: Request):
         if "play" in text:
             song = re.sub(r'(play\s+)', '', text, count=1).strip()
             if song:
-                spotify_uri = await search_song_get_uri(song)
+                # spotify_uri = await search_song_get_uri(song)
+                spotify_uri = 'https://open.spotify.com/track/5p7GiBZNL1afJJDUrOA6C8?si=27a57323a1dc40e9' # Hardcoded for now
                 if spotify_uri:
                     subprocess.run(["playerctl", "open", spotify_uri])
                     return JSONResponse(content={"success": True, "message": f"Playing {song} on Spotify."})
