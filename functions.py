@@ -404,10 +404,21 @@ async def philips_hue_action(text: str):
             color_pattern = r'\b(red|green|blue|yellow|purple|orange|pink|white|black)\b'
             match = re.search(color_pattern, text, re.IGNORECASE)
             if match:
-                color = match.group(1)
+                # convert color to hue value
+                color = {
+                    'red': 0,
+                    'green': 25500,
+                    'blue': 46920,
+                    'yellow': 12750,
+                    'purple': 56100,
+                    'orange': 10000,
+                    'pink': 56100,
+                    'white': 0,
+                    'black': 0
+                }.get(match.group(1).lower())
                 b.set_group(0, 'on', True)
                 b.set_group(0, 'hue', color)
-                return f"Changing lights to {color}."
+                return f"Changing lights {color}."
 
             # Change light brightness
             brightness_pattern = r'(\b(dim|brighten)\b)?.*?\s.*?to\s(\d{1,3})\b'
@@ -416,7 +427,7 @@ async def philips_hue_action(text: str):
                 brightness = int(match.group(3))
                 b.set_group(0, 'on', True)
                 b.set_group(0, 'bri', brightness)
-                return f"Brightening lights to {brightness}."
+                return f"Setting brightness to {brightness}."
 
             raise Exception("I'm sorry, I don't know how to handle that request.")
         except Exception as e:
@@ -426,8 +437,6 @@ async def philips_hue_action(text: str):
     raise Exception("No philips hue bridge IP found. Please enter your bridge IP for Phillips Hue in the web interface or try reconnecting the service.")
 
 async def query_openai(text, display, retries=3):
-    stop_event = asyncio.Event()
-
     # Load settings from settings.json
     settings = load_settings()
     max_tokens = settings.get("max_tokens")
