@@ -194,8 +194,6 @@ check_and_install "cmake" "sudo apt-get install -y cmake"
 check_and_install "openssl" "sudo apt-get install -y openssl"
 check_and_install "git" "sudo apt-get install -y git"
 check_and_install "nginx" "sudo apt-get install -y nginx"
-check_and_install "playerctl" "sudo apt-get install -y playerctl"
-check_and_install "raspotify" "curl -sL https://dtcooper.github.io/raspotify/install.sh | sh"
 
 # Function to setup a systemd service
 setup_service() {
@@ -418,7 +416,7 @@ alias web-error="tail -n 100 -f /var/log/nginx/error.log"
 <td>
 
 - [Spotify API Docs](https://developer.spotify.com/documentation/web-api/)
-- [Raspotify Docs](https://github.com/dtcooper/raspotify)
+- [Spotify Web API Python Docs (Spotipy)](https://spotipy.readthedocs.io/en/2.18.0/)
 - [Phillips Hue API Docs](https://developers.meethue.com/develop/get-started-2/)
 - [Phillips Hue Python API Docs](https://github.com/studioimaginaire/phue)
 - [OpenWeatherMap API Docs](https://openweathermap.org/api/one-call-3)
