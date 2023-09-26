@@ -396,28 +396,35 @@ async def spotify_control(request: Request):
                 # spotify_uri = await search_song_get_uri(song)
                 spotify_uri = 'spotify:track:5p7GiBZNL1afJJDUrOA6C8'  # Hardcoded for now
                 sp.start_playback(uris=[spotify_uri])
+                logger.success(f"Playing {song} on Spotify.")
                 return JSONResponse(content={"success": True, "message": f"Playing {song} on Spotify."})
             else:
                 sp.start_playback()
+                logger.success("Resumed playback.")
                 return JSONResponse(content={"success": True, "message": "Resumed playback."})
 
         elif "next" in text or "skip" in text:
             sp.next_track()
+            logger.success("Playing next track.")
             return JSONResponse(content={"success": True, "message": "Playing next track."})
 
         elif "previous" in text or "go back" in text:
             sp.previous_track()
+            logger.success("Playing previous track.")
             return JSONResponse(content={"success": True, "message": "Playing previous track."})
 
         elif "pause" in text or "stop" in text:
             sp.pause_playback()
+            logger.success("Paused playback.")
             return JSONResponse(content={"success": True, "message": "Paused playback."})
 
         else:
-            return JSONResponse(content={"success": False, "message": "Invalid command."})
+            logger.warning(f"Invalid command: {text}")
+            return JSONResponse(content={"success": False, "message": "Invalid command."}, status_code=400)
 
     except Exception as e:
-        return JSONResponse(content={"success": False, "message": str(e), "traceback": traceback.format_exc()})
+        logger.error(f"Error: {traceback.format_exc()}")
+        return JSONResponse(content={"success": False, "message": str(e), "traceback": traceback.format_exc()}, status_code=500)
     
 ## Philips Hue ##
 
