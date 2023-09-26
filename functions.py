@@ -340,8 +340,14 @@ async def open_weather_action(text: str):
                         temp = tomorrow_data.get('main').get('temp')
                         return f"Tomorrow's weather in {city} is expected to be {weather} with a temperature of {temp}°F."
 
-            # In case the query doesn't match the expected patterns
-            return "Please specify a valid city and whether you want current weather or a forecast."
+            else:
+                # General weather based on IP address location
+                response = await session.get(f"http://api.openweathermap.org/data/2.5/weather?appid={api_key}&units=imperial")
+                if response.status == 200:
+                    json_response = await response.json()
+                    weather = json_response.get('weather')[0].get('main')
+                    temp = json_response.get('main').get('temp')
+                    return f"It is currently {temp}°F and {weather} in your location."
 
     except Exception as e:
         # Handle city not found error gracefully
