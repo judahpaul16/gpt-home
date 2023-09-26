@@ -305,8 +305,10 @@ async def open_weather_action(text: str):
         api_key = os.getenv('OPEN_WEATHER_API_KEY')
         if api_key:
             async with aiohttp.ClientSession() as session:
-                if re.search(r'weather\s.*\sin\s', text, re.IGNORECASE):
-                    city = re.search(r'weather.*\sin\s([\w\s]+)', text, re.IGNORECASE).group(1).strip()
+                if re.search(r'(weather|temperature).*\sin\s', text, re.IGNORECASE):
+                    city_match = re.search(r'in\s([\w\s]+)', text, re.IGNORECASE)
+                    if city_match:
+                        city = city_match.group(1).strip()
 
                     # Current weather
                     if not re.search(r'(forecast|future)', text, re.IGNORECASE):
@@ -317,7 +319,7 @@ async def open_weather_action(text: str):
                             logger.debug(json_response)
                             weather = json_response.get('current').get('weather')[0].get('main')
                             temp = json_response.get('current').get('temp')
-                            return f"It is currently {temp}°F and {weather} in {city}."
+                            return f"It is currently {temp}°F and {weather.lower()} in {city}."
                         else:
                             raise Exception(f"Received a {response.status} status code. {response.content.decode()}")
 
@@ -342,7 +344,7 @@ async def open_weather_action(text: str):
                             speech_responses.append(f"Tomorrow, it will be {tomorrow_forecast.get('temp')}°F and {tomorrow_forecast.get('weather')} in {city}.")
                             for day in forecast:
                                 if day.get('date') != tomorrow.strftime('%A'):
-                                    speech_responses.append(f"On {day.get('date')}, it will be {day.get('temp')}°F and {day.get('weather')} in {city}.")
+                                    speech_responses.append(f"On {day.get('date')}, it will be {day.get('temp')}°F and {day.get('weather').lower()} in {city}.")
                             return ' '.join(speech_responses)
                 else:
                     # General weather based on IP address location
@@ -354,7 +356,7 @@ async def open_weather_action(text: str):
                         logger.debug(json_response)
                         weather = json_response.get('current').get('weather')[0].get('main')
                         temp = json_response.get('current').get('temp')
-                        return f"It is currently {temp}°F and {weather} in your location."
+                        return f"It is currently {temp}°F and {weather.lower()} in your location."
                     else:
                         content = await response.content.read()
                         raise Exception(f"Received a {response.status} status code. {content.decode()}")
