@@ -387,7 +387,7 @@ async def handle_callback(request: Request):
             set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", access_token)
             set_key(ENV_FILE_PATH, "SPOTIFY_REFRESH_TOKEN", refresh_token)
             set_key(ENV_FILE_PATH, "SPOTIFY_TOKEN_EXPIRES_IN", str(expires_in))
-            logger.success("Successfully connected to Spotify.")
+            logger.success("Successfully retrieved access token from Spotify.")
 
             subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
             return RedirectResponse(url="/", status_code=302)
