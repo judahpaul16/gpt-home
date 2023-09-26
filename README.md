@@ -420,11 +420,9 @@ alias web-error="tail -n 100 -f /var/log/nginx/error.log"
 
 - [Spotify API Docs](https://developer.spotify.com/documentation/web-api/)
 - [Raspotify Docs](https://github.com/dtcooper/raspotify)
-- [Google Calendar API Docs](https://developers.google.com/calendar)
-- [Google Calendar Python API Docs](https://developers.google.com/calendar/quickstart/python)
 - [Phillips Hue API Docs](https://developers.meethue.com/develop/get-started-2/)
 - [Phillips Hue Python API Docs](https://github.com/studioimaginaire/phue)
-- [OpenWeatherMap API Docs](https://openweathermap.org/api)
+- [OpenWeatherMap API Docs](https://openweathermap.org/api/one-call-3)
 - [Fritzing Schematics](https://fritzing.org/)
 
 </td>

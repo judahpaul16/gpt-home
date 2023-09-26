@@ -1,8 +1,4 @@
 from concurrent.futures import ThreadPoolExecutor
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from dotenv.main import set_key
@@ -63,9 +59,6 @@ speak_lock = asyncio.Lock()
 display_lock = asyncio.Lock()
 
 HOSTNAME = os.environ['HOSTNAME']
-
-# Google Calendar Scopes
-SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 
 def network_connected():
     return os.system("ping -c 1 google.com") == 0
@@ -321,48 +314,44 @@ async def spotify_action(text: str):
             raise Exception(f"Something went wrong: {e}")
     raise Exception("No access token found. Please provide the necessary credentials in the web interface.")
 
-async def google_calendar_action(text: str):    
-    creds_data = {
-        'token': os.getenv('GOOGLE_CALENDAR_TOKEN'),
-        'refresh_token': os.getenv('GOOGLE_CALENDAR_REFRESH_TOKEN'),
-        'token_uri': 'https://oauth2.googleapis.com/token',
-        'client_id': os.getenv('GOOGLE_CALENDAR_CLIENT_ID'),
-        'client_secret': os.getenv('GOOGLE_CALENDAR_CLIENT_SECRET'),
-        'scopes': SCOPES
-    }
-    
-    creds = Credentials(**creds_data)
+async def open_weather_action(text: str):
+    try:
+        api_key = os.getenv('OPEN_WEATHER_API_KEY')
+        async with aiohttp.ClientSession() as session:
+            if re.search(r'weather\s.*\sin\s', text, re.IGNORECASE):
+                city = re.search(r'weather.*\sin\s([\w\s]+)', text, re.IGNORECASE).group(1).strip()
 
-    if not creds.valid:
-        if creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-    
-    service = build('calendar', 'v3', credentials=creds)
+                # Current weather
+                if not re.search(r'(forecast|future)', text, re.IGNORECASE):
+                    response = await session.get(f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=imperial")
+                    if response.status == 200:
+                        json_response = await response.json()
+                        weather = json_response.get('weather')[0].get('main')
+                        temp = json_response.get('main').get('temp')
+                        return f"It is currently {temp}°F and {weather} in {city}."
 
-    if re.search(r'(schedule|set).*(meeting|event)', text, re.IGNORECASE):
-        # event = service.events().insert(calendarId='primary', body=meeting_details).execute()
-        return "This feature is not yet implemented."
-    
-    elif re.search(r'(delete|remove|cancel).*event', text, re.IGNORECASE):
-        # service.events().delete(calendarId='primary', eventId=event_id).execute()
-        return "This feature is not yet implemented."
+                # Weather forecast
+                else:
+                    response = await session.get(f"http://api.openweathermap.org/data/2.5/forecast?q={city}&appid={api_key}&units=imperial")
+                    if response.status == 200:
+                        json_response = await response.json()
+                        tomorrow_data = json_response.get('list')[8]  # Roughly 24 hours from now
+                        weather = tomorrow_data.get('weather')[0].get('main')
+                        temp = tomorrow_data.get('main').get('temp')
+                        return f"Tomorrow's weather in {city} is expected to be {weather} with a temperature of {temp}°F."
 
-    elif re.search(r'what(s)?\s.*(upcoming|next|future)?.*events?', text, re.IGNORECASE):
-        now = datetime.datetime.utcnow().isoformat() + 'Z'
-        events_result = service.events().list(calendarId='primary', timeMin=now,
-                                              maxResults=10, singleEvents=True,
-                                              orderBy='startTime').execute()
-        events = events_result.get('items', [])
+            # In case the query doesn't match the expected patterns
+            return "Please specify a valid city and whether you want current weather or a forecast."
 
-        if not events:
-            return "You have no upcoming events."
-        
-        event_details = [f"{event['start'].get('dateTime', event['start'].get('date'))}: {event['summary']}" for event in events]
-        return f"You have the following upcoming events: {', '.join(event_details)}"
+    except Exception as e:
+        # Handle city not found error gracefully
+        if '404' in str(e):
+            return f"Weather information for {city} is not available."
+        else:
+            # You can log the traceback for debugging purposes and provide a generic error message to the user
+            logger.error(f"Error: {traceback.format_exc()}")
+            return f"Something went wrong. Please try again later."
 
-    else:
-        return "Invalid action."
-    
 async def philips_hue_action(text: str):
     bridge_ip = os.getenv('PHILIPS_HUE_BRIDGE_IP')
     username = os.getenv('PHILIPS_HUE_USERNAME')
@@ -444,9 +433,9 @@ async def action_router(text: str, display):
     if re.search(r'(play|resume|next song|go back|pause|stop)(\s.)*(\son\sSpotify)*', text, re.IGNORECASE):
         return await spotify_action(text)
         
-    # For Google Calendar actions
-    elif re.search(r'(schedule\s|meeting|delete\s|create\s|event)', text, re.IGNORECASE):
-        return await google_calendar_action(text)
+    # For Open Weather actions
+    elif re.search(r'(what\'?s|what is|how\'?s|how is).*\s(weather|temperature|forecast|outside|today|tomorrow|this week)', text, re.IGNORECASE):
+        return await open_weather_action(text)
 
     # For Philips Hue actions
     elif re.search(r'(turn)?(\son|\soff)?.*\slight(s)?(\son|\soff)?', text, re.IGNORECASE):

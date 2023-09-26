@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.exceptions import HTTPException
 from google_auth_oauthlib.flow import Flow
 from datetime import datetime, timedelta
-from functions import logger, refresh_token, SCOPES
+from functions import logger, refresh_token
 from typing import Optional
 from pathlib import Path
 from phue import Bridge
@@ -274,13 +274,9 @@ async def connect_service(request: Request):
                 elif key == "CLIENT SECRET":
                     set_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_SECRET", value)
                     spotify_client_secret = value
-            elif name == "googlecalendar":
-                if key == "CLIENT ID":
-                    set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_CLIENT_ID", value)
-                    gc_client_id = value
-                elif key == "CLIENT SECRET":
-                    set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_CLIENT_SECRET", value)
-                    gc_client_secret = value
+            elif name == "openweather":
+                if key == "API KEY":
+                    set_key(ENV_FILE_PATH, "OPEN_WEATHER_API_KEY", value)
             elif name == "philipshue":
                 if key == "BRIDGE IP ADDRESS":
                     set_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP", value)
@@ -300,27 +296,7 @@ async def connect_service(request: Request):
             # Construct the authorization URL
             auth_query = "&".join([f"{key}={value}" for key, value in auth_params.items()])
             auth_url = f"https://accounts.spotify.com/authorize?{auth_query}"
-                
-        elif name == "googlecalendar" and gc_client_id and gc_client_secret:
-            ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip()
-            set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_REDIRECT_URI", f"http://{ip}/api/callback")
-            # Start the OAuth 2.0 flow for Google Calendar
-            flow = Flow.from_client_config(
-                {
-                    "web": {
-                        "client_id": client_id,
-                        "client_secret": client_secret,
-                        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                        "token_uri": "https://oauth2.googleapis.com/token",
-                        "redirect_uris": [f"http://{ip}/api/callback"]
-                    }
-                },
-                scopes=SCOPES,
-            )
-            # Setting REDIRECT URI explicitly to local ip
-            flow.redirect_uri = f"http://{ip}/api/callback"
-            auth_url, _ = flow.authorization_url(prompt="consent")
-
+             
         # Restarting the service after setting up configurations for any of the services
         subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
 
@@ -346,8 +322,8 @@ async def disconnect_service(request: Request):
             unset_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_SECRET")
             unset_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI")
             unset_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN")
-        elif name == "googlecalendar":
-            unset_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN")
+        elif name == "openweather":
+            unset_key(ENV_FILE_PATH, "OPEN_WEATHER_API_KEY")
         elif name == "philipshue":
             unset_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP")
             unset_key(ENV_FILE_PATH, "PHILIPS_HUE_USERNAME")
@@ -364,7 +340,7 @@ async def get_service_statuses(request: Request):
 
         statuses = {
             "Spotify": "SPOTIFY_ACCESS_TOKEN" in env_config,
-            "GoogleCalendar": "GOOGLE_CALENDAR_TOKEN" in env_config,
+            "OpenWeather": "OPEN_WEATHER_API_KEY" in env_config,
             "PhilipsHue": "PHILIPS_HUE_BRIDGE_IP" in env_config and "PHILIPS_HUE_USERNAME" in env_config
         }
 
@@ -373,7 +349,10 @@ async def get_service_statuses(request: Request):
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
 
-# API Callback for Spotify & Google Calendar OAuth
+
+## Spotify ##
+
+# Callback for Spotify OAuth2
 async def handle_callback(request: Request):
     try:
         code = request.query_params.get("code")
@@ -382,41 +361,20 @@ async def handle_callback(request: Request):
 
         load_dotenv(ENV_FILE_PATH)
         logger.info("Received callback from OAuth2 provider.")
-        logger.warning(f"State: {request.query_params.get('state')}")
 
-        # Differentiating between Spotify and Google Calendar
-        if request.query_params.get("state") == "spotify":
-            client_id = os.getenv("SPOTIFY_CLIENT_ID")
-            client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
-            redirect_uri = os.getenv("SPOTIFY_REDIRECT_URI")
-            
-            base64_encoded = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
-            
-            auth_data = {
-                "redirect_uri": redirect_uri,
-                "code": code,
-                "grant_type": "authorization_code"
-            }
-            auth_headers = {'Authorization': f"Basic {base64_encoded}"}
-            token_url = "https://accounts.spotify.com/api/token"
-
-        elif request.query_params.get("state") == "googlecalendar":
-            client_id = os.getenv("GOOGLE_CALENDAR_CLIENT_ID")
-            client_secret = os.getenv("GOOGLE_CALENDAR_CLIENT_SECRET")
-            redirect_uri = os.getenv("GOOGLE_CALENDAR_REDIRECT_URI")
-
-            auth_data = {
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "redirect_uri": redirect_uri,
-                "code": code,
-                "grant_type": "authorization_code"
-            }
-            auth_headers = None
-            token_url = "https://oauth2.googleapis.com/token"
-
-        else:
-            raise Exception("Unknown OAuth2 source")
+        client_id = os.getenv("SPOTIFY_CLIENT_ID")
+        client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+        redirect_uri = os.getenv("SPOTIFY_REDIRECT_URI")
+        
+        base64_encoded = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+        
+        auth_data = {
+            "redirect_uri": redirect_uri,
+            "code": code,
+            "grant_type": "authorization_code"
+        }
+        auth_headers = {'Authorization': f"Basic {base64_encoded}"}
+        token_url = "https://accounts.spotify.com/api/token"
 
         async with httpx.AsyncClient() as client:
             response = await client.post(token_url, data=auth_data, headers=auth_headers)
@@ -426,17 +384,11 @@ async def handle_callback(request: Request):
             access_token = json_response.get("access_token", None)
             refresh_token = json_response.get("refresh_token", None)
 
-            if request.query_params.get("state") == "spotify":
-                expires_in = json_response.get("expires_in", None)
-                set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", access_token)
-                set_key(ENV_FILE_PATH, "SPOTIFY_REFRESH_TOKEN", refresh_token)
-                set_key(ENV_FILE_PATH, "SPOTIFY_TOKEN_EXPIRES_IN", str(expires_in))
-                logger.success("Successfully connected to Spotify.")
-
-            elif request.query_params.get("state") == "googlecalendar":
-                set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_TOKEN", access_token)
-                set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_REFRESH_TOKEN", refresh_token)
-                logger.success("Successfully connected to Google Calendar.")
+            expires_in = json_response.get("expires_in", None)
+            set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", access_token)
+            set_key(ENV_FILE_PATH, "SPOTIFY_REFRESH_TOKEN", refresh_token)
+            set_key(ENV_FILE_PATH, "SPOTIFY_TOKEN_EXPIRES_IN", str(expires_in))
+            logger.success("Successfully connected to Spotify.")
 
             subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
             return RedirectResponse(url="/", status_code=302)
@@ -446,9 +398,6 @@ async def handle_callback(request: Request):
 
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
-
-
-## Spotify ##
 
 def search_song_get_uri(song_name: str):
     access_token = os.getenv('SPOTIFY_ACCESS_TOKEN')
@@ -507,11 +456,6 @@ async def spotify_control(request: Request):
 
     except Exception as e:
         return JSONResponse(content={"success": False, "message": str(e), "traceback": traceback.format_exc()})
-
-
-## Google Calendar ##
-
-# ...
 
 
 ## Philips Hue ##
