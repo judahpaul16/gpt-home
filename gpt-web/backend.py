@@ -371,7 +371,7 @@ async def handle_callback(request: Request):
                                 scope="user-library-read,user-modify-playback-state,user-read-playback-state,user-read-currently-playing,streaming")
 
         # Get the access token
-        token_info = sp_oauth.get_access_token(code)
+        token_info = sp_oauth.get_access_token(code, check_cache=False)  # Disabling cache to force reauthorization
         
         if not token_info:
             raise Exception("Failed to get token info")
@@ -384,7 +384,9 @@ async def handle_callback(request: Request):
         return RedirectResponse(url="/", status_code=302)
 
     except Exception as e:
-        return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
+        # In case of any error, redirect the user back to the Spotify authorization page
+        auth_url = sp_oauth.get_authorize_url(show_dialog=True)  # force reauthorization
+        return RedirectResponse(url=auth_url)
 
 def get_stored_token():
     try:
