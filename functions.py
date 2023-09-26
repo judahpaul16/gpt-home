@@ -315,22 +315,24 @@ async def spotify_action(text: str):
     raise Exception("No access token found. Please provide the necessary credentials in the web interface.")
 
 # Open Weather Helper Functions
-def coords_from_city():
-    response = requests.get(f"http://api.openweathermap.org/geo/1.0/direct?q={city}&appid={api_key}")
-    if response.status_code == 200:
-        json_response = response.json()
-        coords = {
-            "lat": json_response[0].get('lat'),
-            "lon": json_response[0].get('lon')
-        }
-        return coords
+async def coords_from_city():
+    async with aiohttp.ClientSession() as session:
+        response = session.get(f"http://api.openweathermap.org/geo/1.0/direct?q={city}&appid={api_key}")
+        if response.status == 200:
+            json_response = await response.json()
+            coords = {
+                "lat": json_response[0].get('lat'),
+                "lon": json_response[0].get('lon')
+            }
+            return coords
     
-def city_from_ip():
-    response = requests.get(f"https://ipinfo.io/json")
-    if response.status_code == 200:
-        json_response = response.json()
-        city = json_response.get('city')
-        return city
+async def city_from_ip():
+    async with aiohttp.ClientSession() as session:
+        response = session.get(f"https://ipinfo.io/json")
+        if response.status == 200:
+            json_response = await response.json()
+            city = json_response.get('city')
+            return city
     
 async def open_weather_action(text: str):
     try:
