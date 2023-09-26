@@ -395,18 +395,18 @@ alias web-error="tail -n 100 -f /var/log/nginx/error.log"
 
 - [OpenAI API Docs](https://beta.openai.com/docs/introduction)
 - [Raspberry Pi Docs](https://www.raspberrypi.com/documentation)
-- [GPIO Pinout](https://www.raspberrypi.com/documentation/computers/images/GPIO-Pinout-Diagram-2.png)
-- [Requests Docs](https://pypi.org/project/requests/)
-- [Python3 Docs](https://docs.python.org/3/)
 - [Node.js Docs](https://nodejs.org/en/docs/)
 - [npm Docs](https://docs.npmjs.com/)
 - [NGINX Docs](https://nginx.org/en/docs/)
+- [React Docs](https://reactjs.org/docs/getting-started.html)
+- [FastAPI Docs](https://fastapi.tiangolo.com/)
 
 </td>
 <td>
 
-- [React Docs](https://reactjs.org/docs/getting-started.html)
-- [FastAPI Docs](https://fastapi.tiangolo.com/)
+- [Python3 Docs](https://docs.python.org/3/)
+- [GPIO Pinout](https://www.raspberrypi.com/documentation/computers/images/GPIO-Pinout-Diagram-2.png)
+- [Requests Docs](https://pypi.org/project/requests/)
 - [PortAudio Docs](http://www.portaudio.com/docs/v19-doxydocs/index.html)
 - [Adafruit SSD1306 Docs](https://circuitpython.readthedocs.io/projects/ssd1306/en/latest/)
 - [pyttsx3 Docs](https://pypi.org/project/pyttsx3/)
