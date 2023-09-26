@@ -400,19 +400,18 @@ alias web-error="tail -n 100 -f /var/log/nginx/error.log"
 - [NGINX Docs](https://nginx.org/en/docs/)
 - [React Docs](https://reactjs.org/docs/getting-started.html)
 - [FastAPI Docs](https://fastapi.tiangolo.com/)
+- [Ubuntu Server Docs](https://ubuntu.com/server/docs)
 
 </td>
 <td>
 
 - [Python3 Docs](https://docs.python.org/3/)
 - [GPIO Pinout](https://www.raspberrypi.com/documentation/computers/images/GPIO-Pinout-Diagram-2.png)
-- [Requests Docs](https://pypi.org/project/requests/)
-- [PortAudio Docs](http://www.portaudio.com/docs/v19-doxydocs/index.html)
 - [Adafruit SSD1306 Docs](https://circuitpython.readthedocs.io/projects/ssd1306/en/latest/)
 - [pyttsx3 Docs](https://pypi.org/project/pyttsx3/)
-- [eSpeak Docs](http://espeak.sourceforge.net/commands.html)
 - [I2C Docs](https://i2c.readthedocs.io/en/latest/)
 - [ALSA Docs](https://www.alsa-project.org/wiki/Documentation)
+- [PortAudio Docs](http://www.portaudio.com/docs/v19-doxydocs/index.html)
 - [SpeechRecognition Docs](https://pypi.org/project/SpeechRecognition/)
 
 </td>
