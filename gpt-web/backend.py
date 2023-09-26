@@ -301,7 +301,7 @@ async def connect_service(request: Request):
             auth_query = "&".join([f"{key}={value}" for key, value in auth_params.items()])
             auth_url = f"https://accounts.spotify.com/authorize?{auth_query}"
                 
-        if name == "googlecalendar" and client_id and client_secret:
+        elif name == "googlecalendar" and gc_client_id and gc_client_secret:
             ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip()
             set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_REDIRECT_URI", f"http://{ip}/api/callback")
             # Start the OAuth 2.0 flow for Google Calendar
@@ -364,13 +364,14 @@ async def get_service_statuses(request: Request):
 
         statuses = {
             "Spotify": "SPOTIFY_ACCESS_TOKEN" in env_config,
-            "GoogleCalendar": "GOOGLE_CALENDAR_ACCESS_TOKEN" in env_config,
+            "GoogleCalendar": "GOOGLE_CALENDAR_TOKEN" in env_config,
             "PhilipsHue": "PHILIPS_HUE_BRIDGE_IP" in env_config and "PHILIPS_HUE_USERNAME" in env_config
         }
 
         return JSONResponse(content={"statuses": statuses})
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
+
 
 # API Callback for Spotify & Google Calendar OAuth
 async def handle_callback(request: Request):
@@ -380,8 +381,10 @@ async def handle_callback(request: Request):
             raise Exception("Authorization code not found in query parameters")
 
         load_dotenv(ENV_FILE_PATH)
+        logger.info("Received callback from OAuth2 provider.")
+        logger.warning(f"State: {request.query_params.get('state')}")
 
-        # Differentiating based on the client ID in the environment variable
+        # Differentiating between Spotify and Google Calendar
         if request.query_params.get("state") == "spotify":
             client_id = os.getenv("SPOTIFY_CLIENT_ID")
             client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
@@ -428,12 +431,12 @@ async def handle_callback(request: Request):
                 set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", access_token)
                 set_key(ENV_FILE_PATH, "SPOTIFY_REFRESH_TOKEN", refresh_token)
                 set_key(ENV_FILE_PATH, "SPOTIFY_TOKEN_EXPIRES_IN", str(expires_in))
-                print("Successfully connected to Spotify.")
+                logger.success("Successfully connected to Spotify.")
 
             elif request.query_params.get("state") == "googlecalendar":
                 set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_TOKEN", access_token)
                 set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_REFRESH_TOKEN", refresh_token)
-                print("Successfully connected to Google Calendar.")
+                logger.success("Successfully connected to Google Calendar.")
 
             subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
             return RedirectResponse(url="/", status_code=302)
