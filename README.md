@@ -141,12 +141,41 @@ If you want to use the example setup script, you can skip this section.
 ---
 
 ## 📜 Example Setup script:
-First initialize an environment variable with your OpenAI API Key.  
-*Note: Does not persist after reboot.*  
-*If you want to set up the variable in .bashrc you can ignore this part.*  
+This script will install all the dependencies and completely set up the project for you. The first time you run it, it will take a while to install all the dependencies. After that, it will be much faster and you can just run it to reinstall the project if you make any changes to the code or want the latest version of the project.
+
+You will need to initialize an environment variable with your OpenAI API Key.  
+
+- *Note: Executing `export` directly in the terminal does not persist after reboot.*  
 ```bash
 export OPENAI_API_KEY="your_openai_api_key_here"
 ```
+
+*Alternatively, you set up the variable in .bashrc file. (recommended)*  
+- *Put this at the end of your `~/.bashrc` file*
+```bash
+# export your OpenAI API Key in here to initialize it at boot
+export OPENAI_API_KEY="your_openai_api_key_here"
+
+# Optional: Add these aliases to your .bashrc file for easier management
+alias gpt-start="sudo systemctl start gpt-home"
+alias gpt-restart="sudo systemctl restart gpt-home"
+alias gpt-stop="sudo systemctl stop gpt-home"
+alias gpt-disable="sudo systemctl disable gpt-home"
+alias gpt-status="sudo systemctl status gpt-home"
+alias gpt-enable="sudo systemctl enable gpt-home"
+alias gpt-log="tail -n 100 -f /home/ubuntu/gpt-home/events.log"
+
+alias web-start="sudo systemctl start gpt-web"
+alias web-restart="sudo systemctl restart gpt-web && sudo systemctl restart nginx"
+alias web-stop="sudo systemctl stop gpt-web"
+alias web-disable="sudo systemctl disable gpt-web"
+alias web-status="sudo systemctl status gpt-web"
+alias web-enable="sudo systemctl enable gpt-web"
+alias web-log="tail -n 100 -f /var/log/nginx/access.log"
+alias web-error="tail -n 100 -f /var/log/nginx/error.log"
+```
+
+
 Create a script outside the local repo folder with `vim setup.sh`
 ```bash
 #!/bin/bash
@@ -353,29 +382,6 @@ Be sure to make the script executable to run it
 ```bash
 chmod +x setup.sh
 ./setup.sh
-```
-(Optional) .bashrc helpers<br>
-**Put this at the end of your ~/.bashrc file**
-```bash
-# export your OpenAI API Key in here to initialize it at boot
-export OPENAI_API_KEY="your_openai_api_key_here"
-
-alias gpt-start="sudo systemctl start gpt-home"
-alias gpt-restart="sudo systemctl restart gpt-home"
-alias gpt-stop="sudo systemctl stop gpt-home"
-alias gpt-disable="sudo systemctl disable gpt-home"
-alias gpt-status="sudo systemctl status gpt-home"
-alias gpt-enable="sudo systemctl enable gpt-home"
-alias gpt-log="tail -n 100 -f /home/ubuntu/gpt-home/events.log"
-
-alias web-start="sudo systemctl start gpt-web"
-alias web-restart="sudo systemctl restart gpt-web && sudo systemctl restart nginx"
-alias web-stop="sudo systemctl stop gpt-web"
-alias web-disable="sudo systemctl disable gpt-web"
-alias web-status="sudo systemctl status gpt-web"
-alias web-enable="sudo systemctl enable gpt-web"
-alias web-log="tail -n 100 -f /var/log/nginx/access.log"
-alias web-error="tail -n 100 -f /var/log/nginx/error.log"
 ```
 
 ---
