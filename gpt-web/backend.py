@@ -398,7 +398,6 @@ async def handle_callback(request: Request):
             client_secret=os.environ['SPOTIFY_CLIENT_SECRET'],
             redirect_uri=os.environ['SPOTIFY_REDIRECT_URI'],
             scope=scopes,
-            cache_path=PARENT_DIRECTORY.parent / ".cache"
         )
 
         if code:
@@ -469,7 +468,7 @@ async def spotify_control(request: Request):
                 client_secret=os.environ['SPOTIFY_CLIENT_SECRET'],
                 redirect_uri=os.environ['SPOTIFY_REDIRECT_URI'],
                 scope=scopes,
-                cache_path=PARENT_DIRECTORY.parent / ".cache"
+                cache_path=TOKEN_PATH
             )
             token_info = sp_oauth.refresh_access_token(token_info.get("refresh_token"))
             if not token_info:  # Check again after refreshing
