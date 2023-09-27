@@ -379,36 +379,33 @@ async def get_service_statuses(request: Request):
 async def handle_callback(request: Request):
     try:
         code = request.query_params.get("code")
-        if not code:
-            raise Exception("Authorization code not found in query parameters")
 
-        # Initialize the Spotipy OAuth object with the environment variables
-        sp_oauth = util.prompt_for_user_token(
-            username=os.environ['SPOTIFY_USERNAME'],
-            scope="user-library-read,user-modify-playback-state,user-read-playback-state,user-read-currently-playing,streaming",
+        sp_oauth = spotipy.oauth2.SpotifyOAuth(
             client_id=os.environ['SPOTIFY_CLIENT_ID'],
             client_secret=os.environ['SPOTIFY_CLIENT_SECRET'],
-            redirect_uri=os.environ['SPOTIFY_REDIRECT_URI']
+            redirect_uri=os.environ['SPOTIFY_REDIRECT_URI'],
+            scope="user-library-read,user-modify-playback-state,user-read-playback-state,user-read-currently-playing,streaming"
         )
 
-        # Get the access token
-        token_info = sp_oauth.get_access_token(code, check_cache=False)  # Disabling cache to force reauthorization
-        
-        if not token_info:
-            raise Exception("Failed to get token info")
-
-        store_token(token_info)
-
-        # Restarting the service
-        subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
+        if code:
+            token_info = sp_oauth.get_access_token(code, check_cache=False)
             
-        return RedirectResponse(url="/", status_code=302)
+            if not token_info:
+                raise Exception("Failed to get token info")
+
+            store_token(token_info)
+
+            subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
+                
+            return RedirectResponse(url="/", status_code=302)
+        else:
+            auth_url = sp_oauth.get_authorize_url(show_dialog=True)  # force reauthorization
+            return RedirectResponse(url=auth_url)
 
     except Exception as e:
-        # In case of any error, redirect the user back to the Spotify authorization page
         auth_url = sp_oauth.get_authorize_url(show_dialog=True)  # force reauthorization
         return RedirectResponse(url=auth_url)
-
+    
 def get_stored_token():
     try:
         with open(TOKEN_PATH, 'r') as f:
