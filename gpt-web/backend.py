@@ -292,11 +292,11 @@ async def connect_service(request: Request):
             
             if spotify_username and spotify_password:
                 # Append creds to the Raspotify configuration
-                cmd_append = [
+                cmd_update_or_append = [
                     "sudo", "bash", "-c",
-                    f"echo 'OPTIONS=\"--username {spotify_username} --password {spotify_password}\"' >> /etc/default/raspotify"
+                    f"grep -q 'OPTIONS=\"--username' /etc/default/raspotify && sudo sed -i 's/OPTIONS=\"--username .*\"/OPTIONS=\"--username {spotify_username} --password {spotify_password}\"/' /etc/default/raspotify || echo 'OPTIONS=\"--username {spotify_username} --password {spotify_password}\"' >> /etc/default/raspotify"
                 ]
-                subprocess.run(cmd_append, check=True)
+                subprocess.run(cmd_update_or_append, check=True)
 
                 # Restart Raspotify
                 cmd_restart = ["sudo", "systemctl", "restart", "raspotify"]

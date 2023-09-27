@@ -302,10 +302,9 @@ npm run build
 # Ensure Raspotify is enabled and running
 sudo systemctl enable raspotify
 sudo systemctl start raspotify
-echo "DEFAULT_VOLUME_LIMIT=75%" | sudo tee -a /etc/default/raspotify >/dev/null
+grep -q "DEFAULT_VOLUME_LIMIT" /etc/default/raspotify || echo "DEFAULT_VOLUME_LIMIT=75%" | sudo tee -a /etc/default/raspotify >/dev/null
 sudo systemctl restart raspotify
 sudo systemctl status raspotify --no-pager
-exho ""
 
 # Setup gpt-home service
 setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" "" "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" "Environment=\"HOSTNAME=$HOSTNAME\"" "LimitMEMLOCK=infinity"
