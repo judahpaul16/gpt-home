@@ -376,7 +376,7 @@ async def get_service_statuses(request: Request):
 async def handle_callback(request: Request):
     try:
         code = request.query_params.get("code")
-        scopes = [
+        scopes = ",".join([
             "app-remote-control",
             "user-modify-playback-state",
             "user-read-playback-state",
@@ -390,7 +390,7 @@ async def handle_callback(request: Request):
             "playlist-read-collaborative",
             "streaming",
             "user-library-read"
-        ].join(",")
+        ])
 
         sp_oauth = spotipy.oauth2.SpotifyOAuth(
             client_id=os.environ['SPOTIFY_CLIENT_ID'],
@@ -400,7 +400,7 @@ async def handle_callback(request: Request):
         )
 
         if code:
-            token_info = sp_oauth.get_access_token(code, check_cache=False)
+            token_info = sp_oauth.get_access_token(code)
             
             if not token_info:
                 raise Exception("Failed to get token info")
@@ -412,10 +412,12 @@ async def handle_callback(request: Request):
             return RedirectResponse(url="/", status_code=302)
         else:
             auth_url = sp_oauth.get_authorize_url(show_dialog=True)  # force reauthorization
+            logger.error("No code provided.")
             return RedirectResponse(url=auth_url)
 
     except Exception as e:
         auth_url = sp_oauth.get_authorize_url(show_dialog=True)  # force reauthorization
+        logger.error(f"Error: {traceback.format_exc()}")
         return RedirectResponse(url=auth_url)
     
 def get_stored_token():
@@ -444,7 +446,7 @@ async def spotify_control(request: Request):
         if not valid_token(token_info):
             logger.warning("Token expired. Refreshing token.")
             # Refresh the token
-            scopes = [
+            scopes = ",".join([
                 "app-remote-control",
                 "user-modify-playback-state",
                 "user-read-playback-state",
@@ -458,7 +460,7 @@ async def spotify_control(request: Request):
                 "playlist-read-collaborative",
                 "streaming",
                 "user-library-read"
-            ].join(",")
+            ])
 
             sp_oauth = spotipy.oauth2.SpotifyOAuth(
                 client_id=os.environ['SPOTIFY_CLIENT_ID'],
