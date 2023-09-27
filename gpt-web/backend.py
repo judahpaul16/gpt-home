@@ -474,9 +474,11 @@ async def spotify_control(request: Request):
                 logger.critical("Failed to refresh the Spotify token.")
                 raise Exception("Failed to refresh the Spotify token.")
             store_token(token_info)
+            logger.debug(f"Token refreshed. {token_info}")
 
         # Use the refreshed token_info for Spotipy calls.
-        sp = spotipy.Spotify(auth=token_info.get("access_token"))
+        sp = spotipy.Spotify()
+        sp.set_auth(token_info.get("access_token"))
 
         incoming_data = await request.json()
         text = incoming_data.get("text", "").lower().strip()
