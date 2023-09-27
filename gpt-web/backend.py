@@ -291,14 +291,16 @@ async def connect_service(request: Request):
             spotify_password = fields.get("PASSWORD")
             
             if spotify_username and spotify_password:
-                # Update the Raspotify configuration
-                config_path = "/etc/default/raspotify"
-                with open(config_path, "a") as file:
-                    file.write(f"\nOPTIONS=\"--username {spotify_username} --password {spotify_password}\"")
+                # Append creds to the Raspotify configuration
+                cmd_append = [
+                    "sudo", "bash", "-c",
+                    f"echo 'OPTIONS=\"--username {spotify_username} --password {spotify_password}\"' >> /etc/default/raspotify"
+                ]
+                subprocess.run(cmd_append, check=True)
 
                 # Restart Raspotify
-                subprocess.run(["sudo", "systemctl", "restart", "raspotify"])
-
+                cmd_restart = ["sudo", "systemctl", "restart", "raspotify"]
+                subprocess.run(cmd_restart, check=True)
 
             # Setting REDIRECT URI explicitly to local ip
             ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip()
