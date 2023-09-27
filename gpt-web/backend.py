@@ -294,10 +294,10 @@ async def connect_service(request: Request):
                 config_path = PARENT_DIRECTORY.parent / ".config/spotifyd/spotifyd.conf"
                 with open(config_path, "w") as file:
                     file.write("[global]\n")
-                    file.write(f"username = {spotify_username}\n")
-                    file.write(f"password = {spotify_password}\n")
-                    file.write("backend = alsa\n")
-                    file.write("device_name = spotify_on_pi\n")
+                    file.write(f"username = \"{spotify_username}\"\n")
+                    file.write(f"password = \"{spotify_password}\"\n")
+                    file.write("backend = \"alsa\"\n")
+                    file.write("device_name = \"GPT Home\"\n")
                     file.write("bitrate = 320\n")
                 
                 # Restart spotifyd to apply changes
