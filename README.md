@@ -194,7 +194,21 @@ check_and_install "cmake" "sudo apt-get install -y cmake"
 check_and_install "openssl" "sudo apt-get install -y openssl"
 check_and_install "git" "sudo apt-get install -y git"
 check_and_install "nginx" "sudo apt-get install -y nginx"
-check_and_install "cargo" "echo '1' | curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh && source $HOME/.cargo/env"
+check_and_install "expect" "sudo apt-get install -y expect"
+
+if ! command -v cargo &> /dev/null; then
+    echo "Installing cargo and rust..."
+    /usr/bin/expect <<EOD
+    spawn curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+    expect {
+        "1) Proceed with installation (default)" { send "1\r"; exp_continue }
+        eof
+    }
+EOD
+    source $HOME/.cargo/env
+else
+    echo "cargo is already installed."
+fi
 
 # Ensure directory exists for the configuration
 mkdir -p $HOME/.config/spotifyd
