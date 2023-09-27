@@ -513,8 +513,8 @@ async def spotify_control(request: Request):
             if song:
                 spotify_uri = await spotify_get_track_uri(song, sp)
                 sp.start_playback(device_id=device_id, uris=[spotify_uri])
-                logger.success(f"Playing {song} on Spotify.")
-                return JSONResponse(content={"message": f"Playing {song} on Spotify."})
+                logger.success(f"Playing {song}.")
+                return JSONResponse(content={"message": f"Playing {song}."})
             else:
                 sp.start_playback(device_id=device_id)
                 return JSONResponse(content={"message": "Resumed playback."})
@@ -530,6 +530,19 @@ async def spotify_control(request: Request):
         elif "pause" in text or "stop" in text:
             sp.pause_playback(device_id=device_id)
             return JSONResponse(content={"message": "Paused playback."})
+
+        elif "volume" in text:
+            volume = int(text.split('volume', 1)[1].strip())
+            sp.volume(volume_percent=volume, device_id=device_id)
+            return JSONResponse(content={"message": f"Set volume to {text.split('volume', 1)[1].strip()}."})
+        
+        elif "shuffle" in text:
+            sp.shuffle(state=True, device_id=device_id)
+            return JSONResponse(content={"message": "Shuffled playback."})
+        
+        elif "repeat" in text:
+            sp.repeat(state="track", device_id=device_id)
+            return JSONResponse(content={"message": "Repeating track."})
 
         else:
             logger.warning(f"Invalid command: {text}")
