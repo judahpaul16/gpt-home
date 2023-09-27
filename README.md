@@ -199,8 +199,6 @@ check_and_install "expect" "sudo apt-get install -y expect"
 # Install cargo and rust
 if ! command -v cargo &> /dev/null; then
     echo "Installing cargo and rust..."
-    
-    # Direct approach using -y for a non-interactive install
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
     # Source the environment for cargo and rust
