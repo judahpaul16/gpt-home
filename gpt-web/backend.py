@@ -501,7 +501,7 @@ async def spotify_control(request: Request):
         device_id = None
         for device in devices['devices']:
 
-            if "GPT Home" in device['name'].lower():
+            if "GPT Home" in device['name']:
                 device_id = device['id']
                 break
 
