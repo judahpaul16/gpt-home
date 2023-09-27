@@ -263,7 +263,7 @@ cat <<EOF > $HOME/.config/spotifyd/spotifyd.conf
 backend = "alsa" # Or pulseaudio if you use it
 device_name = "GPT Home" # Name your device shows in Spotify Connect
 bitrate = 320 # Choose bitrate from 96/160/320 kbps
-cache_path = "/var/cache/spotifyd"
+cache_path = "/home/ubuntu/.spotifyd/cache"
 EOF
 
 # Function to setup a systemd service
