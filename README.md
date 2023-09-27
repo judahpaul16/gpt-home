@@ -194,7 +194,28 @@ check_and_install "cmake" "sudo apt-get install -y cmake"
 check_and_install "openssl" "sudo apt-get install -y openssl"
 check_and_install "git" "sudo apt-get install -y git"
 check_and_install "nginx" "sudo apt-get install -y nginx"
-check_and_install "spotifyd" "sudo apt install -y spotifyd"
+check_and_install "cargo" "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh && source $HOME/.cargo/env"
+
+# Ensure directory exists for the configuration
+mkdir -p $HOME/.config/spotifyd
+
+# Install spotifyd using Rust's Cargo
+if ! command -v spotifyd &> /dev/null; then
+    echo "Installing spotifyd..."
+    cargo install spotifyd
+    sudo mv $HOME/.cargo/bin/spotifyd /usr/local/bin/
+else
+    echo "spotifyd is already installed."
+fi
+
+# Create Spotifyd configuration (this is just a basic config; adjust accordingly)
+cat <<EOF > $HOME/.config/spotifyd/spotifyd.conf
+[global]
+backend = "alsa" # Or pulseaudio if you use it
+device_name = "spotifyd" # Name your device shows in Spotify Connect
+bitrate = "320" # Choose bitrate from 96/160/320 kbps
+cache_path = "/var/cache/spotifyd"
+EOF
 
 # Function to setup a systemd service
 setup_service() {
@@ -299,8 +320,6 @@ npm install
 npm run build
 
 # Spotifyd 
-# Ensure directory exists for the configuration
-mkdir -p $HOME/.config/spotifyd
 sudo systemctl enable spotifyd
 sudo systemctl start spotifyd
 sudo systemctl status spotifyd --no-pager
