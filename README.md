@@ -135,7 +135,12 @@ If you want to use the example setup script, you can skip this section.
 15. **NGINX**: Required for reverse proxy for the web interface.
     Installation: `sudo apt-get install -y nginx`
 
-16. **Virtual Environment**: Recommended for Python package management.  
+16. **Rust and Cargo**: Required for installing `spotifyd`.  
+    Installation: [Follow Rust Installation Guide](https://www.rust-lang.org/tools/install)
+
+17. **Spotifyd**: Required for Spotify Connect.
+
+18. **Virtual Environment**: Recommended for Python package management.  
    Installation: `sudo apt-get install -y python3-venv`
 
 ---
@@ -150,7 +155,7 @@ You will need to initialize an environment variable with your OpenAI API Key.
 export OPENAI_API_KEY="your_openai_api_key_here"
 ```
 
-*Alternatively, you set up the variable in .bashrc file. (recommended)*  
+Alternatively, you set up the variable in .bashrc file. (recommended)  
 - *Put this at the end of your `~/.bashrc` file*
 ```bash
 # export your OpenAI API Key in here to initialize it at boot
@@ -257,7 +262,7 @@ cat <<EOF > $HOME/.config/spotifyd/spotifyd.conf
 [global]
 backend = "alsa" # Or pulseaudio if you use it
 device_name = "spotifyd" # Name your device shows in Spotify Connect
-bitrate = "320" # Choose bitrate from 96/160/320 kbps
+bitrate = 320 # Choose bitrate from 96/160/320 kbps
 cache_path = "/var/cache/spotifyd"
 EOF
 
@@ -362,11 +367,6 @@ npm install
 
 # Build the React App
 npm run build
-
-# Spotifyd 
-sudo systemctl enable spotifyd
-sudo systemctl start spotifyd
-sudo systemctl status spotifyd --no-pager
 
 ## Setup Services
 # Set up spotifyd service
