@@ -27,6 +27,8 @@ PARENT_DIRECTORY = ROOT_DIRECTORY.parent
 ENV_FILE_PATH = ROOT_DIRECTORY / ".env"
 TOKEN_PATH = "spotify_token.json"
 
+HOSTNAME = subprocess.run(["hostname"], capture_output=True).stdout.decode().strip()
+
 load_dotenv(ENV_FILE_PATH)
 
 app = FastAPI()
@@ -284,6 +286,20 @@ async def connect_service(request: Request):
                     await set_philips_hue_username(value)
 
         if name == "spotify" and spotify_client_id and spotify_client_secret:
+            # Update Raspotify's configuration
+            spotify_username = fields.get("USERNAME")
+            spotify_password = fields.get("PASSWORD")
+            
+            if spotify_username and spotify_password:
+                # Update the Raspotify configuration
+                config_path = "/etc/default/raspotify"
+                with open(config_path, "a") as file:
+                    file.write(f"\nOPTIONS=\"--username {spotify_username} --password {spotify_password}\"")
+
+                # Restart Raspotify
+                subprocess.run(["sudo", "systemctl", "restart", "raspotify"])
+
+
             # Setting REDIRECT URI explicitly to local ip
             ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip()
             redirect_uri = f"http://{ip}/api/callback"
@@ -352,7 +368,6 @@ async def get_service_statuses(request: Request):
         return HTTPException(status_code=404, detail="Environment file not found")
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
-
 
 
 ## Spotify ##
@@ -426,35 +441,45 @@ async def spotify_control(request: Request):
 
         # Use the refreshed token_info for Spotipy calls.
         sp = spotipy.Spotify(auth=token_info.get("access_token"))
-        
+
         incoming_data = await request.json()
         text = incoming_data.get("text", "").lower().strip()
+
+        devices = sp.devices()
+        device_id = None
+        for device in devices['devices']:
+            if HOSTNAME in device['name'].lower():
+                device_id = device['id']
+                break
+
+        if not device_id:
+            raise Exception("Raspberry Pi not found as an available device.")
 
         if "play" in text:
             song = re.sub(r'(play\s+)', '', text, count=1).strip()
             if song:
                 # spotify_uri = await search_song_get_uri(song)
                 spotify_uri = 'spotify:track:5p7GiBZNL1afJJDUrOA6C8'  # Hardcoded for now
-                sp.start_playback(uris=[spotify_uri])
+                sp.start_playback(device_id=device_id, uris=[spotify_uri])
                 logger.success(f"Playing {song} on Spotify.")
                 return JSONResponse(content={"success": True, "message": f"Playing {song} on Spotify."})
             else:
-                sp.start_playback()
+                sp.start_playback(device_id=device_id)
                 logger.success("Resumed playback.")
                 return JSONResponse(content={"success": True, "message": "Resumed playback."})
 
         elif "next" in text or "skip" in text:
-            sp.next_track()
+            sp.next_track(device_id=device_id)
             logger.success("Playing next track.")
             return JSONResponse(content={"success": True, "message": "Playing next track."})
 
         elif "previous" in text or "go back" in text:
-            sp.previous_track()
+            sp.previous_track(device_id=device_id)
             logger.success("Playing previous track.")
             return JSONResponse(content={"success": True, "message": "Playing previous track."})
 
         elif "pause" in text or "stop" in text:
-            sp.pause_playback()
+            sp.pause_playback(device_id=device_id)
             logger.success("Paused playback.")
             return JSONResponse(content={"success": True, "message": "Paused playback."})
 
@@ -465,7 +490,7 @@ async def spotify_control(request: Request):
     except Exception as e:
         logger.error(f"Error: {traceback.format_exc()}")
         return JSONResponse(content={"success": False, "message": str(e), "traceback": traceback.format_exc()}, status_code=500)
-    
+
 ## Philips Hue ##
 
 async def set_philips_hue_username(bridge_ip: str):

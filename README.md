@@ -194,6 +194,7 @@ check_and_install "cmake" "sudo apt-get install -y cmake"
 check_and_install "openssl" "sudo apt-get install -y openssl"
 check_and_install "git" "sudo apt-get install -y git"
 check_and_install "nginx" "sudo apt-get install -y nginx"
+check_and_install "raspotify" "sudo apt-get -y install curl && curl -sL https://dtcooper.github.io/raspotify/install.sh | sh"
 
 # Function to setup a systemd service
 setup_service() {
@@ -298,6 +299,12 @@ npm install
 npm run build
 
 ## Setup Services
+# Ensure Raspotify is enabled and running
+sudo systemctl enable raspotify
+sudo systemctl start raspotify
+echo "DEFAULT_VOLUME_LIMIT=75%" | sudo tee -a /etc/default/raspotify
+sudo systemctl restart raspotify
+
 # Setup gpt-home service
 setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" "" "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" "Environment=\"HOSTNAME=$HOSTNAME\"" "LimitMEMLOCK=infinity"
 
@@ -417,6 +424,7 @@ alias web-error="tail -n 100 -f /var/log/nginx/error.log"
 
 - [Spotify API Docs](https://developer.spotify.com/documentation/web-api/)
 - [Spotify Web API Python Docs (Spotipy)](https://spotipy.readthedocs.io/en/2.18.0/)
+- [Raspotify Docs](https://github.com/dtcooper/raspotify)
 - [Phillips Hue API Docs](https://developers.meethue.com/develop/get-started-2/)
 - [Phillips Hue Python API Docs](https://github.com/studioimaginaire/phue)
 - [OpenWeatherMap API Docs](https://openweathermap.org/api/one-call-3)
