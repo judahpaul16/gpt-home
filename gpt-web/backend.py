@@ -290,7 +290,7 @@ async def connect_service(request: Request):
             
             if spotify_username and spotify_password:
                 # Update the spotifyd configuration dynamically
-                config_path = "$HOME/.config/spotifyd/spotifyd.conf"
+                config_path = PARENT_DIRECTORY.parent / "/.config/spotifyd/spotifyd.conf"
                 with open(config_path, "w") as file:
                     file.write("[global]\n")
                     file.write(f"username = {spotify_username}\n")
