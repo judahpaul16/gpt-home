@@ -2,6 +2,7 @@ from dotenv import load_dotenv, set_key, unset_key
 from fastapi import FastAPI, Request, Response, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from spotipy.oauth2 import SpotifyClientCredentials
 from fastapi.exceptions import HTTPException
 from datetime import datetime, timedelta
 from functions import logger
@@ -259,6 +260,7 @@ async def connect_service(request: Request):
 
         # Initialize variables for Spotify
         spotify_client_id = None
+        spotify_client_secret = None
         redirect_uri = None
         auth_url = None
 
@@ -271,6 +273,7 @@ async def connect_service(request: Request):
                 elif key == "CLIENT SECRET":
                     set_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_SECRET", value)
                     os.environ["SPOTIFY_CLIENT_SECRET"] = value
+                    spotify_client_secret = value
             elif name == "openweather":
                 if key == "API KEY":
                     set_key(ENV_FILE_PATH, "OPEN_WEATHER_API_KEY", value)
@@ -306,15 +309,29 @@ async def connect_service(request: Request):
             redirect_uri = f"http://{ip}/api/callback"
             set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", redirect_uri)
             os.environ["SPOTIFY_REDIRECT_URI"] = redirect_uri
-            auth_params = {
-                "client_id": spotify_client_id,
-                "response_type": "code",
-                "redirect_uri": redirect_uri,
-                "scope": "user-library-read"
-            }
-            # Construct the authorization URL
-            auth_query = "&".join([f"{key}={value}" for key, value in auth_params.items()])
-            auth_url = f"https://accounts.spotify.com/authorize?{auth_query}"
+            scopes = ",".join([
+                "app-remote-control",
+                "user-modify-playback-state",
+                "user-read-playback-state",
+                "user-read-currently-playing",
+                "user-read-playback-position",
+                "user-read-recently-played",
+                "user-top-read",
+                "user-read-email",
+                "user-read-private",
+                "playlist-read-private",
+                "playlist-read-collaborative",
+                "streaming",
+                "user-library-read"
+            ])
+
+            sp_oauth = spotipy.oauth2.SpotifyOAuth(
+                client_id=spotify_client_id,
+                client_secret=spotify_client_secret,
+                redirect_uri=redirect_uri,
+                scope=scopes,
+            )
+            auth_url = sp_oauth.get_authorize_url()
              
         # Restarting the service after setting up configurations for any of the services
         subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
@@ -409,7 +426,7 @@ async def handle_callback(request: Request):
             store_token(token_info)
 
             subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
-                
+            
             return RedirectResponse(url="/", status_code=302)
         else:
             auth_url = sp_oauth.get_authorize_url(show_dialog=True)  # force reauthorization
@@ -441,7 +458,7 @@ async def spotify_control(request: Request):
     try:
         token_info = get_stored_token()
 
-        if not token_info:  # Check if the token_info is None or not
+        if not token_info:
             raise Exception("No token information available. Please re-authenticate with Spotify.")
 
         if not valid_token(token_info):
@@ -470,15 +487,11 @@ async def spotify_control(request: Request):
                 scope=scopes,
                 cache_path=TOKEN_PATH
             )
-            token_info = sp_oauth.refresh_access_token(token_info.get("refresh_token"))
-            if not token_info:  # Check again after refreshing
-                logger.critical("Failed to refresh the Spotify token.")
-                raise Exception("Failed to refresh the Spotify token.")
+            sp = spotipy.Spotify(auth_manager=auth_manager)
+            token_info = sp.oauth_manager.get_access_token(as_dict=True)
             store_token(token_info)
 
-        # Use the refreshed token_info for Spotipy calls.
-        sp = spotipy.Spotify()
-        sp.set_auth(token_info.get("access_token"))
+        sp = spotipy.Spotify(auth=token_info['access_token'])
 
         incoming_data = await request.json()
         text = incoming_data.get("text", "").lower().strip()
@@ -526,7 +539,7 @@ async def spotify_control(request: Request):
             return JSONResponse(content={"success": False, "message": "Invalid command."}, status_code=400)
 
     except spotipy.exceptions.SpotifyException as e:
-        # If the token has been revoked, reauthorize
+        # If the token has been revoked, reauthorize it
         if e.http_status == 401:
             auth_url = sp_oauth.get_authorize_url(show_dialog=True)
             logger.warning(f"Error: {traceback.format_exc()}")
