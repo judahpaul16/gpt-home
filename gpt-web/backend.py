@@ -379,12 +379,23 @@ async def get_service_statuses(request: Request):
 async def handle_callback(request: Request):
     try:
         code = request.query_params.get("code")
+        scopes = [
+            "app-remote-control",
+            "user-modify-playback-state",
+            "user-read-playback-state",
+            "user-read-currently-playing",
+            "user-read-playback-position",
+            "user-read-recently-played",
+            "user-top-read",
+            "streaming",
+            "user-library-read"
+        ].join(",")
 
         sp_oauth = spotipy.oauth2.SpotifyOAuth(
             client_id=os.environ['SPOTIFY_CLIENT_ID'],
             client_secret=os.environ['SPOTIFY_CLIENT_SECRET'],
             redirect_uri=os.environ['SPOTIFY_REDIRECT_URI'],
-            scope="user-library-read,user-modify-playback-state,user-read-playback-state,user-read-currently-playing,streaming"
+            scope=scopes
         )
 
         if code:
@@ -430,12 +441,25 @@ async def spotify_control(request: Request):
             raise Exception("No token information available. Please re-authenticate with Spotify.")
 
         if not valid_token(token_info):
+            logger.warning("Token expired. Refreshing token.")
             # Refresh the token
+            scopes = [
+                "app-remote-control",
+                "user-modify-playback-state",
+                "user-read-playback-state",
+                "user-read-currently-playing",
+                "user-read-playback-position",
+                "user-read-recently-played",
+                "user-top-read",
+                "streaming",
+                "user-library-read"
+            ].join(",")
+
             sp_oauth = spotipy.oauth2.SpotifyOAuth(
                 client_id=os.environ['SPOTIFY_CLIENT_ID'],
                 client_secret=os.environ['SPOTIFY_CLIENT_SECRET'],
                 redirect_uri=os.environ['SPOTIFY_REDIRECT_URI'],
-                scope="user-library-read,user-modify-playback-state,user-read-playback-state,user-read-currently-playing,streaming"
+                scope=scopes
             )
             token_info = sp_oauth.refresh_access_token(token_info.get("refresh_token"))
             if not token_info:  # Check again after refreshing
