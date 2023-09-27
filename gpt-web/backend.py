@@ -387,6 +387,10 @@ async def handle_callback(request: Request):
             "user-read-playback-position",
             "user-read-recently-played",
             "user-top-read",
+            "user-read-email",
+            "user-read-private",
+            "playlist-read-private",
+            "playlist-read-collaborative",
             "streaming",
             "user-library-read"
         ].join(",")
@@ -451,6 +455,10 @@ async def spotify_control(request: Request):
                 "user-read-playback-position",
                 "user-read-recently-played",
                 "user-top-read",
+                "user-read-email",
+                "user-read-private",
+                "playlist-read-private",
+                "playlist-read-collaborative",
                 "streaming",
                 "user-library-read"
             ].join(",")
