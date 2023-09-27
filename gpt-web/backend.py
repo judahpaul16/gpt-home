@@ -274,7 +274,6 @@ async def connect_service(request: Request):
                 elif key == "CLIENT SECRET":
                     set_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_SECRET", value)
                     os.environ["SPOTIFY_CLIENT_SECRET"] = value
-                    spotify_client_secret = value
             elif name == "openweather":
                 if key == "API KEY":
                     set_key(ENV_FILE_PATH, "OPEN_WEATHER_API_KEY", value)
@@ -285,22 +284,23 @@ async def connect_service(request: Request):
                     os.environ["PHILIPS_HUE_BRIDGE_IP"] = value
                     await set_philips_hue_username(value)
 
-        if name == "spotify" and spotify_client_id and spotify_client_secret:
-            # Update Raspotify's configuration
+        if name == "spotify":
             spotify_username = fields.get("USERNAME")
             spotify_password = fields.get("PASSWORD")
             
             if spotify_username and spotify_password:
-                # Append creds to the Raspotify configuration
-                cmd_update_or_append = [
-                    "sudo", "bash", "-c",
-                    f"grep -q 'OPTIONS=\"--username' /etc/default/raspotify && sudo sed -i 's/OPTIONS=\"--username .*\"/OPTIONS=\"--username {spotify_username} --password {spotify_password}\"/' /etc/default/raspotify || echo 'OPTIONS=\"--username {spotify_username} --password {spotify_password}\"' >> /etc/default/raspotify"
-                ]
-                subprocess.run(cmd_update_or_append, check=True)
-
-                # Restart Raspotify
-                cmd_restart = ["sudo", "systemctl", "restart", "raspotify"]
-                subprocess.run(cmd_restart, check=True)
+                # Update the spotifyd configuration dynamically
+                config_path = "$HOME/.config/spotifyd/spotifyd.conf"
+                with open(config_path, "w") as file:
+                    file.write("[global]\n")
+                    file.write(f"username = {spotify_username}\n")
+                    file.write(f"password = {spotify_password}\n")
+                    file.write("backend = alsa\n")
+                    file.write("device_name = spotify_on_pi\n")
+                    file.write("bitrate = 320\n")
+                
+                # Restart spotifyd to apply changes
+                subprocess.run(["sudo", "systemctl", "restart", "spotifyd"], check=True)
 
             # Setting REDIRECT URI explicitly to local ip
             ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip()
