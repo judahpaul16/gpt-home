@@ -58,8 +58,6 @@ engine.setProperty('alsa_device', 'hw:Headphones,0')
 speak_lock = asyncio.Lock()
 display_lock = asyncio.Lock()
 
-HOSTNAME = os.environ['HOSTNAME']
-
 def network_connected():
     return os.system("ping -c 1 google.com") == 0
 

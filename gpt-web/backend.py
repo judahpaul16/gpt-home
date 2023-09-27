@@ -27,8 +27,6 @@ PARENT_DIRECTORY = ROOT_DIRECTORY.parent
 ENV_FILE_PATH = ROOT_DIRECTORY / ".env"
 TOKEN_PATH = "spotify_token.json"
 
-HOSTNAME = subprocess.run(["hostname"], capture_output=True).stdout.decode().strip()
-
 load_dotenv(ENV_FILE_PATH)
 
 app = FastAPI()
@@ -483,7 +481,7 @@ async def spotify_control(request: Request):
         devices = sp.devices()
         device_id = None
         for device in devices['devices']:
-            if HOSTNAME in device['name'].lower():
+            if "GPT Home" in device['name'].lower():
                 device_id = device['id']
                 break
 
