@@ -369,6 +369,9 @@ sudo systemctl start spotifyd
 sudo systemctl status spotifyd --no-pager
 
 ## Setup Services
+# Set up spotifyd service
+setup_service "spotifyd.service" "/usr/local/bin/spotifyd --no-daemon" "network.target" "" "" ""
+
 # Setup gpt-home service
 setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" "" "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" "Environment=\"HOSTNAME=$HOSTNAME\"" "LimitMEMLOCK=infinity"
 
