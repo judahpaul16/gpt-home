@@ -159,7 +159,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
             {requiredFields[name].map((field) => (
               <div key={field}>
                 <input
-                  type="text"
+                  type={field === 'PASSWORD' ? 'password' : 'text'}
                   name={field}
                   placeholder={field}
                   value={formData[field as keyof typeof formData]}

@@ -261,7 +261,6 @@ async def connect_service(request: Request):
 
         # Initialize variables for Spotify
         spotify_client_id = None
-        spotify_client_secret = None
         redirect_uri = None
         auth_url = None
 
