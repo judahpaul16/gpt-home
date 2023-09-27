@@ -194,7 +194,7 @@ check_and_install "cmake" "sudo apt-get install -y cmake"
 check_and_install "openssl" "sudo apt-get install -y openssl"
 check_and_install "git" "sudo apt-get install -y git"
 check_and_install "nginx" "sudo apt-get install -y nginx"
-check_and_install "cargo" "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh && source $HOME/.cargo/env"
+check_and_install "cargo" "echo '1' | curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh && source $HOME/.cargo/env"
 
 # Ensure directory exists for the configuration
 mkdir -p $HOME/.config/spotifyd
