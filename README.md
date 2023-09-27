@@ -395,8 +395,8 @@ chmod +x setup.sh
 
 <table style="border-collapse: collapse; border: 0;">
   <tr>
-    <td style="border: none;"><img src="schematic_bb.png" alt="Schematics Breadboard" height="350px" /></td>
-    <td style="border: none;"><img src="schematic_schem.png" alt="Schematics Schematic" height="350px" /></td>
+    <td style="border: none;"><img src="screenshots/schematic_bb.png" alt="Schematics Breadboard" height="350px" /></td>
+    <td style="border: none;"><img src="screenshots/schematic_schem.png" alt="Schematics Schematic" height="350px" /></td>
   </tr>
 </table>
 <span style="font-size: 1em; display:block;">[click to enlarge]</span>
@@ -404,7 +404,7 @@ chmod +x setup.sh
 ---
 
 ## 📸 My Build
-![My Build](my_build.jpg)
+![My Build](screenshots/my_build.jpg)
 <span style="font-size: 1em; display:block;">[click to enlarge]</span>
 
 ---
