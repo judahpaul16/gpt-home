@@ -474,7 +474,6 @@ async def spotify_control(request: Request):
                 logger.critical("Failed to refresh the Spotify token.")
                 raise Exception("Failed to refresh the Spotify token.")
             store_token(token_info)
-            logger.debug(f"Token refreshed. {token_info}")
 
         # Use the refreshed token_info for Spotipy calls.
         sp = spotipy.Spotify()
@@ -525,9 +524,18 @@ async def spotify_control(request: Request):
             logger.warning(f"Invalid command: {text}")
             return JSONResponse(content={"success": False, "message": "Invalid command."}, status_code=400)
 
+    except spotipy.exceptions.SpotifyException as e:
+        # If the token has been revoked, reauthorize
+        if e.http_status == 401:
+            auth_url = sp_oauth.get_authorize_url(show_dialog=True)
+            logger.warning(f"Error: {traceback.format_exc()}")
+            return RedirectResponse(url=auth_url)
+        else:
+            logger.critical(f"Error: {traceback.format_exc()}")
+            raise Exception(f"Something went wrong: {e}")
     except Exception as e:
-        logger.error(f"Error: {traceback.format_exc()}")
-        return JSONResponse(content={"success": False, "message": str(e), "traceback": traceback.format_exc()}, status_code=500)
+        logger.critical(f"Error: {traceback.format_exc()}")
+        raise Exception(f"Something went wrong: {e}")
 
 ## Philips Hue ##
 
