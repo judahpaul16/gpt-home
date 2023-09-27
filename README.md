@@ -196,16 +196,19 @@ check_and_install "git" "sudo apt-get install -y git"
 check_and_install "nginx" "sudo apt-get install -y nginx"
 check_and_install "expect" "sudo apt-get install -y expect"
 
+# Install cargo and rust
 if ! command -v cargo &> /dev/null; then
     echo "Installing cargo and rust..."
-    /usr/bin/expect <<EOD
-    spawn curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-    expect {
-        "1) Proceed with installation (default)" { send "1\r"; exp_continue }
-        eof
-    }
-EOD
-    source $HOME/.cargo/env
+    
+    # Direct approach using -y for a non-interactive install
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+    # Source the environment for cargo and rust
+    if [ -f "$HOME/.cargo/env" ]; then
+        source $HOME/.cargo/env
+    else
+        echo "Error: Unable to source Rust environment. Installation may have failed or path is incorrect."
+    fi
 else
     echo "cargo is already installed."
 fi
