@@ -514,26 +514,26 @@ async def spotify_control(request: Request):
                 spotify_uri = await spotify_get_track_uri(song, sp)
                 sp.start_playback(device_id=device_id, uris=[spotify_uri])
                 logger.success(f"Playing {song} on Spotify.")
-                return JSONResponse(content={f"Playing {song} on Spotify."})
+                return JSONResponse(content={"message": f"Playing {song} on Spotify."})
             else:
                 sp.start_playback(device_id=device_id)
-                return JSONResponse(content={"Resumed playback."})
+                return JSONResponse(content={"message": "Resumed playback."})
 
         elif "next" in text or "skip" in text:
             sp.next_track(device_id=device_id)
-            return JSONResponse(content={"Playing next track."})
+            return JSONResponse(content={"message": "Playing next track."})
 
         elif "previous" in text or "go back" in text:
             sp.previous_track(device_id=device_id)
-            return JSONResponse(content={"Playing previous track."})
+            return JSONResponse(content={"message": "Playing previous track."})
 
         elif "pause" in text or "stop" in text:
             sp.pause_playback(device_id=device_id)
-            return JSONResponse(content={"Paused playback."})
+            return JSONResponse(content={"message": "Paused playback."})
 
         else:
             logger.warning(f"Invalid command: {text}")
-            return JSONResponse(content={"Invalid command."}, status_code=400)
+            return JSONResponse(content={"message": "Invalid command."}, status_code=400)
 
     except spotipy.exceptions.SpotifyException as e:
         # If the token has been revoked, reauthorize it

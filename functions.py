@@ -269,7 +269,8 @@ async def spotify_action(text: str):
                 ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip()
                 response = await session.post(f"http://{ip}/spotify-control", json={"text": text})
                 if response.status == 200:
-                    return await response.text()
+                    data = await response.json()
+                    return data.get("message")
                 else:
                     logger.warning(f"Received a {response.status} status code.")
                     return f"Received a {response.status} status code."
