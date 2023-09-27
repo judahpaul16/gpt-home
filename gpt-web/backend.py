@@ -487,7 +487,7 @@ async def spotify_control(request: Request):
                 scope=scopes,
                 cache_path=TOKEN_PATH
             )
-            sp = spotipy.Spotify(auth_manager=auth_manager)
+            sp = spotipy.Spotify(auth_manager=sp_oauth)
             token_info = sp.oauth_manager.get_access_token(as_dict=True)
             store_token(token_info)
 
@@ -497,14 +497,16 @@ async def spotify_control(request: Request):
         text = incoming_data.get("text", "").lower().strip()
 
         devices = sp.devices()
+        logger.debug(f"Devices: {devices}")
         device_id = None
         for device in devices['devices']:
+
             if "GPT Home" in device['name'].lower():
                 device_id = device['id']
                 break
 
         if not device_id:
-            raise Exception("Raspberry Pi not found as an available device.")
+            raise Exception("GPT Home not found as an available device.")
 
         if "play" in text:
             song = re.sub(r'(play\s+)', '', text, count=1).strip()
