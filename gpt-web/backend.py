@@ -511,34 +511,29 @@ async def spotify_control(request: Request):
         if "play" in text:
             song = re.sub(r'(play\s+)', '', text, count=1).strip()
             if song:
-                # spotify_uri = await search_song_get_uri(song)
-                spotify_uri = 'spotify:track:5p7GiBZNL1afJJDUrOA6C8'  # Hardcoded for now
+                spotify_uri = await spotify_get_track_uri(song, sp)
                 sp.start_playback(device_id=device_id, uris=[spotify_uri])
                 logger.success(f"Playing {song} on Spotify.")
-                return JSONResponse(content={"success": True, "message": f"Playing {song} on Spotify."})
+                return JSONResponse(content={f"Playing {song} on Spotify."})
             else:
                 sp.start_playback(device_id=device_id)
-                logger.success("Resumed playback.")
-                return JSONResponse(content={"success": True, "message": "Resumed playback."})
+                return JSONResponse(content={"Resumed playback."})
 
         elif "next" in text or "skip" in text:
             sp.next_track(device_id=device_id)
-            logger.success("Playing next track.")
-            return JSONResponse(content={"success": True, "message": "Playing next track."})
+            return JSONResponse(content={"Playing next track."})
 
         elif "previous" in text or "go back" in text:
             sp.previous_track(device_id=device_id)
-            logger.success("Playing previous track.")
-            return JSONResponse(content={"success": True, "message": "Playing previous track."})
+            return JSONResponse(content={"Playing previous track."})
 
         elif "pause" in text or "stop" in text:
             sp.pause_playback(device_id=device_id)
-            logger.success("Paused playback.")
-            return JSONResponse(content={"success": True, "message": "Paused playback."})
+            return JSONResponse(content={"Paused playback."})
 
         else:
             logger.warning(f"Invalid command: {text}")
-            return JSONResponse(content={"success": False, "message": "Invalid command."}, status_code=400)
+            return JSONResponse(content={"Invalid command."}, status_code=400)
 
     except spotipy.exceptions.SpotifyException as e:
         # If the token has been revoked, reauthorize it
@@ -552,6 +547,33 @@ async def spotify_control(request: Request):
     except Exception as e:
         logger.critical(f"Error: {traceback.format_exc()}")
         raise Exception(f"Something went wrong: {e}")
+
+async def spotify_get_track_uri(song: str, sp):
+    # Search for the track
+    result = sp.search(q=song, type='track', limit=1)
+    if result['tracks']['items']:
+        return result['tracks']['items'][0]['uri']
+
+    # If no track is found, search for an album
+    result = sp.search(q=song, type='album', limit=1)
+    if result['albums']['items']:
+        # Playing first track of the album
+        album_id = result['albums']['items'][0]['id']
+        tracks = sp.album_tracks(album_id)
+        if tracks['items']:
+            return tracks['items'][0]['uri']
+    
+    # If no album is found, search for an artist and play top track
+    result = sp.search(q=song, type='artist', limit=1)
+    if result['artists']['items']:
+        artist_id = result['artists']['items'][0]['id']
+        top_tracks = sp.artist_top_tracks(artist_id)
+        if top_tracks['tracks']:
+            return top_tracks['tracks'][0]['uri']
+
+    # If nothing matches, raise an exception or handle accordingly
+    raise Exception(f"No match found for: {song}")
+
 
 ## Philips Hue ##
 
