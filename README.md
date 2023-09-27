@@ -467,7 +467,7 @@ chmod +x setup.sh
 <td>
 
 - [Spotify API Docs](https://developer.spotify.com/documentation/web-api/)
-- [Spotify API Python Docs (Spotipy)](https://spotipy.readthedocs.io/en/2.18.0/)
+- [Spotify API Python Docs (Spotipy)](https://spotipy.readthedocs.io/)
 - [Spotifyd Docs](https://github.com/Spotifyd/spotifyd)
 - [Phillips Hue API Docs](https://developers.meethue.com/develop/get-started-2/)
 - [Phillips Hue Python API Docs](https://github.com/studioimaginaire/phue)
