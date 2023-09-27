@@ -4,9 +4,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.exceptions import HTTPException
 from datetime import datetime, timedelta
-from spotipy.oauth2 import SpotifyOAuth
 from functions import logger
 from typing import Optional
+import spotipy.util as util
 from pathlib import Path
 from phue import Bridge
 import subprocess
@@ -287,6 +287,7 @@ async def connect_service(request: Request):
         if name == "spotify":
             spotify_username = fields.get("USERNAME")
             spotify_password = fields.get("PASSWORD")
+            os.environ["SPOTIFY_USERNAME"] = spotify_username
             
             if spotify_username and spotify_password:
                 # Update the spotifyd configuration dynamically
@@ -382,10 +383,13 @@ async def handle_callback(request: Request):
             raise Exception("Authorization code not found in query parameters")
 
         # Initialize the Spotipy OAuth object with the environment variables
-        sp_oauth = SpotifyOAuth(client_id=os.environ['SPOTIFY_CLIENT_ID'],
-                                client_secret=os.environ['SPOTIFY_CLIENT_SECRET'],
-                                redirect_uri=os.environ['SPOTIFY_REDIRECT_URI'],
-                                scope="user-library-read,user-modify-playback-state,user-read-playback-state,user-read-currently-playing,streaming")
+        sp_oauth = util.prompt_for_user_token(
+            username=os.environ['SPOTIFY_USERNAME'],
+            scope="user-library-read,user-modify-playback-state,user-read-playback-state,user-read-currently-playing,streaming",
+            client_id=os.environ['SPOTIFY_CLIENT_ID'],
+            client_secret=os.environ['SPOTIFY_CLIENT_SECRET'],
+            redirect_uri=os.environ['SPOTIFY_REDIRECT_URI']
+        )
 
         # Get the access token
         token_info = sp_oauth.get_access_token(code, check_cache=False)  # Disabling cache to force reauthorization
@@ -430,7 +434,7 @@ async def spotify_control(request: Request):
 
         if not valid_token(token_info):
             # Refresh the token
-            sp_oauth = SpotifyOAuth(
+            sp_oauth = spotipy.oauth2.SpotifyOAuth(
                 client_id=os.environ['SPOTIFY_CLIENT_ID'],
                 client_secret=os.environ['SPOTIFY_CLIENT_SECRET'],
                 redirect_uri=os.environ['SPOTIFY_REDIRECT_URI'],
@@ -438,6 +442,7 @@ async def spotify_control(request: Request):
             )
             token_info = sp_oauth.refresh_access_token(token_info.get("refresh_token"))
             if not token_info:  # Check again after refreshing
+                logger.critical("Failed to refresh the Spotify token.")
                 raise Exception("Failed to refresh the Spotify token.")
             store_token(token_info)
 
