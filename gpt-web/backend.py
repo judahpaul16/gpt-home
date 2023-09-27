@@ -296,6 +296,7 @@ async def connect_service(request: Request):
                     file.write("backend = \"alsa\"\n")
                     file.write("device_name = \"GPT Home\"\n")
                     file.write("bitrate = 320\n")
+                    file.write("cache_path = \"/home/ubuntu/.spotifyd/cache\"\n")
                 
                 # Restart spotifyd to apply changes
                 subprocess.run(["sudo", "systemctl", "restart", "spotifyd"], check=True)
