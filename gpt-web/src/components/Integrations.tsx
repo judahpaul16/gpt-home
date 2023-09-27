@@ -15,7 +15,7 @@ interface IntegrationsProps {
   integrations: {
     [key: string]: { status: boolean; usage: string[] };
     Spotify: { status: boolean; usage: string[] };
-    GoogleCalendar: { status: boolean; usage: string[] };
+    OpenWeather: { status: boolean; usage: string[] };
     PhilipsHue: { status: boolean; usage: string[] };
   };
 }
@@ -23,13 +23,13 @@ interface IntegrationsProps {
 const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, toggleOverlay, integrations }) => {
   const usage: { [key: string]: string[] } = {
     Spotify: ['Play.....on Spotify', 'Play / Pause / Stop', 'Next Song / Go Back'],
-    GoogleCalendar: ['Schedule an event', 'What\'s on my calendar?',],
+    OpenWeather: ['How\'s the weather?', 'What\'s the temperature in....'],
     PhilipsHue: ['Dim the lights to...', 'Turn on / off....lights', 'Change the lights to red'],
   };
 
   const requiredFields: { [key: string]: string[] } = useMemo(() => ({
-    Spotify: ['CLIENT ID', 'CLIENT SECRET'],
-    GoogleCalendar: ['API KEY'],
+    Spotify: ['USERNAME', 'PASSWORD', 'CLIENT ID', 'CLIENT SECRET'],
+    OpenWeather: ['API KEY'],
     PhilipsHue: ['BRIDGE IP ADDRESS'],
   }), []);
 

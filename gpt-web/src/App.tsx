@@ -23,11 +23,11 @@ const App: React.FC = () => {
   const location = useLocation();
   const [integrations, setIntegrations] = useState<{
     Spotify: { status: boolean; usage: string[] };
-    GoogleCalendar: { status: boolean; usage: string[] };
+    OpenWeather: { status: boolean; usage: string[] };
     PhilipsHue: { status: boolean; usage: string[] };
   }>({
     Spotify: { status: false, usage: [] },
-    GoogleCalendar: { status: false, usage: [] },
+    OpenWeather: { status: false, usage: [] },
     PhilipsHue: { status: false, usage: [] },
   });  
   

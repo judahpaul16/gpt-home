@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../css/Integration.css';
 
@@ -12,15 +12,35 @@ interface IntegrationProps {
 }
 
 const Integration: React.FC<IntegrationProps> = ({ name, usage, status, requiredFields, toggleStatus, setShowOverlay }) => {
+  const [ipAddress, setIpAddress] = useState<string>("");
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({} as { [key: string]: string });
   const [error, setError] = useState('');
   const apiRefs: { [key: string]: string[] } = {
     Spotify: ['https://developer.spotify.com/documentation/web-api/'],
-    GoogleCalendar: ['https://developers.google.com/calendar/api/quickstart/python'],
+    OpenWeather: ['https://openweathermap.org/api/one-call-3'],
     PhilipsHue: ['https://developers.meethue.com/develop/get-started-2/', 'https://github.com/studioimaginaire/phue'],
   };
 
+  const fetchIPAddress = async () => {
+    try {
+      const response = await axios.post('/get-local-ip');
+      if (response.status === 200 && response.data.ip) {
+        setIpAddress(response.data.ip);
+      } else {
+        setIpAddress("{raspberry_pi_local_ip}");
+      }
+    } catch (error: any) {
+      if (error.response && error.response.status === 404) {
+        setIpAddress("{raspberry_pi_local_ip}");
+      }
+    }
+  };
+  
+  useEffect(() => {
+    if (name === "Spotify") fetchIPAddress();
+  }, [name]);
+  
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
     setFormData({ ...formData, [name]: value });
@@ -133,19 +153,20 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
               <div style={{ color: 'red' }}>
                 NOTE: The REDIRECT URI is set by default but be sure to also set it in your Spotify application settings:<br />
                 REDIRECT URI: <span style={{ color: 'green', fontFamily: 'monospace' }}><br />
-                  http://&#123;your_raspbery_pi_ip&#125;/api/callback</span>
+                  http://{ipAddress}/api/callback</span>
               </div>
             }
             {requiredFields[name].map((field) => (
               <div key={field}>
                 <input
-                  type="text"
+                  type={field === 'PASSWORD' ? 'password' : 'text'}
                   name={field}
                   placeholder={field}
                   value={formData[field as keyof typeof formData]}
                   onChange={handleInputChange}
                   onKeyDown={disallowSpace}
                   onPaste={handlePaste}
+                  autoFocus={requiredFields[name].indexOf(field) === 0}
                 />
               </div>
             ))}

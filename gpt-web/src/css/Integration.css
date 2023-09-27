@@ -21,6 +21,16 @@
   transform: translate(-50%, -50%);
 }
 
+.form-container div input {
+  width: 100%;
+  padding: 0.5em;
+  margin: 0.5em 0;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  box-sizing: border-box;
+  max-width: 350px;
+}
+
 .error-text {
   color: red;
   margin-top: 1em;

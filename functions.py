@@ -27,8 +27,6 @@ import time
 import os
 import re
 
-HOSTNAME = os.environ['HOSTNAME']
-
 # Load .env file
 load_dotenv(dotenv_path='gpt-web/.env')
 
@@ -262,132 +260,173 @@ async def speak(text, stop_event=asyncio.Event()):
         await loop.run_in_executor(executor, _speak)
         stop_event.set()
 
-# Refresh the Spotify access token
-def refresh_token():
+async def spotify_action(text: str):
     client_id = os.getenv('SPOTIFY_CLIENT_ID')
     client_secret = os.getenv('SPOTIFY_CLIENT_SECRET')
-    refresh_token = os.getenv('SPOTIFY_REFRESH_TOKEN')
-
-    # Base64 encode the client ID and secret
-    base64_encoded = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
-
-    headers = {
-        "Authorization": f"Basic {base64_encoded}"
-    }
-    
-    data = {
-        "grant_type": "refresh_token",
-        "refresh_token": refresh_token
-    }
-
-    response = requests.post('https://accounts.spotify.com/api/token', headers=headers, data=data)
-
-    if response.status_code == 200:
-        json_response = response.json()
-        new_access_token = json_response.get('access_token')
-        expires_in = json_response.get('expires_in')  # Time in seconds until the token expires
-
-        # Calculate the expiry time and save it
-        expiry_time = datetime.now() + timedelta(seconds=expires_in)
-
-        # Update the environment variables
-        set_key('ENV_FILE_PATH', 'SPOTIFY_ACCESS_TOKEN', new_access_token)
-        set_key('ENV_FILE_PATH', 'SPOTIFY_TOKEN_EXPIRY_TIME', expiry_time.strftime('%Y-%m-%d %H:%M:%S'))
-        set_key('ENV_FILE_PATH', 'SPOTIFY_TOKEN_EXPIRES_IN', str(expires_in))
-    else:
-        print(f"Failed to refresh token: {response.content.decode()}")
-
-async def spotify_action(text: str):
-    ACCESS_TOKEN = os.getenv('SPOTIFY_ACCESS_TOKEN')
-    if ACCESS_TOKEN:
+    if client_id and client_secret:
         try:
             async with aiohttp.ClientSession() as session:
                 ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip()
                 response = await session.post(f"http://{ip}/spotify-control", json={"text": text})
                 if response.status == 200:
-                    return await response.text()
+                    data = await response.json()
+                    return data.get("message")
                 else:
                     logger.warning(f"Received a {response.status} status code.")
                     return f"Received a {response.status} status code."
         except Exception as e:
             logger.error(f"Error: {traceback.format_exc()}")
             raise Exception(f"Something went wrong: {e}")
-    raise Exception("No access token found. Please provide the necessary credentials in the web interface.")
+    raise Exception("No client id or client secret found. Please provide the necessary credentials for Spotify in the web interface.")
 
-async def google_calendar_action(text: str):
-    access_token = os.getenv('GOOGLE_CALENDAR_ACCESS_TOKEN')
-    headers = {"Authorization": f"Bearer {access_token}"}
-    if access_token:
-        try:
+# Open Weather Helper Functions
+async def coords_from_city(city, api_key):
+    async with aiohttp.ClientSession() as session:
+        response = await session.get(f"http://api.openweathermap.org/geo/1.0/direct?q={city}&appid={api_key}")
+        if response.status == 200:
+            json_response = await response.json()
+            coords = {
+                "lat": json_response[0].get('lat'),
+                "lon": json_response[0].get('lon')
+            }
+            return coords
+    
+async def city_from_ip():
+    async with aiohttp.ClientSession() as session:
+        response = await session.get(f"https://ipinfo.io/json")
+        if response.status == 200:
+            json_response = await response.json()
+            city = json_response.get('city')
+            return city
+
+async def open_weather_action(text: str):
+    try:
+        api_key = os.getenv('OPEN_WEATHER_API_KEY')
+        if api_key:
             async with aiohttp.ClientSession() as session:
-                if re.search(r'(schedule|set).*(meeting|event)', text, re.IGNORECASE):
-                    # meeting_details = query_user_for_meeting_details()
-                    # await session.post("https://www.googleapis.com/calendar/v3/calendars/primary/events", json=meeting_details, headers=headers)
-                    # return "Scheduled a meeting."
-                    return "This feature is not yet implemented."
-                elif re.search(r'(delete|remove|cancel).*event', text, re.IGNORECASE):
-                    # Parse the event ID from `text` or through some dialog
-                    # meeting_details = query_user_for_meeting_details()
-                    # await session.delete(f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{meeting_details['id']}", headers=headers)
-                    # return "Deleted an event."
-                    return "This feature is not yet implemented."
-                elif re.search(r'what(s)?\s.*(in|on)?\smy\s(calendar|schedule)', text, re.IGNORECASE):
-                    date = datetime.datetime.now().strftime("%Y-%m-%d")
-                    try:
-                        response = await session.get(f"https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin={date}T00:00:00-00:00&timeMax={date}T23:59:59-00:00", headers=headers)
-                        data = await response.json()
-                        if data.get("items"):
-                            events = [event["summary"] for event in data["items"]]
-                            return f"Today you have {len(events)} events: {', '.join(events)}"
+                if re.search(r'(weather|temperature).*\sin\s', text, re.IGNORECASE):
+                    city_match = re.search(r'in\s([\w\s]+)', text, re.IGNORECASE)
+                    if city_match:
+                        city = city_match.group(1).strip()
+
+                    # Current weather
+                    if not re.search(r'(forecast|future)', text, re.IGNORECASE):
+                        coords = await coords_from_city(city, api_key)
+                        response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&units=imperial")
+                        if response.status == 200:
+                            json_response = await response.json()
+                            logger.debug(json_response)
+                            weather = json_response.get('current').get('weather')[0].get('main')
+                            temp = json_response.get('current').get('temp')
+                            return f"It is currently {round(float(temp))} degrees and {weather.lower()} in {city}."
                         else:
-                            return "You have no events today."
-                    except Exception as e:
-                        logger.error(f"Error: {traceback.format_exc()}")
-                        return f"Something went wrong: {e}"
-        except Exception as e:
+                            raise Exception(f"Received a {response.status} status code. {response.content.decode()}")
+
+                    # Weather forecast
+                    else:
+                        coords = await coords_from_city(city, api_key)
+                        tomorrow = datetime.now() + timedelta(days=1)
+                        response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&units=imperial")
+                        if response.status == 200:
+                            json_response = await response.json()
+                            # next few days
+                            forecast = []
+                            for day in json_response.get('daily'):
+                                forecast.append({
+                                    'weather': day.get('weather')[0].get('main'),
+                                    'temp': day.get('temp').get('day'),
+                                    'date': datetime.fromtimestamp(day.get('dt')).strftime('%A')
+                                })
+                            # tomorrow
+                            tomorrow_forecast = list(filter(lambda x: x.get('date') == tomorrow.strftime('%A'), forecast))[0]
+                            speech_responses = []
+                            speech_responses.append(f"Tomorrow, it will be {tomorrow_forecast.get('temp')}°F and {tomorrow_forecast.get('weather')} in {city}.")
+                            for day in forecast:
+                                if day.get('date') != tomorrow.strftime('%A'):
+                                    speech_responses.append(f"On {day.get('date')}, it will be {round(float(day.get('temp')))} degrees and {day.get('weather').lower()} in {city}.")
+                            return ' '.join(speech_responses)
+                else:
+                    # General weather based on IP address location
+                    city = await city_from_ip()
+                    coords = await coords_from_city(city, api_key)
+                    response = await session.get(f"http://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&units=imperial")
+                    if response.status == 200:
+                        json_response = await response.json()
+                        logger.debug(json_response)
+                        weather = json_response.get('current').get('weather')[0].get('main')
+                        temp = json_response.get('current').get('temp')
+                        return f"It is currently {round(float(temp))} degrees and {weather.lower()} in your location."
+                    else:
+                        content = await response.content.read()
+                        raise Exception(f"Received a {response.status} status code. {content.decode()}")
+                    
+            raise Exception("I'm sorry, I don't know how to handle that request.")
+
+        raise Exception("No Open Weather API key found. Please enter your API key for Open Weather in the web interface or try reconnecting the service.")
+
+    except Exception as e:
+        if '404' in str(e):
+            return f"Weather information for {city} is not available."
+        else:
             logger.error(f"Error: {traceback.format_exc()}")
-            return f"Something went wrong: {e}"
-    raise Exception("No access token found. Please enter your access token for Google Calendar in the web interface.")
+            return f"Something went wrong. {e}"
 
 async def philips_hue_action(text: str):
     bridge_ip = os.getenv('PHILIPS_HUE_BRIDGE_IP')
     username = os.getenv('PHILIPS_HUE_USERNAME')
+    
     if bridge_ip and username:
         try:
             b = Bridge(bridge_ip, username)
             b.connect()
-            # turn on or off all lights
-            if re.search(r'((turn|shut|cut|put)(\son|\soff).*\s)?light(s)?(\son|\soff)?', text, re.IGNORECASE):
-                if "on" in text:
+
+            # Turn on or off all lights
+            on_off_pattern = r'(\b(turn|shut|cut|put)\s)?.*(on|off)\b'
+            match = re.search(on_off_pattern, text, re.IGNORECASE)
+            if match:
+                if 'on' in match.group(0):
                     b.set_group(0, 'on', True)
                     return "Turning on all lights."
-                elif "off" in text:
+                else:
                     b.set_group(0, 'on', False)
                     return "Turning off all lights."
-                else:
-                    return "Turning on all lights."
-            elif re.search(r'(((change|set|make).*\slight(s)?(\sto)?.*)|(.*color.*))', text, re.IGNORECASE):
-                # Parse the light ID and color from `text` or through some dialog
-                light_id = text.split("light", 1)[1].split(" ", 1)[0].strip()
-                color = re.search(r'(red|green|blue|yellow|purple|orange|pink|white|black)', text, re.IGNORECASE).group(1)
-                b.set_light(light_id, 'on', True)
-                b.set_light(light_id, 'hue', color)
-                return "Changing light color."
-            elif re.search(r'(dim|brighten).*(\slight(s)?)?(\sto)?.*', text, re.IGNORECASE):
-                # Parse the light ID and brightness from `text` or through some dialog
-                light_id = text.split("light", 1)[1].split(" ", 1)[0].strip()
-                brightness = text.split("to", 1)[1].strip()
-                b.set_light(light_id, 'on', True)
-                b.set_light(light_id, 'bri', brightness)
-                return "Changing light brightness."
+
+            # Change light color
+            color_pattern = r'\b(red|green|blue|yellow|purple|orange|pink|white|black)\b'
+            match = re.search(color_pattern, text, re.IGNORECASE)
+            if match:
+                # convert color to hue value
+                color = {
+                    'red': 0,
+                    'green': 25500,
+                    'blue': 46920,
+                    'yellow': 12750,
+                    'purple': 56100,
+                    'orange': 6000,
+                    'pink': 56100,  # Closest to purple for hue
+                    'white': 15330,  # Closest to a neutral white
+                }.get(match.group(1).lower())
+                b.set_group(0, 'on', True)
+                b.set_group(0, 'hue', color)
+                return f"Changing lights {match.group(1)}."
+
+            # Change light brightness
+            brightness_pattern = r'(\b(dim|brighten)\b)?.*?\s.*?to\s(\d{1,3})\b'
+            match = re.search(brightness_pattern, text, re.IGNORECASE)
+            if match:
+                brightness = int(match.group(3))
+                b.set_group(0, 'on', True)
+                b.set_group(0, 'bri', brightness)
+                return f"Setting brightness to {brightness}."
+
+            raise Exception("I'm sorry, I don't know how to handle that request.")
         except Exception as e:
             logger.error(f"Error: {traceback.format_exc()}")
             return f"Something went wrong: {e}"
+    
     raise Exception("No philips hue bridge IP found. Please enter your bridge IP for Phillips Hue in the web interface or try reconnecting the service.")
 
 async def query_openai(text, display, retries=3):
-    stop_event = asyncio.Event()
-
     # Load settings from settings.json
     settings = load_settings()
     max_tokens = settings.get("max_tokens")
@@ -419,15 +458,16 @@ async def query_openai(text, display, retries=3):
 
 async def action_router(text: str, display):
     # For Spotify actions
-    if re.search(r'(play|resume|next song|go back|pause|stop)(\s.)*(\son\sSpotify)*', text, re.IGNORECASE):
+    if re.search(r'\b(play|resume|next song|go back|pause|stop)(\s.*)?(\bon\b\sSpotify)?\b', text, re.IGNORECASE):
         return await spotify_action(text)
         
-    # For Google Calendar actions
-    elif re.search(r'(schedule\s|meeting|delete\s|create\s|event)', text, re.IGNORECASE):
-        return await google_calendar_action(text)
+    # For Open Weather actions
+    elif re.search(r'\b(weather|forecast|temperature)\b.*\b(in|for|at)?\b(\w+)?', text, re.IGNORECASE) or \
+        re.search(r'\b(is|will)\sit\b.*\b(hot|cold|rain(ing|y)?|sun(ny|ning)?|cloud(y|ing)?|wind(y|ing)?|storm(y|ing)?|snow(ing)?)\b', text, re.IGNORECASE):
+        return await open_weather_action(text)
 
     # For Philips Hue actions
-    elif re.search(r'(turn)?(\son|\soff)?.*\slight(s)?(\son|\soff)?', text, re.IGNORECASE):
+    elif re.search(r'\b(turn)?\b(\son|\soff)?.*\slight(s)?(\son|\soff)?\b', text, re.IGNORECASE):
         return await philips_hue_action(text)
         
     # If no pattern matches, query OpenAI

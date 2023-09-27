@@ -135,18 +135,52 @@ If you want to use the example setup script, you can skip this section.
 15. **NGINX**: Required for reverse proxy for the web interface.
     Installation: `sudo apt-get install -y nginx`
 
-16. **Virtual Environment**: Recommended for Python package management.  
+16. **Rust and Cargo**: Required for installing `spotifyd`.  
+    Installation: [Follow Rust Installation Guide](https://www.rust-lang.org/tools/install)
+
+17. **Spotifyd**: Required for Spotify Connect.
+
+18. **Virtual Environment**: Recommended for Python package management.  
    Installation: `sudo apt-get install -y python3-venv`
 
 ---
 
 ## 📜 Example Setup script:
-First initialize an environment variable with your OpenAI API Key.  
-*Note: Does not persist after reboot.*  
-*If you want to set up the variable in .bashrc you can ignore this part.*  
+This script will install all the dependencies and completely set up the project for you. The first time you run it, it will take a while to install all the dependencies. After that, it will be much faster and you can just run it to reinstall the project if you make any changes to the code or want the latest version of the project.
+
+You will need to initialize an environment variable with your OpenAI API Key.  
+
+- *Note: Executing `export` directly in the terminal does not persist after reboot.*  
 ```bash
 export OPENAI_API_KEY="your_openai_api_key_here"
 ```
+
+Alternatively, you set up the variable in .bashrc file. (recommended)  
+- *Put this at the end of your `~/.bashrc` file*
+```bash
+# export your OpenAI API Key in here to initialize it at boot
+export OPENAI_API_KEY="your_openai_api_key_here"
+
+# Optional: Add these aliases to your .bashrc file for easier management
+alias gpt-start="sudo systemctl start gpt-home"
+alias gpt-restart="sudo systemctl restart gpt-home"
+alias gpt-stop="sudo systemctl stop gpt-home"
+alias gpt-disable="sudo systemctl disable gpt-home"
+alias gpt-status="sudo systemctl status gpt-home"
+alias gpt-enable="sudo systemctl enable gpt-home"
+alias gpt-log="tail -n 100 -f /home/ubuntu/gpt-home/events.log"
+
+alias web-start="sudo systemctl start gpt-web"
+alias web-restart="sudo systemctl restart gpt-web && sudo systemctl restart nginx"
+alias web-stop="sudo systemctl stop gpt-web"
+alias web-disable="sudo systemctl disable gpt-web"
+alias web-status="sudo systemctl status gpt-web"
+alias web-enable="sudo systemctl enable gpt-web"
+alias web-log="tail -n 100 -f /var/log/nginx/access.log"
+alias web-error="tail -n 100 -f /var/log/nginx/error.log"
+```
+
+
 Create a script outside the local repo folder with `vim setup.sh`
 ```bash
 #!/bin/bash
@@ -194,8 +228,43 @@ check_and_install "cmake" "sudo apt-get install -y cmake"
 check_and_install "openssl" "sudo apt-get install -y openssl"
 check_and_install "git" "sudo apt-get install -y git"
 check_and_install "nginx" "sudo apt-get install -y nginx"
-check_and_install "playerctl" "sudo apt-get install -y playerctl"
-check_and_install "raspotify" "curl -sL https://dtcooper.github.io/raspotify/install.sh | sh"
+check_and_install "expect" "sudo apt-get install -y expect"
+
+# Install cargo and rust
+if ! command -v cargo &> /dev/null; then
+    echo "Installing cargo and rust..."
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+    # Source the environment for cargo and rust
+    if [ -f "$HOME/.cargo/env" ]; then
+        source $HOME/.cargo/env
+    else
+        echo "Error: Unable to source Rust environment. Installation may have failed or path is incorrect."
+    fi
+else
+    echo "cargo is already installed."
+fi
+
+# Ensure directory exists for the configuration
+mkdir -p $HOME/.config/spotifyd
+
+# Install spotifyd using Rust's Cargo
+if ! command -v spotifyd &> /dev/null; then
+    echo "Installing spotifyd..."
+    cargo install spotifyd
+    sudo mv $HOME/.cargo/bin/spotifyd /usr/local/bin/
+else
+    echo "spotifyd is already installed."
+fi
+
+# Create Spotifyd configuration (this is just a basic config; adjust accordingly)
+cat <<EOF > $HOME/.config/spotifyd/spotifyd.conf
+[global]
+backend = "alsa" # Or pulseaudio if you use it
+device_name = "GPT Home" # Name your device shows in Spotify Connect
+bitrate = 320 # Choose bitrate from 96/160/320 kbps
+cache_path = "/home/ubuntu/.spotifyd/cache"
+EOF
 
 # Function to setup a systemd service
 setup_service() {
@@ -300,6 +369,9 @@ npm install
 npm run build
 
 ## Setup Services
+# Set up spotifyd service
+setup_service "spotifyd.service" "/usr/local/bin/spotifyd --no-daemon" "network.target" "" "" ""
+
 # Setup gpt-home service
 setup_service "gpt-home.service" "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" "" "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" "Environment=\"HOSTNAME=$HOSTNAME\"" "LimitMEMLOCK=infinity"
 
@@ -313,29 +385,6 @@ Be sure to make the script executable to run it
 ```bash
 chmod +x setup.sh
 ./setup.sh
-```
-(Optional) .bashrc helpers<br>
-**Put this at the end of your ~/.bashrc file**
-```bash
-# export your OpenAI API Key in here to initialize it at boot
-export OPENAI_API_KEY="your_openai_api_key_here"
-
-alias gpt-start="sudo systemctl start gpt-home"
-alias gpt-restart="sudo systemctl restart gpt-home"
-alias gpt-stop="sudo systemctl stop gpt-home"
-alias gpt-disable="sudo systemctl disable gpt-home"
-alias gpt-status="sudo systemctl status gpt-home"
-alias gpt-enable="sudo systemctl enable gpt-home"
-alias gpt-log="tail -n 100 -f /home/ubuntu/gpt-home/events.log"
-
-alias web-start="sudo systemctl start gpt-web"
-alias web-restart="sudo systemctl restart gpt-web && sudo systemctl restart nginx"
-alias web-stop="sudo systemctl stop gpt-web"
-alias web-disable="sudo systemctl disable gpt-web"
-alias web-status="sudo systemctl status gpt-web"
-alias web-enable="sudo systemctl enable gpt-web"
-alias web-log="tail -n 100 -f /var/log/nginx/access.log"
-alias web-error="tail -n 100 -f /var/log/nginx/error.log"
 ```
 
 ---
@@ -395,36 +444,34 @@ alias web-error="tail -n 100 -f /var/log/nginx/error.log"
 
 - [OpenAI API Docs](https://beta.openai.com/docs/introduction)
 - [Raspberry Pi Docs](https://www.raspberrypi.com/documentation)
-- [GPIO Pinout](https://www.raspberrypi.com/documentation/computers/images/GPIO-Pinout-Diagram-2.png)
-- [Requests Docs](https://pypi.org/project/requests/)
-- [Python3 Docs](https://docs.python.org/3/)
 - [Node.js Docs](https://nodejs.org/en/docs/)
 - [npm Docs](https://docs.npmjs.com/)
 - [NGINX Docs](https://nginx.org/en/docs/)
+- [React Docs](https://reactjs.org/docs/getting-started.html)
+- [FastAPI Docs](https://fastapi.tiangolo.com/)
+- [Ubuntu Server Docs](https://ubuntu.com/server/docs)
+
+</td>
+<td>
+
+- [Python3 Docs](https://docs.python.org/3/)
+- [GPIO Pinout](https://www.raspberrypi.com/documentation/computers/images/GPIO-Pinout-Diagram-2.png)
+- [Adafruit SSD1306 Docs](https://circuitpython.readthedocs.io/projects/ssd1306/en/latest/)
+- [pyttsx3 Docs](https://pypi.org/project/pyttsx3/)
+- [I2C Docs](https://i2c.readthedocs.io/en/latest/)
+- [ALSA Docs](https://www.alsa-project.org/wiki/Documentation)
+- [PortAudio Docs](http://www.portaudio.com/docs/v19-doxydocs/index.html)
 - [SpeechRecognition Docs](https://pypi.org/project/SpeechRecognition/)
 
 </td>
 <td>
 
-- [React Docs](https://reactjs.org/docs/getting-started.html)
-- [FastAPI Docs](https://fastapi.tiangolo.com/)
-- [PortAudio Docs](http://www.portaudio.com/docs/v19-doxydocs/index.html)
-- [Adafruit SSD1306 Docs](https://circuitpython.readthedocs.io/projects/ssd1306/en/latest/)
-- [pyttsx3 Docs](https://pypi.org/project/pyttsx3/)
-- [eSpeak Docs](http://espeak.sourceforge.net/commands.html)
-- [I2C Docs](https://i2c.readthedocs.io/en/latest/)
-- [ALSA Docs](https://www.alsa-project.org/wiki/Documentation)
-
-</td>
-<td>
-
 - [Spotify API Docs](https://developer.spotify.com/documentation/web-api/)
-- [Raspotify Docs](https://github.com/dtcooper/raspotify)
-- [Google Calendar API Docs](https://developers.google.com/calendar)
-- [Google Calendar Python API Docs](https://developers.google.com/calendar/quickstart/python)
+- [Spotify API Python Docs (Spotipy)](https://spotipy.readthedocs.io/en/2.18.0/)
+- [Spotifyd Docs](https://github.com/Spotifyd/spotifyd)
 - [Phillips Hue API Docs](https://developers.meethue.com/develop/get-started-2/)
 - [Phillips Hue Python API Docs](https://github.com/studioimaginaire/phue)
-- [OpenWeatherMap API Docs](https://openweathermap.org/api)
+- [OpenWeatherMap API Docs](https://openweathermap.org/api/one-call-3)
 - [Fritzing Schematics](https://fritzing.org/)
 
 </td>

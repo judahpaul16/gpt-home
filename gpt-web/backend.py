@@ -2,19 +2,23 @@ from dotenv import load_dotenv, set_key, unset_key
 from fastapi import FastAPI, Request, Response, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from spotipy.oauth2 import SpotifyClientCredentials
 from fastapi.exceptions import HTTPException
 from datetime import datetime, timedelta
-from functions import logger, refresh_token
+from functions import logger
 from typing import Optional
+import spotipy.util as util
 from pathlib import Path
 from phue import Bridge
 import subprocess
 import traceback
 import requests
+import spotipy
 import hashlib
 import openai
 import base64
 import httpx
+import time
 import json
 import os
 import re
@@ -22,6 +26,7 @@ import re
 ROOT_DIRECTORY = Path(__file__).parent
 PARENT_DIRECTORY = ROOT_DIRECTORY.parent
 ENV_FILE_PATH = ROOT_DIRECTORY / ".env"
+TOKEN_PATH = "spotify_token.json"
 
 load_dotenv(ENV_FILE_PATH)
 
@@ -47,6 +52,11 @@ async def read_root(request: Request, path: str):
     else:
         return FileResponse(ROOT_DIRECTORY / "build" / "index.html")
     
+@app.post("/get-local-ip")
+def get_local_ip():
+    ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip()
+    return JSONResponse(content={"ip": ip})
+
 ## Event Logs ##
 
 @app.post("/logs")
@@ -241,12 +251,6 @@ async def change_password(request: Request):
 
 ## Integrations ##
 
-# Utility function to read environment config from .env file
-def read_env_config():
-    with open(ENV_FILE_PATH, "r") as f:
-        env_config = f.read()
-    return env_config
-
 @app.post("/connect-service")
 async def connect_service(request: Request):
     try:
@@ -255,8 +259,8 @@ async def connect_service(request: Request):
         fields = incoming_data["fields"]
 
         # Initialize variables for Spotify
-        client_id = None
-        client_secret = None
+        spotify_client_id = None
+        spotify_client_secret = None
         redirect_uri = None
         auth_url = None
 
@@ -264,33 +268,71 @@ async def connect_service(request: Request):
             if name == "spotify":
                 if key == "CLIENT ID":
                     set_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_ID", value)
-                    client_id = value
+                    os.environ["SPOTIFY_CLIENT_ID"] = value
+                    spotify_client_id = value
                 elif key == "CLIENT SECRET":
                     set_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_SECRET", value)
-                    client_secret = value
-            elif name == "googlecalendar":
-                if key == "ACCESS TOKEN":
-                    set_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN", value)
+                    os.environ["SPOTIFY_CLIENT_SECRET"] = value
+                    spotify_client_secret = value
+            elif name == "openweather":
+                if key == "API KEY":
+                    set_key(ENV_FILE_PATH, "OPEN_WEATHER_API_KEY", value)
+                    os.environ["OPEN_WEATHER_API_KEY"] = value
             elif name == "philipshue":
                 if key == "BRIDGE IP ADDRESS":
                     set_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP", value)
+                    os.environ["PHILIPS_HUE_BRIDGE_IP"] = value
                     await set_philips_hue_username(value)
 
-        if name == "spotify" and client_id and client_secret:
+        if name == "spotify":
+            spotify_username = fields.get("USERNAME")
+            spotify_password = fields.get("PASSWORD")
+            os.environ["SPOTIFY_USERNAME"] = spotify_username
+            
+            if spotify_username and spotify_password:
+                # Update the spotifyd configuration dynamically
+                config_path = PARENT_DIRECTORY.parent / ".config/spotifyd/spotifyd.conf"
+                with open(config_path, "w") as file:
+                    file.write("[global]\n")
+                    file.write(f"username = \"{spotify_username}\"\n")
+                    file.write(f"password = \"{spotify_password}\"\n")
+                    file.write("backend = \"alsa\"\n")
+                    file.write("device_name = \"GPT Home\"\n")
+                    file.write("bitrate = 320\n")
+                    file.write("cache_path = \"/home/ubuntu/.spotifyd/cache\"\n")
+                
+                # Restart spotifyd to apply changes
+                subprocess.run(["sudo", "systemctl", "restart", "spotifyd"], check=True)
+
             # Setting REDIRECT URI explicitly to local ip
             ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip()
             redirect_uri = f"http://{ip}/api/callback"
             set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", redirect_uri)
-            auth_params = {
-                "client_id": client_id,
-                "response_type": "code",
-                "redirect_uri": redirect_uri,
-                "scope": "user-library-read"
-            }
-            # Construct the authorization URL
-            auth_query = "&".join([f"{key}={value}" for key, value in auth_params.items()])
-            auth_url = f"https://accounts.spotify.com/authorize?{auth_query}"
+            os.environ["SPOTIFY_REDIRECT_URI"] = redirect_uri
+            scopes = ",".join([
+                "app-remote-control",
+                "user-modify-playback-state",
+                "user-read-playback-state",
+                "user-read-currently-playing",
+                "user-read-playback-position",
+                "user-read-recently-played",
+                "user-top-read",
+                "user-read-email",
+                "user-read-private",
+                "playlist-read-private",
+                "playlist-read-collaborative",
+                "streaming",
+                "user-library-read"
+            ])
 
+            sp_oauth = spotipy.oauth2.SpotifyOAuth(
+                client_id=spotify_client_id,
+                client_secret=spotify_client_secret,
+                redirect_uri=redirect_uri,
+                scope=scopes,
+            )
+            auth_url = sp_oauth.get_authorize_url()
+             
         # Restarting the service after setting up configurations for any of the services
         subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
 
@@ -314,10 +356,10 @@ async def disconnect_service(request: Request):
         if name == "spotify":
             unset_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_ID")
             unset_key(ENV_FILE_PATH, "SPOTIFY_CLIENT_SECRET")
-            unset_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI")
-            unset_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN")
-        elif name == "googlecalendar":
-            unset_key(ENV_FILE_PATH, "GOOGLE_CALENDAR_ACCESS_TOKEN")
+            if os.path.exists(TOKEN_PATH):
+                os.remove(TOKEN_PATH)
+        elif name == "openweather":
+            unset_key(ENV_FILE_PATH, "OPEN_WEATHER_API_KEY")
         elif name == "philipshue":
             unset_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP")
             unset_key(ENV_FILE_PATH, "PHILIPS_HUE_USERNAME")
@@ -330,133 +372,207 @@ async def disconnect_service(request: Request):
 @app.post("/get-service-statuses")
 async def get_service_statuses(request: Request):
     try:
-        env_config = read_env_config()
+        env_config = None
+        with open(ENV_FILE_PATH, "r") as f:
+            env_config = f.read()
 
-        statuses = {
-            "Spotify": "SPOTIFY_ACCESS_TOKEN" in env_config,
-            "GoogleCalendar": "GOOGLE_CALENDAR_ACCESS_TOKEN" in env_config,
-            "PhilipsHue": "PHILIPS_HUE_BRIDGE_IP" in env_config and "PHILIPS_HUE_USERNAME" in env_config
-        }
-
-        return JSONResponse(content={"statuses": statuses})
+        if env_config:
+            statuses = {
+                "Spotify": "SPOTIFY_CLIENT_ID" in env_config and "SPOTIFY_CLIENT_SECRET" in env_config,
+                "OpenWeather": "OPEN_WEATHER_API_KEY" in env_config,
+                "PhilipsHue": "PHILIPS_HUE_BRIDGE_IP" in env_config and "PHILIPS_HUE_USERNAME" in env_config
+            }
+            return JSONResponse(content={"statuses": statuses})
+        return HTTPException(status_code=404, detail="Environment file not found")
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
 
 ## Spotify ##
 
-# Callback for Spotify
+# Callback for Spotify OAuth2
 async def handle_callback(request: Request):
     try:
-        # Fetch the code from query parameters instead of JSON payload
         code = request.query_params.get("code")
-        if not code:
-            raise Exception("Authorization code not found in query parameters")
+        scopes = ",".join([
+            "app-remote-control",
+            "user-modify-playback-state",
+            "user-read-playback-state",
+            "user-read-currently-playing",
+            "user-read-playback-position",
+            "user-read-recently-played",
+            "user-top-read",
+            "user-read-email",
+            "user-read-private",
+            "playlist-read-private",
+            "playlist-read-collaborative",
+            "streaming",
+            "user-library-read"
+        ])
 
-        load_dotenv(ENV_FILE_PATH)
+        sp_oauth = spotipy.oauth2.SpotifyOAuth(
+            client_id=os.environ['SPOTIFY_CLIENT_ID'],
+            client_secret=os.environ['SPOTIFY_CLIENT_SECRET'],
+            redirect_uri=os.environ['SPOTIFY_REDIRECT_URI'],
+            scope=scopes,
+        )
 
-        # Get auth headers
-        client_id = os.getenv("SPOTIFY_CLIENT_ID")
-        client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
-        redirect_uri = os.getenv("SPOTIFY_REDIRECT_URI")
+        if code:
+            token_info = sp_oauth.get_access_token(code)
+            
+            if not token_info:
+                raise Exception("Failed to get token info")
 
-        # Base64 encode the client ID and secret
-        base64_encoded = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+            store_token(token_info)
 
-        # Prepare the data and headers for the post request
-        auth_data = {
-            "redirect_uri": redirect_uri,
-            "code": code,
-            "grant_type": "authorization_code"
-        }
-        auth_headers = {'Authorization': f"Basic {base64_encoded}"}
-
-        # Asynchronously make the request
-        async with httpx.AsyncClient() as client:
-            response = await client.post("https://accounts.spotify.com/api/token", data=auth_data, headers=auth_headers)
-
-        if response.status_code == 200:
-            json_response = response.json()
-            access_token = json_response.get("access_token", None)
-            refresh_token = json_response.get("refresh_token", None)
-            expires_in = json_response.get("expires_in", None)
-            if access_token and refresh_token:
-                set_key(ENV_FILE_PATH, "SPOTIFY_ACCESS_TOKEN", access_token)
-                set_key(ENV_FILE_PATH, "SPOTIFY_REFRESH_TOKEN", refresh_token)
-                set_key(ENV_FILE_PATH, "SPOTIFY_TOKEN_EXPIRES_IN", str(expires_in))
-                print("Successfully connected to Spotify.")
-                subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
-                return RedirectResponse(url="/", status_code=302)
-            else:
-                raise Exception(f"Something went wrong: {response.text}")
+            subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
+            
+            return RedirectResponse(url="/", status_code=302)
         else:
-            raise Exception(f"Something went wrong: {response.text}")
+            auth_url = sp_oauth.get_authorize_url(show_dialog=True)  # force reauthorization
+            logger.error("No code provided.")
+            return RedirectResponse(url=auth_url)
 
     except Exception as e:
-        return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
-
-def search_song_get_uri(song_name: str):
-    access_token = os.getenv('SPOTIFY_ACCESS_TOKEN')
-    headers = {"Authorization": f"Bearer {access_token}"}
-    params = {"q": song_name, "type": "track", "limit": 1}
-    response = requests.get("https://api.spotify.com/v1/search", headers=headers, params=params)
+        auth_url = sp_oauth.get_authorize_url(show_dialog=True)  # force reauthorization
+        logger.error(f"Error: {traceback.format_exc()}")
+        return RedirectResponse(url=auth_url)
     
-    if response.status_code == 401:
-        # Attempt to refresh the token
-        refresh_token()
-        # Retry the request
-        access_token = os.getenv('SPOTIFY_ACCESS_TOKEN')
-        headers = {"Authorization": f"Bearer {access_token}"}
-        response = requests.get("https://api.spotify.com/v1/search", headers=headers, params=params)
+def get_stored_token():
+    try:
+        with open(TOKEN_PATH, 'r') as f:
+            return json.load(f)
+    except:
+        return None
 
-    if response.status_code == 200:
-        json_response = response.json()
-        tracks = json_response.get("tracks", {}).get("items", [])
-        if tracks:
-            return tracks[0].get("uri", None)
-    else:
-        logger.error(f"Error: {response.text}")
-        raise Exception(f"Something went wrong: {response.text}")
-    
+def store_token(token_info):
+    with open(TOKEN_PATH, 'w') as f:
+        json.dump(token_info, f)
+
+def valid_token(token_info):
+    now = time.time()
+    return token_info and token_info["expires_at"] > now
+
 @app.post("/spotify-control")
 async def spotify_control(request: Request):
     try:
+        token_info = get_stored_token()
+
+        if not token_info:
+            raise Exception("No token information available. Please re-authenticate with Spotify.")
+
+        if not valid_token(token_info):
+            logger.warning("Token expired. Refreshing token.")
+            # Refresh the token
+            scopes = ",".join([
+                "app-remote-control",
+                "user-modify-playback-state",
+                "user-read-playback-state",
+                "user-read-currently-playing",
+                "user-read-playback-position",
+                "user-read-recently-played",
+                "user-top-read",
+                "user-read-email",
+                "user-read-private",
+                "playlist-read-private",
+                "playlist-read-collaborative",
+                "streaming",
+                "user-library-read"
+            ])
+
+            sp_oauth = spotipy.oauth2.SpotifyOAuth(
+                client_id=os.environ['SPOTIFY_CLIENT_ID'],
+                client_secret=os.environ['SPOTIFY_CLIENT_SECRET'],
+                redirect_uri=os.environ['SPOTIFY_REDIRECT_URI'],
+                scope=scopes,
+                cache_path=TOKEN_PATH
+            )
+            sp = spotipy.Spotify(auth_manager=sp_oauth)
+            token_info = sp.oauth_manager.get_access_token(as_dict=True)
+            store_token(token_info)
+
+        sp = spotipy.Spotify(auth=token_info['access_token'])
+
         incoming_data = await request.json()
         text = incoming_data.get("text", "").lower().strip()
+
+        devices = sp.devices()
+        logger.debug(f"Devices: {devices}")
+        device_id = None
+        for device in devices['devices']:
+
+            if "GPT Home" in device['name']:
+                device_id = device['id']
+                break
+
+        if not device_id:
+            raise Exception("GPT Home not found as an available device.")
 
         if "play" in text:
             song = re.sub(r'(play\s+)', '', text, count=1).strip()
             if song:
-                spotify_uri = await search_song_get_uri(song)
-                if spotify_uri:
-                    subprocess.run(["playerctl", "open", spotify_uri])
-                    return JSONResponse(content={"success": True, "message": f"Playing {song} on Spotify."})
+                spotify_uri = await spotify_get_track_uri(song, sp)
+                sp.start_playback(device_id=device_id, uris=[spotify_uri])
+                logger.success(f"Playing {song} on Spotify.")
+                return JSONResponse(content={"message": f"Playing {song} on Spotify."})
             else:
-                subprocess.run(["playerctl", "play"])
-                return JSONResponse(content={"success": True, "message": "Resumed playback."})
+                sp.start_playback(device_id=device_id)
+                return JSONResponse(content={"message": "Resumed playback."})
 
         elif "next" in text or "skip" in text:
-            subprocess.run(["playerctl", "next"])
-            return JSONResponse(content={"success": True, "message": "Playing next track."})
+            sp.next_track(device_id=device_id)
+            return JSONResponse(content={"message": "Playing next track."})
 
         elif "previous" in text or "go back" in text:
-            subprocess.run(["playerctl", "previous"])
-            return JSONResponse(content={"success": True, "message": "Playing previous track."})
+            sp.previous_track(device_id=device_id)
+            return JSONResponse(content={"message": "Playing previous track."})
 
         elif "pause" in text or "stop" in text:
-            subprocess.run(["playerctl", "pause"])
-            return JSONResponse(content={"success": True, "message": "Paused playback."})
+            sp.pause_playback(device_id=device_id)
+            return JSONResponse(content={"message": "Paused playback."})
 
         else:
-            return JSONResponse(content={"success": False, "message": "Invalid command."})
+            logger.warning(f"Invalid command: {text}")
+            return JSONResponse(content={"message": "Invalid command."}, status_code=400)
 
+    except spotipy.exceptions.SpotifyException as e:
+        # If the token has been revoked, reauthorize it
+        if e.http_status == 401:
+            auth_url = sp_oauth.get_authorize_url(show_dialog=True)
+            logger.warning(f"Error: {traceback.format_exc()}")
+            return RedirectResponse(url=auth_url)
+        else:
+            logger.critical(f"Error: {traceback.format_exc()}")
+            raise Exception(f"Something went wrong: {e}")
     except Exception as e:
-        return JSONResponse(content={"success": False, "message": str(e), "traceback": traceback.format_exc()})
+        logger.critical(f"Error: {traceback.format_exc()}")
+        raise Exception(f"Something went wrong: {e}")
 
+async def spotify_get_track_uri(song: str, sp):
+    # Search for the track
+    result = sp.search(q=song, type='track', limit=1)
+    if result['tracks']['items']:
+        return result['tracks']['items'][0]['uri']
 
-## Google Calendar ##
+    # If no track is found, search for an album
+    result = sp.search(q=song, type='album', limit=1)
+    if result['albums']['items']:
+        # Playing first track of the album
+        album_id = result['albums']['items'][0]['id']
+        tracks = sp.album_tracks(album_id)
+        if tracks['items']:
+            return tracks['items'][0]['uri']
+    
+    # If no album is found, search for an artist and play top track
+    result = sp.search(q=song, type='artist', limit=1)
+    if result['artists']['items']:
+        artist_id = result['artists']['items'][0]['id']
+        top_tracks = sp.artist_top_tracks(artist_id)
+        if top_tracks['tracks']:
+            return top_tracks['tracks'][0]['uri']
 
-# ...
+    # If nothing matches, raise an exception or handle accordingly
+    raise Exception(f"No match found for: {song}")
 
 
 ## Philips Hue ##

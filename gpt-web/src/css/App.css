@@ -209,7 +209,7 @@ a {
   margin: 0.5em auto 0.25em;
 }
 
-input[type=password] {
+.password-modal input[type=password] {
   border: 2px solid #ccc !important;
   box-sizing: border-box !important;
   padding: 5px !important;
