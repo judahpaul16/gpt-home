@@ -445,7 +445,7 @@ async def query_openai(text, display, retries=3):
             )
             response_content = response['choices'][0]['message']['content'].strip()
             if response_content:  # Check if the response is not empty
-                message = f"Response: {response_content}"
+                message = response_content
                 return message
             else:
                 logger.warning(f"Retry {i+1}: Received empty response from OpenAI.")
@@ -461,7 +461,7 @@ async def query_openai(text, display, retries=3):
                 )
                 response_content = response['choices'][0]['text'].strip()
                 if response_content:
-                    message = f"Response: {response_content}"
+                    message = response_content
                     return message
             else:
                 logger.error(f"Error on try {i+1}: {e}")
@@ -481,7 +481,7 @@ async def action_router(text: str, display):
         return await open_weather_action(text)
 
     # For Philips Hue actions
-    elif re.search(r'\b(turn\s(?:lights?|on|off)\s(?:on|off|lights?))\b', text, re.IGNORECASE):
+    elif re.search(r'\b(turn\s)?(the\s)?lights?\s?(on|off)?\b', text, re.IGNORECASE):
         return await philips_hue_action(text)
 
     # If no pattern matches, query OpenAI
