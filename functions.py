@@ -480,9 +480,9 @@ async def action_router(text: str, display):
         return await open_weather_action(text)
 
     # For Philips Hue actions
-    elif re.search(r'\b(turn)?\s?(lights?|on|off)\s?(on|off|lights?)?\b', text, re.IGNORECASE):
+    elif re.search(r'\b(turn\s(?:lights?|on|off)\s(?:on|off|lights?))\b', text, re.IGNORECASE):
         return await philips_hue_action(text)
-        
+
     # If no pattern matches, query OpenAI
     else:
         return await query_openai(text, display)
