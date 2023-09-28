@@ -392,8 +392,12 @@ async def get_service_statuses(request: Request):
                 if local_network != bridge_network:
                     is_matching_scheme = False
 
+            # Check token expiry for Spotify
+            token_info = get_stored_token()
+            token_is_valid = valid_token(token_info) if token_info else False
+
             statuses = {
-                "Spotify": "SPOTIFY_CLIENT_ID" in env_config and "SPOTIFY_CLIENT_SECRET" in env_config,
+                "Spotify": "SPOTIFY_CLIENT_ID" in env_config and "SPOTIFY_CLIENT_SECRET" in env_config and token_is_valid,
                 "OpenWeather": "OPEN_WEATHER_API_KEY" in env_config,
                 "PhilipsHue": "PHILIPS_HUE_BRIDGE_IP" in env_config and "PHILIPS_HUE_USERNAME" in env_config and is_matching_scheme
             }
@@ -477,34 +481,8 @@ async def spotify_control(request: Request):
             raise Exception("No token information available. Please re-authenticate with Spotify.")
 
         if not valid_token(token_info):
-            logger.warning("Token expired. Refreshing token.")
-            # Refresh the token
-            scopes = ",".join([
-                "app-remote-control",
-                "user-modify-playback-state",
-                "user-read-playback-state",
-                "user-read-currently-playing",
-                "user-read-playback-position",
-                "user-read-recently-played",
-                "user-top-read",
-                "user-read-email",
-                "user-read-private",
-                "playlist-read-private",
-                "playlist-read-collaborative",
-                "streaming",
-                "user-library-read"
-            ])
-
-            sp_oauth = spotipy.oauth2.SpotifyOAuth(
-                client_id=os.environ['SPOTIFY_CLIENT_ID'],
-                client_secret=os.environ['SPOTIFY_CLIENT_SECRET'],
-                redirect_uri=os.environ['SPOTIFY_REDIRECT_URI'],
-                scope=scopes,
-                cache_path=TOKEN_PATH
-            )
-            sp = spotipy.Spotify(auth_manager=sp_oauth)
-            token_info = sp.oauth_manager.get_access_token(as_dict=True)
-            store_token(token_info)
+            logger.warning("Token expired. Need to re-authenticate with Spotify.")
+            raise spotipy.exceptions.SpotifyException(401, -1, "The access token expired. Please reauthorize in the web interface.")
 
         sp = spotipy.Spotify(auth=token_info['access_token'])
 
