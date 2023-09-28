@@ -450,10 +450,9 @@ async def query_openai(text, display, retries=3):
             else:
                 logger.warning(f"Retry {i+1}: Received empty response from OpenAI.")
         except Exception as e:
-            logger.error(f"Error on try {i+1}: {e}")
             if 'Did you mean to use v1/completions?' in str(e):
                 # Re-query using v1/completions
-                prompt = f"AI: You are a helpful assistant. {settings.get('custom_instructions')}\nHuman: {text}"
+                prompt = f"You are a helpful assistant. {settings.get('custom_instructions')}\nHuman: {text}"
                 response = openai.Completion.create(
                     model=settings.get("model"),
                     prompt=prompt,
@@ -464,6 +463,8 @@ async def query_openai(text, display, retries=3):
                 if response_content:
                     message = f"Response: {response_content}"
                     return message
+            else:
+                logger.error(f"Error on try {i+1}: {e}")
             if i == retries - 1:  # If this was the last retry
                 error_message = f"Something went wrong after {retries} retries: {e}"
                 handle_error(error_message, None, display)
