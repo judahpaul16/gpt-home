@@ -369,7 +369,7 @@ async def disconnect_service(request: Request):
         return JSONResponse(content={"success": True})
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
-    
+
 @app.post("/get-service-statuses")
 async def get_service_statuses(request: Request):
     try:
@@ -377,33 +377,35 @@ async def get_service_statuses(request: Request):
         with open(ENV_FILE_PATH, "r") as f:
             env_config = f.read()
 
-        if env_config:
-            ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().split()[0]
-            # Check if the first IP in PHILIPS_HUE_BRIDGE_IP is on the same network as the local IP
-            is_matching_scheme = True
+        if not env_config:
+            return HTTPException(status_code=404, detail="Environment file not found")
+        
+        # Check if the bridge IP is on the same network as the local IP
+        ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip().split()[0]
+        bridge_ip_match = re.search(r"PHILIPS_HUE_BRIDGE_IP=\'(\d+\.\d+\.\d+\.\d+)\'", env_config)
+        bridge_ip = bridge_ip_match.group(1) if bridge_ip_match else None
 
-            if "PHILIPS_HUE_BRIDGE_IP" in env_config:
-                bridge_ip = env_config.split("PHILIPS_HUE_BRIDGE_IP=")[1].split("\n")[0]
-                bridge_ip = bridge_ip.split(",")[0]
-                
-                # Compare the first three octets of both IPs
-                local_network = ".".join(ip.split(".")[:3])
-                bridge_network = ".".join(bridge_ip.split(".")[:3])
-                
-                if local_network != bridge_network:
-                    is_matching_scheme = False
+        is_matching_scheme = True
+        if bridge_ip:
+            # Extract and compare the network parts of the IPs
+            local_network = ".".join(ip.split(".")[:3])
+            bridge_network = ".".join(bridge_ip.split(".")[:3])
+            logger.debug(f"Local network: {local_network}")
+            logger.debug(f"Bridge network: {bridge_network}")
+            if local_network != bridge_network:
+                is_matching_scheme = False
 
-            # Check token expiry for Spotify
-            token_info = get_stored_token()
-            token_is_valid = valid_token(token_info) if token_info else False
+        # Check token expiry for Spotify
+        token_info = get_stored_token()
+        token_is_valid = valid_token(token_info) if token_info else False
 
-            statuses = {
-                "Spotify": "SPOTIFY_CLIENT_ID" in env_config and "SPOTIFY_CLIENT_SECRET" in env_config and token_is_valid,
-                "OpenWeather": "OPEN_WEATHER_API_KEY" in env_config,
-                "PhilipsHue": "PHILIPS_HUE_BRIDGE_IP" in env_config and "PHILIPS_HUE_USERNAME" in env_config and is_matching_scheme
-            }
-            return JSONResponse(content={"statuses": statuses})
-        return HTTPException(status_code=404, detail="Environment file not found")
+        statuses = {
+            "Spotify": "SPOTIFY_CLIENT_ID" in env_config and "SPOTIFY_CLIENT_SECRET" in env_config and token_is_valid,
+            "OpenWeather": "OPEN_WEATHER_API_KEY" in env_config,
+            "PhilipsHue": "PHILIPS_HUE_BRIDGE_IP" in env_config and "PHILIPS_HUE_USERNAME" in env_config and is_matching_scheme
+        }
+        
+        return JSONResponse(content={"statuses": statuses})
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
