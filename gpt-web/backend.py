@@ -54,7 +54,7 @@ async def read_root(request: Request, path: str):
     
 @app.post("/get-local-ip")
 def get_local_ip():
-    ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip()
+    ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().split()[0]
     return JSONResponse(content={"ip": ip})
 
 ## Event Logs ##
@@ -305,7 +305,7 @@ async def connect_service(request: Request):
                 subprocess.run(["sudo", "systemctl", "restart", "spotifyd"], check=True)
 
             # Setting REDIRECT URI explicitly to local ip
-            ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip()
+            ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().split()[0]
             redirect_uri = f"http://{ip}/api/callback"
             set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", redirect_uri)
             os.environ["SPOTIFY_REDIRECT_URI"] = redirect_uri
@@ -377,10 +377,12 @@ async def get_service_statuses(request: Request):
             env_config = f.read()
 
         if env_config:
+            ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().split()[0]
             statuses = {
                 "Spotify": "SPOTIFY_CLIENT_ID" in env_config and "SPOTIFY_CLIENT_SECRET" in env_config,
                 "OpenWeather": "OPEN_WEATHER_API_KEY" in env_config,
-                "PhilipsHue": "PHILIPS_HUE_BRIDGE_IP" in env_config and "PHILIPS_HUE_USERNAME" in env_config
+                # check that the ip scheme matches the system ip scheme
+                "PhilipsHue": "PHILIPS_HUE_BRIDGE_IP" in env_config and "PHILIPS_HUE_USERNAME" in env_config and ip.startswith(os.environ["PHILIPS_HUE_BRIDGE_IP"].split(".")[0])
             }
             return JSONResponse(content={"statuses": statuses})
         return HTTPException(status_code=404, detail="Environment file not found")

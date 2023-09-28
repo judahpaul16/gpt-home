@@ -266,7 +266,7 @@ async def spotify_action(text: str):
     if client_id and client_secret:
         try:
             async with aiohttp.ClientSession() as session:
-                ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip()
+                ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().split()[0]
                 response = await session.post(f"http://{ip}/spotify-control", json={"text": text})
                 if response.status == 200:
                     data = await response.json()
