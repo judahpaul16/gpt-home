@@ -378,11 +378,24 @@ async def get_service_statuses(request: Request):
 
         if env_config:
             ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().split()[0]
+            # Check if the first IP in PHILIPS_HUE_BRIDGE_IP is on the same network as the local IP
+            is_matching_scheme = True
+
+            if "PHILIPS_HUE_BRIDGE_IP" in env_config:
+                bridge_ip = env_config.split("PHILIPS_HUE_BRIDGE_IP=")[1].split("\n")[0]
+                bridge_ip = bridge_ip.split(",")[0]
+                
+                # Compare the first three octets of both IPs
+                local_network = ".".join(ip.split(".")[:3])
+                bridge_network = ".".join(bridge_ip.split(".")[:3])
+                
+                if local_network != bridge_network:
+                    is_matching_scheme = False
+
             statuses = {
                 "Spotify": "SPOTIFY_CLIENT_ID" in env_config and "SPOTIFY_CLIENT_SECRET" in env_config,
                 "OpenWeather": "OPEN_WEATHER_API_KEY" in env_config,
-                # check that the ip scheme matches the system ip scheme
-                "PhilipsHue": "PHILIPS_HUE_BRIDGE_IP" in env_config and "PHILIPS_HUE_USERNAME" in env_config and ip.startswith(os.environ["PHILIPS_HUE_BRIDGE_IP"].split(".")[0])
+                "PhilipsHue": "PHILIPS_HUE_BRIDGE_IP" in env_config and "PHILIPS_HUE_USERNAME" in env_config and is_matching_scheme
             }
             return JSONResponse(content={"statuses": statuses})
         return HTTPException(status_code=404, detail="Environment file not found")
