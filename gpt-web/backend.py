@@ -511,10 +511,10 @@ async def spotify_control(request: Request):
         token_info = get_stored_token()
 
         if not token_info:
-            raise Exception("No token information available. Please re-authenticate with Spotify.")
+            raise Exception("No token information available. Please reauthorize with Spotify.")
 
         if not valid_token(token_info):
-            logger.warning("Token expired. Need to re-authenticate with Spotify.")
+            logger.warning("Token expired. Need to reauthorize with Spotify.")
             raise spotipy.exceptions.SpotifyException(401, -1, "The access token expired. Please reauthorize in the web interface.")
 
         sp = spotipy.Spotify(auth=token_info['access_token'])
@@ -537,10 +537,10 @@ async def spotify_control(request: Request):
         if "play" in text:
             song = re.sub(r'(play\s+)', '', text, count=1).strip()
             if song:
-                spotify_uri = await spotify_get_track_uri(song, sp)
-                sp.start_playback(device_id=device_id, uris=[spotify_uri])
-                logger.success(f"Playing {song}.")
-                return JSONResponse(content={"message": f"Playing {song}."})
+                spotify_uris = await spotify_get_track_uris(song, sp)
+                sp.start_playback(device_id=device_id, uris=spotify_uris)
+                logger.success(f"Playing radio based on {song}.")
+                return JSONResponse(content={"message": f"Playing radio based on {song}."})
             else:
                 sp.start_playback(device_id=device_id)
                 return JSONResponse(content={"message": "Resumed playback."})
@@ -575,24 +575,28 @@ async def spotify_control(request: Request):
             return JSONResponse(content={"message": "Invalid command."}, status_code=400)
 
     except spotipy.exceptions.SpotifyException as e:
-        # If the token has been revoked, reauthorize it
-        if e.http_status == 401:
-            auth_url = sp_oauth.get_authorize_url(show_dialog=True)
-            logger.warning(f"Error: {traceback.format_exc()}")
-            return RedirectResponse(url=auth_url)
+        # If the token has been revoked
+        if e.http_status == 401 and e.http_error_msg == "The access token expired":
+            logger.warning("Token expired. Need to reauthorize with Spotify.")
+            raise Exception("Token expired. Need to reauthorize with Spotify.")
         else:
-            logger.critical(f"Error: {traceback.format_exc()}")
+            logger.error(f"Error: {traceback.format_exc()}")
             raise Exception(f"Something went wrong: {e}")
     except Exception as e:
         logger.critical(f"Error: {traceback.format_exc()}")
         raise Exception(f"Something went wrong: {e}")
 
-async def spotify_get_track_uri(song: str, sp):
+async def spotify_get_track_uris(song: str, sp):
     # Search for the track
     result = sp.search(q=song, type='track', limit=1)
     if result['tracks']['items']:
-        return result['tracks']['items'][0]['uri']
+        track_uri = result['tracks']['items'][0]['uri']
 
+        # Get recommendations based on the track to emulate a radio experience
+        recommended_tracks = sp.recommendations(seed_tracks=[track_uri], limit=10)  # fetching top 10 recommended tracks
+        if recommended_tracks and recommended_tracks['tracks']:
+            return [track['uri'] for track in recommended_tracks['tracks']]
+    
     # If no track is found, search for an album
     result = sp.search(q=song, type='album', limit=1)
     if result['albums']['items']:
@@ -600,15 +604,15 @@ async def spotify_get_track_uri(song: str, sp):
         album_id = result['albums']['items'][0]['id']
         tracks = sp.album_tracks(album_id)
         if tracks['items']:
-            return tracks['items'][0]['uri']
+            return [tracks['items'][0]['uri']]
     
-    # If no album is found, search for an artist and play top track
+    # If no album is found, search for an artist and return top track
     result = sp.search(q=song, type='artist', limit=1)
     if result['artists']['items']:
         artist_id = result['artists']['items'][0]['id']
         top_tracks = sp.artist_top_tracks(artist_id)
         if top_tracks['tracks']:
-            return top_tracks['tracks'][0]['uri']
+            return [top_tracks['tracks'][0]['uri']]
 
     # If nothing matches, raise an exception or handle accordingly
     raise Exception(f"No match found for: {song}")
