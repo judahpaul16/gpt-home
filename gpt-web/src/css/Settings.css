@@ -53,18 +53,26 @@
 .settings-top-btn {
     background-color: #ffa550;
     border: none;
-    color: white;
-    padding: 0.5em 1em;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0,0,0,.1);
+    color: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    margin: .5em;
+    padding: .5em 1em;
     text-align: center;
     text-decoration: none;
-    display: inline-block;
-    font-size: 1em;
-    margin: 0.5em 0.5em;
-    cursor: pointer;
-    border-radius: 10px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    font-size: small;
 }
 
 .settings-top-btn:hover {
     background-color: #ff8a00;
+}
+
+.system-btn {
+    background-color: crimson;
+}
+
+.system-btn:hover {
+    background-color: #ff0000;
 }

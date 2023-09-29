@@ -124,16 +124,16 @@ const Settings: React.FC = () => {
           {spotifyRestart();}
         }
       }>Restart Spotifyd Service</button>
-      <button className="settings-top-btn" onClick={() => {
+      <button className="settings-top-btn system-btn" onClick={() => {
         if (window.confirm('Are you sure you want to shutdown?'))
           {shutdown();}
         }
-      }>Shutdown</button>
-      <button className="settings-top-btn" onClick={() => {
+      }>Shutdown System</button>
+      <button className="settings-top-btn system-btn" onClick={() => {
         if (window.confirm('Are you sure you want to reboot?'))
           {reboot();}
         }
-      }>Reboot</button>
+      }>Reboot System</button>
 
       <div className="settings-container">
         
