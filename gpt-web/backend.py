@@ -587,32 +587,34 @@ async def spotify_control(request: Request):
         raise Exception(f"Something went wrong: {e}")
 
 async def spotify_get_track_uris(song: str, sp):
-    # Search for the track
+    # Search for an album
+    result = sp.search(q=song, type='album', limit=1)
+    if result['albums']['items']:
+        album_id = result['albums']['items'][0]['id']
+        tracks = sp.album_tracks(album_id)
+        if tracks['items']:
+            return [track['uri'] for track in tracks['items']]  # Return all tracks of the album
+
+    # If no album is found, search for an artist
+    result = sp.search(q=song, type='artist', limit=1)
+    if result['artists']['items']:
+        artist_id = result['artists']['items'][0]['id']
+
+        # Get top tracks or recommendations based on the artist
+        top_tracks = sp.artist_top_tracks(artist_id)
+        if top_tracks and top_tracks['tracks']:
+            return [track['uri'] for track in top_tracks['tracks']]  # Return top tracks of the artist
+
+    # If no artist is found, search for a track
     result = sp.search(q=song, type='track', limit=1)
     if result['tracks']['items']:
         track_uri = result['tracks']['items'][0]['uri']
 
         # Get recommendations based on the track to emulate a radio experience
-        recommended_tracks = sp.recommendations(seed_tracks=[track_uri], limit=10)  # fetching top 10 recommended tracks
+        recommended_tracks = sp.recommendations(seed_tracks=[track_uri], limit=9)  # fetching top 9 recommended tracks
         if recommended_tracks and recommended_tracks['tracks']:
-            return [track['uri'] for track in recommended_tracks['tracks']]
-    
-    # If no track is found, search for an album
-    result = sp.search(q=song, type='album', limit=1)
-    if result['albums']['items']:
-        # Playing first track of the album
-        album_id = result['albums']['items'][0]['id']
-        tracks = sp.album_tracks(album_id)
-        if tracks['items']:
-            return [tracks['items'][0]['uri']]
-    
-    # If no album is found, search for an artist and return top track
-    result = sp.search(q=song, type='artist', limit=1)
-    if result['artists']['items']:
-        artist_id = result['artists']['items'][0]['id']
-        top_tracks = sp.artist_top_tracks(artist_id)
-        if top_tracks['tracks']:
-            return [top_tracks['tracks'][0]['uri']]
+            recommended_uris = [track['uri'] for track in recommended_tracks['tracks']]
+            return [track_uri] + recommended_uris
 
     # If nothing matches, raise an exception or handle accordingly
     raise Exception(f"No match found for: {song}")
