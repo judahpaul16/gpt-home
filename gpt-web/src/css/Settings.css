@@ -49,3 +49,22 @@
 #keyword-input {
     margin-left: 0.5em !important;
 }
+
+.settings-top-btn {
+    background-color: #ffa550;
+    border: none;
+    color: white;
+    padding: 0.5em 1em;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 1em;
+    margin: 0.5em 0.5em;
+    cursor: pointer;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.settings-top-btn:hover {
+    background-color: #ff8a00;
+}

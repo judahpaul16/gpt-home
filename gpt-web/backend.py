@@ -120,6 +120,26 @@ async def settings(request: Request):
     else:
         return HTTPException(status_code=400, detail="Invalid action")
     
+@app.post("/gptRestart")
+async def gpt_restart(request: Request):
+    subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
+    return JSONResponse(content={"success": True})
+
+@app.post("/spotifyRestart")
+async def spotify_restart(request: Request):
+    subprocess.run(["sudo", "systemctl", "restart", "spotifyd"])
+    return JSONResponse(content={"success": True})
+
+@app.post("/reboot")
+async def reboot(request: Request):
+    subprocess.run(["sudo", "reboot"])
+    return JSONResponse(content={"success": True})
+
+@app.post("/shutdown")
+async def shutdown(request: Request):
+    subprocess.run(["sudo", "shutdown", "now"])
+    return JSONResponse(content={"success": True})
+
 @app.post("/availableModels")
 async def available_models():
     try:

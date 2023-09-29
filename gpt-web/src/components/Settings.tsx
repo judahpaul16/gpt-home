@@ -70,6 +70,42 @@ const Settings: React.FC = () => {
     });
   };
 
+  const gptRestart = () => {
+    axios.post('/gptRestart').then((response) => {
+      alert('GPT Home service restarted');
+    }).catch((error) => {
+      console.log("Error: ", error);
+      alert('Failed to restart GPT Home service');
+    });
+  };
+
+  const spotifyRestart = () => {
+    axios.post('/spotifyRestart').then((response) => {
+      alert('Spotifyd service restarted');
+    }).catch((error) => {
+      console.log("Error: ", error);
+      alert('Failed to restart Spotifyd service');
+    });
+  };
+
+  const shutdown = () => {
+    axios.post('/shutdown').then((response) => {
+      alert('System shutting down');
+    }).catch((error) => {
+      console.log("Error: ", error);
+      alert('Failed to shutdown system');
+    });
+  };
+
+  const reboot = () => {
+    axios.post('/reboot').then((response) => {
+      alert('System rebooting');
+    }).catch((error) => {
+      console.log("Error: ", error);
+      alert('Failed to reboot system');
+    });
+  };
+
   if (isLoading) {
     return <div>Loading...</div>;
   }
@@ -77,6 +113,28 @@ const Settings: React.FC = () => {
   return (
     <div className="dashboard settings-dashboard">
       <h2>Settings</h2>
+
+      <button className="settings-top-btn" onClick={() => {
+        if (window.confirm('Are you sure you want to restart GPT Home service?'))
+          {gptRestart();}
+        }
+      }>Restart GPT Home Service</button>
+      <button className="settings-top-btn" onClick={() => {
+        if (window.confirm('Are you sure you want to restart Spotifyd service?'))
+          {spotifyRestart();}
+        }
+      }>Restart Spotifyd Service</button>
+      <button className="settings-top-btn" onClick={() => {
+        if (window.confirm('Are you sure you want to shutdown?'))
+          {shutdown();}
+        }
+      }>Shutdown</button>
+      <button className="settings-top-btn" onClick={() => {
+        if (window.confirm('Are you sure you want to reboot?'))
+          {reboot();}
+        }
+      }>Reboot</button>
+
       <div className="settings-container">
         
         {/* General Settings */}
