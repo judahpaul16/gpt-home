@@ -16,6 +16,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({} as { [key: string]: string });
   const [error, setError] = useState('');
+  const [spotifyTokenExists, setSpotifyTokenExists] = useState(false);
   const apiRefs: { [key: string]: string[] } = {
     Spotify: ['https://developer.spotify.com/documentation/web-api/'],
     OpenWeather: ['https://openweathermap.org/api/one-call-3'],
@@ -38,7 +39,19 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
   };
   
   useEffect(() => {
+    // fetch IP address on mount
     if (name === "Spotify") fetchIPAddress();
+    if (name === "Spotify") {
+      // check if token exists
+      axios.post('/spotify-token-exists').then((response) => {
+        if (response.data.token_exists) {
+          setSpotifyTokenExists(true);
+        }
+      }).catch((error) => {
+        console.log("Error: ", error);
+        console.log("Error Response: ", error.response);
+      });
+    }
   }, [name]);
   
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -115,6 +128,33 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
       });
   };
 
+  const reauthSpotify = async () => {
+    if (window.confirm(`Are you sure you want to reauthorize ${name}?`))
+      axios.post('/reauthorize-spotify', { name }).then((response) => {
+        if (response.data.redirect_url) {
+          window.location.replace(response.data.redirect_url)
+        } else if (response.data.success) {
+          // If successfully reauthorized, toggle the status and reset the form
+          if (!status) toggleStatus(name); // only toggle if not already connected
+          setShowOverlay(false);
+          setShowForm(false);
+          // Clear all fields
+          setFormData({} as { [key: string]: string });
+        } else {
+          // Handle errors returned from the server
+          setError(`Error reauthorizing ${name}: ${response.data.error}`);
+          console.log(response.data.traceback);
+          setShowOverlay(false);
+        }
+      }).catch((error) => {
+        // Handle network or server errors
+        setError(`Error reauthorizing ${name}: ${error}`);
+        console.log("Error: ", error);
+        console.log("Error Response: ", error.response);
+        setShowOverlay(false);
+      });
+  };
+
   const handlePaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
     event.preventDefault();
     const text = event.clipboardData.getData('text/plain').replace(/\s+/g, '');
@@ -136,6 +176,11 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
       {status && 
         <button className="btn-edit" onClick={() => setShowForm(true)}>
           Edit
+        </button>
+      }
+      {!status && name === 'Spotify' && spotifyTokenExists &&
+        <button className="btn-reauthorize" onClick={reauthSpotify}>
+          Reauthorize
         </button>
       }
       {showForm &&

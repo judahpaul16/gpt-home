@@ -325,6 +325,7 @@ async def connect_service(request: Request):
                 "streaming",
                 "user-library-read"
             ])
+            os.environ["SPOTIFY_SCOPES"] = scopes
 
             sp_oauth = spotipy.oauth2.SpotifyOAuth(
                 client_id=spotify_client_id,
@@ -409,28 +410,13 @@ async def get_service_statuses(request: Request):
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
-
 ## Spotify ##
 
 # Callback for Spotify OAuth2
 async def handle_callback(request: Request):
     try:
         code = request.query_params.get("code")
-        scopes = ",".join([
-            "app-remote-control",
-            "user-modify-playback-state",
-            "user-read-playback-state",
-            "user-read-currently-playing",
-            "user-read-playback-position",
-            "user-read-recently-played",
-            "user-top-read",
-            "user-read-email",
-            "user-read-private",
-            "playlist-read-private",
-            "playlist-read-collaborative",
-            "streaming",
-            "user-library-read"
-        ])
+        scopes = os.environ['SPOTIFY_SCOPES']
 
         sp_oauth = spotipy.oauth2.SpotifyOAuth(
             client_id=os.environ['SPOTIFY_CLIENT_ID'],
@@ -474,6 +460,30 @@ def store_token(token_info):
 def valid_token(token_info):
     now = time.time()
     return token_info and token_info["expires_at"] > now
+
+
+@app.post("/spotify-token-exists")
+async def spotify_token_exists(request: Request):
+    try:
+        token_info = get_stored_token()
+        token_exists = valid_token(token_info) if token_info else False
+        return JSONResponse(content={"token_exists": token_exists})
+    except Exception as e:
+        return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
+    
+@app.post("/reauthorize-spotify")
+async def reauthorize_spotify(request: Request):
+    try:
+        sp_oauth = spotipy.oauth2.SpotifyOAuth(
+            client_id=os.environ['SPOTIFY_CLIENT_ID'],
+            client_secret=os.environ['SPOTIFY_CLIENT_SECRET'],
+            redirect_uri=os.environ['SPOTIFY_REDIRECT_URI'],
+            scope=os.environ['SPOTIFY_SCOPES'],
+        )
+        auth_url = sp_oauth.get_authorize_url(show_dialog=True)
+        return JSONResponse(content={"redirect_url": auth_url})
+    except Exception as e:
+        return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
 
 @app.post("/spotify-control")
 async def spotify_control(request: Request):
