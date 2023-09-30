@@ -27,20 +27,27 @@
 
   .dashboard {
     flex-direction: column;
+    width: 100vw;
   }
 
   .integrations-dashboard {
-    width: 75vw !important;
     padding: 1em !important;
   }
 
-  .about-container, .settings-dashboard {
+  .settings-container {
+    width: auto !important;
+    margin: 1em !important;
+  }
+
+  .about-container, .log-container {
     width: 75vw !important;
+    margin: 1em auto;
+    max-width: 65%;
   }
 
   .table-container {
-    width: 80vw !important;
-    max-height: 80vh !important;
+    margin: 1em !important;
+    max-height: 80vmax !important;
     overflow: scroll !important;
   }
 }
