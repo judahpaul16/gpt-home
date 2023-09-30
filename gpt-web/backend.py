@@ -486,7 +486,7 @@ def valid_token(token_info):
 async def spotify_token_exists(request: Request):
     try:
         token_info = get_stored_token()
-        token_exists = valid_token(token_info) if token_info else False
+        token_exists = True if token_info else False
         return JSONResponse(content={"token_exists": token_exists})
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
