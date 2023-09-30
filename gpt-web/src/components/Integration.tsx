@@ -129,29 +129,19 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
   };
 
   const reauthSpotify = async () => {
-    if (window.confirm(`Are you sure you want to reauthorize ${name}?`))
       axios.post('/reauthorize-spotify', { name }).then((response) => {
         if (response.data.redirect_url) {
           window.location.replace(response.data.redirect_url)
-        } else if (response.data.success) {
-          // If successfully reauthorized, toggle the status and reset the form
-          if (!status) toggleStatus(name); // only toggle if not already connected
-          setShowOverlay(false);
-          setShowForm(false);
-          // Clear all fields
-          setFormData({} as { [key: string]: string });
         } else {
           // Handle errors returned from the server
           setError(`Error reauthorizing ${name}: ${response.data.error}`);
           console.log(response.data.traceback);
-          setShowOverlay(false);
         }
       }).catch((error) => {
         // Handle network or server errors
         setError(`Error reauthorizing ${name}: ${error}`);
         console.log("Error: ", error);
         console.log("Error Response: ", error.response);
-        setShowOverlay(false);
       });
   };
 
