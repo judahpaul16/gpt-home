@@ -500,7 +500,7 @@ async def reauthorize_spotify(request: Request):
             redirect_uri=os.environ['SPOTIFY_REDIRECT_URI'],
             scope=os.environ['SPOTIFY_SCOPES'],
         )
-        auth_url = sp_oauth.get_authorize_url(show_dialog=True)
+        auth_url = sp_oauth.get_authorize_url()
         return JSONResponse(content={"redirect_url": auth_url})
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
@@ -514,8 +514,18 @@ async def spotify_control(request: Request):
             raise Exception("No token information available. Please reauthorize with Spotify.")
 
         if not valid_token(token_info):
-            logger.warning("Token expired. Need to reauthorize with Spotify.")
-            raise spotipy.exceptions.SpotifyException(401, -1, "The access token expired. Please reauthorize in the web interface.")
+            # Try to refresh token
+            sp_oauth = spotipy.oauth2.SpotifyOAuth(
+                client_id=os.environ['SPOTIFY_CLIENT_ID'],
+                client_secret=os.environ['SPOTIFY_CLIENT_SECRET'],
+                redirect_uri=os.environ['SPOTIFY_REDIRECT_URI'],
+                scope=os.environ['SPOTIFY_SCOPES'],
+            )
+            token_info = sp_oauth.refresh_access_token(token_info['refresh_token'])
+            store_token(token_info)
+            if not valid_token(token_info):
+                logger.warning("Token expired. Need to reauthorize with Spotify.")
+                return JSONResponse(content={"message": "Token expired. Need to reauthorize Spotify in the web interface."}, status_code=200)
 
         sp = spotipy.Spotify(auth=token_info['access_token'])
 
@@ -535,7 +545,9 @@ async def spotify_control(request: Request):
             raise Exception("GPT Home not found as an available device.")
 
         if "play" in text:
-            song = re.sub(r'(play\s+)', '', text, count=1).strip()
+            song = re.sub(r'^play\s+', '', text)  # Remove "play" at the beginning
+            song = re.sub(r'\s+on\s+spotify$', '', song)  # Remove "on Spotify" at the end
+            song = song.strip()
             if song:
                 spotify_uris = await spotify_get_track_uris(song, sp)
                 sp.start_playback(device_id=device_id, uris=spotify_uris)
@@ -577,8 +589,20 @@ async def spotify_control(request: Request):
     except spotipy.exceptions.SpotifyException as e:
         # If the token has been revoked
         if e.http_status == 401 and e.http_error_msg == "The access token expired":
-            logger.warning("Token expired. Need to reauthorize with Spotify.")
-            raise Exception("Token expired. Need to reauthorize with Spotify.")
+            # Try to refresh token
+            sp_oauth = spotipy.oauth2.SpotifyOAuth(
+                client_id=os.environ['SPOTIFY_CLIENT_ID'],
+                client_secret=os.environ['SPOTIFY_CLIENT_SECRET'],
+                redirect_uri=os.environ['SPOTIFY_REDIRECT_URI'],
+                scope=os.environ['SPOTIFY_SCOPES'],
+            )
+            token_info = sp_oauth.refresh_access_token(token_info['refresh_token'])
+            store_token(token_info)
+            if not valid_token(token_info):
+                logger.warning("Token expired. Need to reauthorize with Spotify.")
+                return JSONResponse(content={"message": "Token expired. Need to reauthorize Spotify in the web interface."}, status_code=200)
+            else:
+                return await spotify_control(request)
         else:
             logger.error(f"Error: {traceback.format_exc()}")
             raise Exception(f"Something went wrong: {e}")

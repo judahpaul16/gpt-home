@@ -272,8 +272,8 @@ async def spotify_action(text: str):
                     data = await response.json()
                     return data.get("message")
                 else:
-                    logger.warning(f"Received a {response.status} status code.")
-                    return f"Received a {response.status} status code."
+                    logger.warning(response.content.decode())
+                    return f"Received a {response.status} status code. {response.content.decode()}"
         except Exception as e:
             logger.error(f"Error: {traceback.format_exc()}")
             raise Exception(f"Something went wrong: {e}")
