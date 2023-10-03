@@ -611,37 +611,42 @@ async def spotify_control(request: Request):
         logger.critical(f"Error: {traceback.format_exc()}")
         raise Exception(f"Something went wrong: {e}")
 
-async def spotify_get_track_uris(song: str, sp):
-    # Search for an album
-    result = sp.search(q=song, type='album', limit=1)
-    if result['albums']['items']:
-        album_id = result['albums']['items'][0]['id']
-        tracks = sp.album_tracks(album_id)
-        if tracks['items']:
-            return [track['uri'] for track in tracks['items']]  # Return all tracks of the album
+async def search_spotify(song: str, search_type: str, limit: int, sp):
+    return sp.search(song, limit=limit, type=search_type)
 
-    # If no album is found, search for an artist
-    result = sp.search(q=song, type='artist', limit=1)
-    if result['artists']['items']:
-        artist_id = result['artists']['items'][0]['id']
+async def get_podcast_episodes(show_id: str, sp):
+    episodes = sp.show_episodes(show_id)
+    return [episode['uri'] for episode in episodes['items']]
 
-        # Get top tracks or recommendations based on the artist
-        top_tracks = sp.artist_top_tracks(artist_id)
-        if top_tracks and top_tracks['tracks']:
-            return [track['uri'] for track in top_tracks['tracks']]  # Return top tracks of the artist
+async def get_album_tracks(album_id: str, sp):
+    tracks = sp.album_tracks(album_id)
+    return [track['uri'] for track in tracks['items']]
 
-    # If no artist is found, search for a track
-    result = sp.search(q=song, type='track', limit=1)
-    if result['tracks']['items']:
-        track_uri = result['tracks']['items'][0]['uri']
+async def get_artist_top_tracks(artist_id: str, sp):
+    tracks = sp.artist_top_tracks(artist_id)
+    return [track['uri'] for track in tracks['tracks']]
 
-        # Get recommendations based on the track to emulate a radio experience
-        recommended_tracks = sp.recommendations(seed_tracks=[track_uri], limit=9)  # fetching top 9 recommended tracks
-        if recommended_tracks and recommended_tracks['tracks']:
-            recommended_uris = [track['uri'] for track in recommended_tracks['tracks']]
-            return [track_uri] + recommended_uris
+async def get_track_recommendations(track_id: str, sp):
+    recommendations = sp.recommendations(seed_tracks=[track_id])
+    return [track['uri'] for track in recommendations['tracks']]
 
-    # If nothing matches, raise an exception or handle accordingly
+async def spotify_get_track_uris(song: str, sp, search_types=['album', 'artist', 'track', 'show'], limit=1):
+    for search_type in search_types:
+        result = await search_spotify(song, search_type, limit, sp)
+        
+        if result[search_type+'s']['items']:
+            item_id = result[search_type+'s']['items'][0]['id']
+            
+            if search_type == 'album':
+                return await get_album_tracks(item_id, sp)
+            elif search_type == 'artist':
+                return await get_artist_top_tracks(item_id, sp)
+            elif search_type == 'track':
+                recommended_uris = await get_track_recommendations(item_id, sp)
+                return [item_id] + recommended_uris
+            elif search_type == 'show':  # Podcast show
+                return await get_podcast_episodes(item_id, sp)
+                
     raise Exception(f"No match found for: {song}")
 
 
