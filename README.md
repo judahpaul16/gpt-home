@@ -229,7 +229,7 @@ check_and_install "openssl" "sudo apt-get install -y openssl"
 check_and_install "git" "sudo apt-get install -y git"
 check_and_install "nginx" "sudo apt-get install -y nginx"
 check_and_install "expect" "sudo apt-get install -y expect"
-check_and_install "avahi-daemon" "sudo apt-get install -y avahi-daemon"
+check_and_install "avahi-daemon" "sudo apt-get install -y avahi-daemon avahi-utils"
 
 # Install cargo and rust
 if ! command -v cargo &> /dev/null; then
@@ -319,6 +319,7 @@ EOF
 # Setup UFW Firewall
 sudo ufw allow ssh
 sudo ufw allow 80,443/tcp
+sudo ufw allow 5353/udp
 echo "y" | sudo ufw enable
 
 # Setup NGINX for reverse proxy
@@ -368,7 +369,7 @@ cd gpt-web
 npm install
 
 # Configure Avahi for gpt-home.local
-sudo sed -i 's/#host-name=local/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf
+sudo sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf
 sudo systemctl restart avahi-daemon
 
 # Build the React App
