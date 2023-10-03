@@ -346,6 +346,7 @@ async def connect_service(request: Request):
                 "user-library-read"
             ])
             os.environ["SPOTIFY_SCOPES"] = scopes
+            set_key(ENV_FILE_PATH, "SPOTIFY_SCOPES", scopes)
 
             sp_oauth = spotipy.oauth2.SpotifyOAuth(
                 client_id=spotify_client_id,
