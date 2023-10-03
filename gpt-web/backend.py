@@ -589,7 +589,7 @@ async def spotify_control(request: Request):
 
     except spotipy.exceptions.SpotifyException as e:
         # If the token has been revoked
-        if e.http_status == 401 and e.http_error_msg == "The access token expired":
+        if e.http_status == 401:
             # Try to refresh token
             sp_oauth = spotipy.oauth2.SpotifyOAuth(
                 client_id=os.environ['SPOTIFY_CLIENT_ID'],
@@ -606,7 +606,7 @@ async def spotify_control(request: Request):
                 return await spotify_control(request)
         else:
             logger.error(f"Error: {traceback.format_exc()}")
-            raise Exception(f"Something went wrong: {e}")
+            raise Exception(f"Something went wrong: Try to reauthorize Spotify in the web interface.")
     except Exception as e:
         logger.critical(f"Error: {traceback.format_exc()}")
         raise Exception(f"Something went wrong: {e}")
