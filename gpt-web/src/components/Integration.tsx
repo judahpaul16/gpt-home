@@ -12,7 +12,6 @@ interface IntegrationProps {
 }
 
 const Integration: React.FC<IntegrationProps> = ({ name, usage, status, requiredFields, toggleStatus, setShowOverlay }) => {
-  const [ipAddress, setIpAddress] = useState<string>("");
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({} as { [key: string]: string });
   const [error, setError] = useState('');
@@ -23,24 +22,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
     PhilipsHue: ['https://developers.meethue.com/develop/get-started-2/', 'https://github.com/studioimaginaire/phue'],
   };
 
-  const fetchIPAddress = async () => {
-    try {
-      const response = await axios.post('/get-local-ip');
-      if (response.status === 200 && response.data.ip) {
-        setIpAddress(response.data.ip);
-      } else {
-        setIpAddress("{raspberry_pi_local_ip}");
-      }
-    } catch (error: any) {
-      if (error.response && error.response.status === 404) {
-        setIpAddress("{raspberry_pi_local_ip}");
-      }
-    }
-  };
-  
   useEffect(() => {
-    // fetch IP address on mount
-    if (name === "Spotify") fetchIPAddress();
     if (name === "Spotify") {
       // check if token exists
       axios.post('/spotify-token-exists').then((response) => {
@@ -188,7 +170,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
               <div style={{ color: 'red' }}>
                 NOTE: The REDIRECT URI is set by default but be sure to also set it in your Spotify application settings:<br />
                 REDIRECT URI: <span style={{ color: 'green', fontFamily: 'monospace' }}><br />
-                  http://{ipAddress}/api/callback</span>
+                  http://gpt-home.local/api/callback</span>
               </div>
             }
             {requiredFields[name].map((field) => (

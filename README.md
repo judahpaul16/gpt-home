@@ -212,7 +212,7 @@ update_system_time
 sudo apt update
 
 # Check and install missing dependencies
-check_and_install "python3" "sudo apt-get install -y python3 python3-dev"
+check_and_install "python3" "sudo apt-get install -y python3 python3-dev python3-venv"
 check_and_install "portaudio19-dev" "sudo apt-get install -y portaudio19-dev"
 check_and_install "alsa-utils" "sudo apt-get install -y alsa-utils"
 check_and_install "libjpeg-dev" "sudo apt-get install -y libjpeg-dev"
@@ -229,6 +229,7 @@ check_and_install "openssl" "sudo apt-get install -y openssl"
 check_and_install "git" "sudo apt-get install -y git"
 check_and_install "nginx" "sudo apt-get install -y nginx"
 check_and_install "expect" "sudo apt-get install -y expect"
+check_and_install "avahi-daemon" "sudo apt-get install -y avahi-daemon avahi-utils"
 
 # Install cargo and rust
 if ! command -v cargo &> /dev/null; then
@@ -318,6 +319,7 @@ EOF
 # Setup UFW Firewall
 sudo ufw allow ssh
 sudo ufw allow 80,443/tcp
+sudo ufw allow 5353/udp
 echo "y" | sudo ufw enable
 
 # Setup NGINX for reverse proxy
@@ -365,6 +367,10 @@ pip install --use-pep517 -r requirements.txt
 # Navigate to gpt-web and install dependencies
 cd gpt-web
 npm install
+
+# Configure Avahi for gpt-home.local
+sudo sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf
+sudo systemctl restart avahi-daemon
 
 # Build the React App
 npm run build

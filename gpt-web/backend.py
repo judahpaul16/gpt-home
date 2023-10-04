@@ -325,9 +325,8 @@ async def connect_service(request: Request):
                 # Restart spotifyd to apply changes
                 subprocess.run(["sudo", "systemctl", "restart", "spotifyd"], check=True)
 
-            # Setting REDIRECT URI explicitly to local ip
-            ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().split()[0]
-            redirect_uri = f"http://{ip}/api/callback"
+            # Setting REDIRECT URI explicitly to gpt-home.local
+            redirect_uri = "http://gpt-home.local/api/callback"
             set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", redirect_uri)
             os.environ["SPOTIFY_REDIRECT_URI"] = redirect_uri
             scopes = ",".join([
