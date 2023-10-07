@@ -542,6 +542,15 @@ async def spotify_control(request: Request):
                 break
 
         if not device_id:
+            # restart spotifyd and try again
+            subprocess.run(["sudo", "systemctl", "restart", "spotifyd"])
+            time.sleep(3)
+            devices = sp.devices()
+            logger.debug(f"Devices: {devices}")
+            for device in devices['devices']:
+                if "GPT Home" in device['name']:
+                    device_id = device['id']
+                    break
             raise Exception("GPT Home not found as an available device.")
 
         if "play" in text:
