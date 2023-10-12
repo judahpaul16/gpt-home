@@ -277,6 +277,8 @@ async def connect_service(request: Request):
         incoming_data = await request.json()
         name = incoming_data["name"].lower().strip()
         fields = incoming_data["fields"]
+        requesting_ip = request.client.host
+        ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip().split()[0]
 
         # Initialize variables for Spotify
         spotify_client_id = None
@@ -327,6 +329,11 @@ async def connect_service(request: Request):
 
             # Setting REDIRECT URI explicitly to gpt-home.local
             redirect_uri = "http://gpt-home.local/api/callback"
+            # check if the IP is on the same vlan as the requesting device
+            ip_vlan = ".".join(ip.split(".")[:3])
+            requesting_ip_vlan = ".".join(requesting_ip.split(".")[:3])
+            if ip_vlan != requesting_ip_vlan:
+                redirect_uri = f"http://{ip}/api/callback"
             set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", redirect_uri)
             os.environ["SPOTIFY_REDIRECT_URI"] = redirect_uri
             scopes = ",".join([
@@ -494,10 +501,21 @@ async def spotify_token_exists(request: Request):
 @app.post("/reauthorize-spotify")
 async def reauthorize_spotify(request: Request):
     try:
+        ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip().split()[0]
+        requesting_ip = request.client.host
+        # Setting REDIRECT URI explicitly to gpt-home.local
+        redirect_uri = "http://gpt-home.local/api/callback"
+        # check if the IP is on the same vlan as the requesting device
+        ip_vlan = ".".join(ip.split(".")[:3])
+        requesting_ip_vlan = ".".join(requesting_ip.split(".")[:3])
+        if ip_vlan != requesting_ip_vlan:
+            redirect_uri = f"http://{ip}/api/callback"
+        set_key(ENV_FILE_PATH, "SPOTIFY_REDIRECT_URI", redirect_uri)
+        os.environ["SPOTIFY_REDIRECT_URI"] = redirect_uri
         sp_oauth = spotipy.oauth2.SpotifyOAuth(
             client_id=os.environ['SPOTIFY_CLIENT_ID'],
             client_secret=os.environ['SPOTIFY_CLIENT_SECRET'],
-            redirect_uri=os.environ['SPOTIFY_REDIRECT_URI'],
+            redirect_uri=redirect_uri,
             scope=os.environ['SPOTIFY_SCOPES'],
         )
         auth_url = sp_oauth.get_authorize_url()
