@@ -19,10 +19,8 @@ async def main():
                 logger.error(f"Listening timed out: {traceback.format_exc()}")
                 continue
 
-            # Stop displaying 'Listening'
-            stop_event.set()
-            if state_task:
-                state_task.cancel()
+            # Stop displaying state
+            stop_state_task(state_task, stop_event)
             
             # Check if keyword is in text and respond
             if text:
@@ -57,6 +55,7 @@ async def main():
                         response_task_speak = asyncio.create_task(speak(response_message, stop_event_response))
                         response_task_lcd = asyncio.create_task(updateLCD(response_message, display, stop_event=stop_event_response, delay=delay_response))
 
+                        stop_state_task(state_task, stop_event_response)
                         async with state_lock:
                             state[0] = "Listening"
 

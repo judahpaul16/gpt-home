@@ -191,7 +191,7 @@ async def updateLCD(text, display, stop_event=None, delay=0.02):
 async def listen(display, state_task, stop_event, state):
     loop = asyncio.get_running_loop()
 
-    async def recognize_audio():
+    async def recognize_audio(state_task):
         try:
             with sr.Microphone() as source:
                 if source.stream is None:
@@ -201,13 +201,10 @@ async def listen(display, state_task, stop_event, state):
                     audio = r.listen(source, timeout=2, phrase_time_limit=15)
 
                     async with state_lock:
+                        stop_state_task(state_task, stop_event)
                         state[0] = "Recognizing"
                         state_task = asyncio.create_task(display_state(state, display, stop_event))
                         text = r.recognize_google(audio)
-
-                    async with state_lock:
-                        state[0] = "Listening"
-                        state_task = asyncio.create_task(display_state(state, display, stop_event))
 
                     if text:
                         return text
@@ -224,8 +221,12 @@ async def listen(display, state_task, stop_event, state):
                 source.stream.close()
             raise asyncio.TimeoutError("Listening timed out.")
 
-    text = await asyncio.wait_for(recognize_audio())
+    text = await asyncio.wait_for(recognize_audio(state_task), timeout=30)
     return text
+
+def stop_state_task(state_task, stop_event):
+    stop_event.set()
+    if state_task: state_task.cancel()
 
 async def display_state(state, display, stop_event):
     while not stop_event.is_set():
@@ -241,9 +242,6 @@ async def display_state(state, display, stop_event):
                 degree_symbol(display, degree_x, degree_y, 2, 1)
                 c_x = degree_x + 7
                 display.text("C", c_x, 0, 1)
-            
-            async with state_lock:
-                current_state = state[0]
 
             # Clear the previous line
             display.fill_rect(0, 10, 128, 22, 0)
@@ -253,7 +251,7 @@ async def display_state(state, display, stop_event):
                 for i in range(4):
                     if stop_event.is_set():
                         break
-                    display.text(f"{current_state}" + '.' * i, 0, 20, 1)
+                    display.text(f"{state[0]}" + '.' * i, 0, 20, 1)
                     display.show()
                     await asyncio.sleep(0.5)
 
