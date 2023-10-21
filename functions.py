@@ -187,10 +187,10 @@ async def updateLCD(text, display, stop_event=None, delay=0.02):
         line_count = len(lines)
         display_task = asyncio.create_task(display_text(delay))
 
-async def listen(display, state_task, stop_event):
+async def listen(state_task):
     loop = asyncio.get_running_loop()
 
-    def recognize_audio(loop, state_task, stop_event):
+    def recognize_audio(state_task):
         try:
             with sr.Microphone() as source:
                 if source.stream is None:
@@ -222,7 +222,7 @@ async def listen(display, state_task, stop_event):
                 source.stream.close()
             raise asyncio.TimeoutError("Listening timed out.")
 
-    text = await loop.run_in_executor(executor, recognize_audio, loop, state_task, stop_event)
+    text = await loop.run_in_executor(executor, recognize_audio, loop, state_task)
     return text
 
 async def display_state(state, display, stop_event):

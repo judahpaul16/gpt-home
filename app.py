@@ -13,7 +13,7 @@ async def main():
             state_task = asyncio.create_task(display_state("Listening", display, stop_event))
 
             try:
-                text = await listen(display, state_task, stop_event)
+                text = await listen(state_task)
             except Exception as e:
                 logger.error(f"Listening timed out: {traceback.format_exc()}")
                 continue
