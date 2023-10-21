@@ -28,6 +28,9 @@ async def main():
                 if keyword in clean_text:
                     actual_text = clean_text.split(keyword, 1)[1].strip()
                     if actual_text:
+                        async with state_lock:
+                            state[0] = "Thinking"
+
                         heard_message = f"Heard: \"{actual_text}\""
                         logger.success(heard_message)
                         stop_event_heard = asyncio.Event()
@@ -39,13 +42,10 @@ async def main():
                         # Create a task for OpenAI query, don't await it yet
                         query_task = asyncio.create_task(action_router(actual_text, display))
 
-                        async with state_lock:
-                            state[0] = "Thinking"
-                            state_task = asyncio.create_task(display_state(state, display, stop_event_response))
-                            await asyncio.gather(
-                                speak(heard_message, stop_event_heard),
-                                updateLCD(heard_message, display, stop_event=stop_event_heard, delay=delay_heard)
-                            )
+                        await asyncio.gather(
+                            speak(heard_message, stop_event_heard),
+                            updateLCD(heard_message, display, stop_event=stop_event_heard, delay=delay_heard)
+                        )
 
                         response_message = await query_task
                         
@@ -55,13 +55,8 @@ async def main():
                         response_task_speak = asyncio.create_task(speak(response_message, stop_event_response))
                         response_task_lcd = asyncio.create_task(updateLCD(response_message, display, stop_event=stop_event_response, delay=delay_response))
 
-                        stop_state_task(state_task, stop_event_response)
-                        async with state_lock:
-                            state[0] = "Listening"
-
                         logger.success(response_message)
                         await asyncio.gather(response_task_speak, response_task_lcd)
-                        
                 else:
                     continue  # Skip to the next iteration
             else:
