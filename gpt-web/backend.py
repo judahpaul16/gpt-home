@@ -580,10 +580,9 @@ async def spotify_control(request: Request):
             song = re.sub(r'\s+on\s+spotify$', '', song)  # Remove "on Spotify" at the end
             song = song.strip()
             if song:
-                spotify_uris = await spotify_get_track_uris(song, sp)
+                spotify_uris, message = await spotify_get_track_uris(song, sp)
                 sp.start_playback(device_id=device_id, uris=spotify_uris)
-                logger.success(f"Playing radio based on {song}.")
-                return JSONResponse(content={"message": f"Playing radio based on {song}."})
+                return JSONResponse(content={"message": message})
             else:
                 sp.start_playback(device_id=device_id)
                 return JSONResponse(content={"message": "Resumed playback."})
@@ -668,14 +667,14 @@ async def spotify_get_track_uris(song: str, sp, search_types=['album', 'artist',
             item_id = result[search_type+'s']['items'][0]['id']
             
             if search_type == 'album':
-                return await get_album_tracks(item_id, sp)
+                return (await get_album_tracks(item_id, sp), f"Playing album {result[search_type+'s']['items'][0]['name']}.")
             elif search_type == 'artist':
-                return await get_artist_top_tracks(item_id, sp)
+                return (await get_artist_top_tracks(item_id, sp), f"Playing top tracks by {result[search_type+'s']['items'][0]['name']}.")
             elif search_type == 'track':
                 recommended_uris = await get_track_recommendations(item_id, sp)
-                return [item_id] + recommended_uris
+                return ([item_id] + recommended_uris, f"Playing recommended tracks based on {result[search_type+'s']['items'][0]['name']}.")
             elif search_type == 'show':  # Podcast show
-                return await get_podcast_episodes(item_id, sp)
+                return (await get_podcast_episodes(item_id, sp), f"Playing episodes from {result[search_type+'s']['items'][0]['name']}.")
                 
     raise Exception(f"No match found for: {song}")
 
