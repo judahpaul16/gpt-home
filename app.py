@@ -18,10 +18,8 @@ async def main():
                 logger.error(f"Listening timed out: {traceback.format_exc()}")
                 continue
 
-            # Stop displaying 'Listening'
-            stop_event.set()
-            if state_task:
-                state_task.cancel()
+            # Stop displaying state
+            stop_state_task(state_task, stop_event)
             
             # Check if keyword is in text and respond
             if text:
@@ -29,6 +27,9 @@ async def main():
                 if keyword in clean_text:
                     actual_text = clean_text.split(keyword, 1)[1].strip()
                     if actual_text:
+                        async with state_lock:
+                            state[0] = "Thinking"
+
                         heard_message = f"Heard: \"{actual_text}\""
                         logger.success(heard_message)
                         stop_event_heard = asyncio.Event()
@@ -55,7 +56,6 @@ async def main():
 
                         logger.success(response_message)
                         await asyncio.gather(response_task_speak, response_task_lcd)
-                        
                 else:
                     continue  # Skip to the next iteration
             else:

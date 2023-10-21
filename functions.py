@@ -225,6 +225,10 @@ async def listen(display, state_task, stop_event):
     text = await loop.run_in_executor(executor, recognize_audio, loop, state_task, stop_event)
     return text
 
+def stop_state_task(state_task, stop_event):
+    stop_event.set()
+    if state_task: state_task.cancel()
+
 async def display_state(state, display, stop_event):
     async with display_lock:
         # if state 'Connecting', display the 'No Network' and CPU temperature
@@ -249,7 +253,6 @@ async def display_state(state, display, stop_event):
                 display.fill_rect(0, 10, 128, 22, 0)
                 display.text(f"{state}" + '.' * i, 0, 20, 1)
                 display.show()
-                await asyncio.sleep(0.5)
 
 async def speak(text, stop_event=asyncio.Event()):
     async with speak_lock:
