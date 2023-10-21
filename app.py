@@ -2,7 +2,6 @@ from functions import *
 
 async def main():
     state_task = None
-    state = ["Listening"] # Mutable to be changed by tasks
     while True:
         try:
             # Load settings from settings.json
@@ -11,10 +10,10 @@ async def main():
 
             # Start displaying 'Listening'
             stop_event = asyncio.Event()
-            state_task = asyncio.create_task(display_state(state, display, stop_event))
+            state_task = asyncio.create_task(display_state("Listening", display, stop_event))
 
             try:
-                text = await listen(state_task, stop_event, state)
+                text = await listen(display, state_task, stop_event)
             except Exception as e:
                 logger.error(f"Listening timed out: {traceback.format_exc()}")
                 continue
