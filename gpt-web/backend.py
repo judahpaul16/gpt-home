@@ -127,7 +127,9 @@ async def gpt_restart(request: Request):
 
 @app.post("/spotifyRestart")
 async def spotify_restart(request: Request):
-    subprocess.run(["sudo", "systemctl", "restart", "spotifyd"])
+    subprocess.run(["sudo", "systemctl", "stop", "spotifyd"])
+    time.sleep(3)
+    subprocess.run(["sudo", "systemctl", "start", "spotifyd"])
     return JSONResponse(content={"success": True})
 
 @app.post("/reboot")
@@ -561,7 +563,9 @@ async def spotify_control(request: Request):
 
         if not device_id:
             # restart spotifyd and try again
-            subprocess.run(["sudo", "systemctl", "restart", "spotifyd"])
+            subprocess.run(["sudo", "systemctl", "stop", "spotifyd"])
+            time.sleep(3)
+            subprocess.run(["sudo", "systemctl", "start", "spotifyd"])
             time.sleep(3)
             devices = sp.devices()
             logger.debug(f"Devices: {devices}")
