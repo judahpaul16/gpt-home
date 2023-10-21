@@ -14,7 +14,7 @@ async def main():
             state_task = asyncio.create_task(display_state(state, display, stop_event))
 
             try:
-                text = await listen(state_task, stop_event, state)
+                text = await listen(display, state_task, stop_event, state)
             except Exception as e:
                 logger.error(f"Listening timed out: {traceback.format_exc()}")
                 continue
@@ -41,8 +41,9 @@ async def main():
                         # Create a task for OpenAI query, don't await it yet
                         query_task = asyncio.create_task(action_router(actual_text, display))
 
-                        with state_lock:
+                        async with state_lock:
                             state[0] = "Thinking"
+                            state_task = asyncio.create_task(display_state(state, display, stop_event_response))
                             await asyncio.gather(
                                 speak(heard_message, stop_event_heard),
                                 updateLCD(heard_message, display, stop_event=stop_event_heard, delay=delay_heard)
@@ -56,9 +57,9 @@ async def main():
                         response_task_speak = asyncio.create_task(speak(response_message, stop_event_response))
                         response_task_lcd = asyncio.create_task(updateLCD(response_message, display, stop_event=stop_event_response, delay=delay_response))
 
-                        with state_lock:
+                        async with state_lock:
                             state[0] = "Listening"
-                            
+
                         logger.success(response_message)
                         await asyncio.gather(response_task_speak, response_task_lcd)
                         

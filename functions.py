@@ -188,7 +188,7 @@ async def updateLCD(text, display, stop_event=None, delay=0.02):
         line_count = len(lines)
         asyncio.create_task(display_text(delay))
 
-async def listen(state_task, stop_event, state):
+async def listen(display, state_task, stop_event, state):
     loop = asyncio.get_running_loop()
 
     async def recognize_audio():
@@ -202,10 +202,12 @@ async def listen(state_task, stop_event, state):
 
                     async with state_lock:
                         state[0] = "Recognizing"
+                        state_task = asyncio.create_task(display_state(state, display, stop_event))
                         text = r.recognize_google(audio)
 
                     async with state_lock:
                         state[0] = "Listening"
+                        state_task = asyncio.create_task(display_state(state, display, stop_event))
 
                     if text:
                         return text
@@ -217,41 +219,47 @@ async def listen(state_task, stop_event, state):
                     logger.info("Could not understand audio, waiting for a new phrase...")
 
         except Exception as e:
+            logger.error(f"Error: {traceback.format_exc()}")
             if source and source.stream:
                 source.stream.close()
             raise asyncio.TimeoutError("Listening timed out.")
 
-    text = await loop.run_in_executor(None, recognize_audio, loop, state_task, stop_event)
-
+    text = await asyncio.wait_for(recognize_audio())
     return text
 
 async def display_state(state, display, stop_event):
-    async with display_lock:
-        # if state 'Connecting', display the 'No Network' and CPU temperature
-        if state[0] == "Connecting":
-            display.text("No Network", 0, 0, 1)
-            # Display CPU temperature in Celsius (e.g., 39°)
-            cpu_temp = int(float(subprocess.check_output(["vcgencmd", "measure_temp"]).decode("utf-8").split("=")[1].split("'")[0]))
-            temp_text_x = 100
-            display.text(f"{cpu_temp}", temp_text_x, 0, 1)
-            # degree symbol
-            degree_x = 100 + len(f"{cpu_temp}") * 7 # Assuming each character is 7 pixels wide
-            degree_y = 2
-            degree_symbol(display, degree_x, degree_y, 2, 1)
-            c_x = degree_x + 7 # Assuming each character is 7 pixels wide
-            display.text("C", c_x, 0, 1)
-            # Show the updated display with the text.
-            display.show()
-        while not stop_event.is_set():
-            for i in range(4):
-                if stop_event.is_set():
-                    break
-                async with state_lock:
-                    current_state = state[0]
+    while not stop_event.is_set():
+        async with display_lock:
+            # If state is 'Connecting', display the 'No Network' and CPU temperature
+            if state[0] == "Connecting":
+                display.text("No Network", 0, 0, 1)
+                cpu_temp = int(float(subprocess.check_output(["vcgencmd", "measure_temp"]).decode("utf-8").split("=")[1].split("'")[0]))
+                temp_text_x = 100
+                display.text(f"{cpu_temp}", temp_text_x, 0, 1)
+                degree_x = 100 + len(f"{cpu_temp}") * 7
+                degree_y = 2
+                degree_symbol(display, degree_x, degree_y, 2, 1)
+                c_x = degree_x + 7
+                display.text("C", c_x, 0, 1)
+            
+            async with state_lock:
+                current_state = state[0]
+
+            # Clear the previous line
+            display.fill_rect(0, 10, 128, 22, 0)
+
+            # This loop keeps animating until stop_event is set
+            while not stop_event.is_set():
+                for i in range(4):
+                    if stop_event.is_set():
+                        break
+                    display.text(f"{current_state}" + '.' * i, 0, 20, 1)
+                    display.show()
+                    await asyncio.sleep(0.5)
+
+                # Refresh display to remove the ellipses
                 display.fill_rect(0, 10, 128, 22, 0)
-                display.text(f"{current_state}" + '.' * i, 0, 20, 1)
                 display.show()
-                await asyncio.sleep(0.5)
 
 async def speak(text, stop_event=asyncio.Event()):
     async with speak_lock:
