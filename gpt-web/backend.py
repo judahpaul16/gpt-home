@@ -279,7 +279,7 @@ async def connect_service(request: Request):
         incoming_data = await request.json()
         name = incoming_data["name"].lower().strip()
         fields = incoming_data["fields"]
-        requesting_ip = request.client.host
+        requesting_ip = request.headers.get("X-Real-IP") or request.headers.get("X-Forwarded-For") or request.client.host
         ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip().split()[0]
 
         # Initialize variables for Spotify
@@ -504,7 +504,7 @@ async def spotify_token_exists(request: Request):
 async def reauthorize_spotify(request: Request):
     try:
         ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().strip().split()[0]
-        requesting_ip = request.client.host
+        requesting_ip = request.headers.get("X-Real-IP") or request.headers.get("X-Forwarded-For") or request.client.host
         # Setting REDIRECT URI explicitly to gpt-home.local
         redirect_uri = "http://gpt-home.local/api/callback"
         # check if the IP is on the same vlan as the requesting device
