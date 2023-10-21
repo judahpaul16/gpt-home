@@ -18,8 +18,8 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
   const [error, setError] = useState('');
   const [spotifyTokenExists, setSpotifyTokenExists] = useState(false);
   const apiRefs: { [key: string]: string[] } = {
-    Spotify: ['https://developer.spotify.com/documentation/web-api/'],
-    OpenWeather: ['https://openweathermap.org/api/one-call-3'],
+    Spotify: ['https://developer.spotify.com/documentation/web-api/', 'https://developer.spotify.com/dashboard/'],
+    OpenWeather: ['https://openweathermap.org/api/one-call-3', 'https://home.openweathermap.org/api_keys'],
     PhilipsHue: ['https://developers.meethue.com/develop/get-started-2/', 'https://github.com/studioimaginaire/phue'],
   };
 
