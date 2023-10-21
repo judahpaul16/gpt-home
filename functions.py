@@ -57,6 +57,7 @@ engine.setProperty('volume', 1.0)
 engine.setProperty('alsa_device', 'hw:Headphones,0')
 speak_lock = asyncio.Lock()
 display_lock = asyncio.Lock()
+state_lock = asyncio.Lock()
 
 def network_connected():
     return os.system("ping -c 1 google.com") == 0
@@ -118,7 +119,7 @@ def initLCD():
 async def initialize_system():
     display = initLCD()
     stop_event_init = asyncio.Event()
-    state_task = asyncio.create_task(display_state("Connecting", display, stop_event_init))
+    state_task = asyncio.create_task(display_state(["Connecting"], display, stop_event_init))
     while not network_connected():
         await asyncio.sleep(1)
         message = "Network not connected. Retrying..."
@@ -185,50 +186,49 @@ async def updateLCD(text, display, stop_event=None, delay=0.02):
         # Line wrap the text
         lines = textwrap.fill(text, 21).split('\n')
         line_count = len(lines)
-        display_task = asyncio.create_task(display_text(delay))
+        asyncio.create_task(display_text(delay))
 
-async def listen(display, state_task, stop_event):
+async def listen(state_task, stop_event, state):
     loop = asyncio.get_running_loop()
 
-    def recognize_audio(loop, state_task, stop_event):
+    async def recognize_audio():
         try:
             with sr.Microphone() as source:
                 if source.stream is None:
                     raise Exception("Microphone not initialized.")
-                
-                listening = False  # Initialize variable for feedback
-                
+
                 try:
                     audio = r.listen(source, timeout=2, phrase_time_limit=15)
-                    text = r.recognize_google(audio)
-                    
-                    if text:  # If text is found, break the loop
-                        state_task.cancel()
+
+                    async with state_lock:
+                        state[0] = "Recognizing"
+                        text = r.recognize_google(audio)
+
+                    async with state_lock:
+                        state[0] = "Listening"
+
+                    if text:
                         return text
-                        
+
                 except sr.WaitTimeoutError:
-                    if listening:
-                        logger.info("Still listening but timed out, waiting for phrase...")
-                    else:
-                        logger.info("Timed out, waiting for phrase to start...")
-                        listening = True
-                        
+                    logger.info("Timed out, waiting for phrase to start...")
+                
                 except sr.UnknownValueError:
                     logger.info("Could not understand audio, waiting for a new phrase...")
-                    listening = False
-                        
-        except sr.WaitTimeoutError:
+
+        except Exception as e:
             if source and source.stream:
                 source.stream.close()
             raise asyncio.TimeoutError("Listening timed out.")
 
-    text = await loop.run_in_executor(executor, recognize_audio, loop, state_task, stop_event)
+    text = await loop.run_in_executor(None, recognize_audio, loop, state_task, stop_event)
+
     return text
 
 async def display_state(state, display, stop_event):
     async with display_lock:
         # if state 'Connecting', display the 'No Network' and CPU temperature
-        if state == "Connecting":
+        if state[0] == "Connecting":
             display.text("No Network", 0, 0, 1)
             # Display CPU temperature in Celsius (e.g., 39°)
             cpu_temp = int(float(subprocess.check_output(["vcgencmd", "measure_temp"]).decode("utf-8").split("=")[1].split("'")[0]))
@@ -246,8 +246,10 @@ async def display_state(state, display, stop_event):
             for i in range(4):
                 if stop_event.is_set():
                     break
+                async with state_lock:
+                    current_state = state[0]
                 display.fill_rect(0, 10, 128, 22, 0)
-                display.text(f"{state}" + '.' * i, 0, 20, 1)
+                display.text(f"{current_state}" + '.' * i, 0, 20, 1)
                 display.show()
                 await asyncio.sleep(0.5)
 
