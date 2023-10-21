@@ -221,7 +221,7 @@ async def listen(state_task, stop_event, state):
                 source.stream.close()
             raise asyncio.TimeoutError("Listening timed out.")
 
-    text = await loop.run_in_executor(None, recognize_audio, loop, state_task, stop_event)
+    text = await loop.run_in_executor(None, recognize_audio)
 
     return text
 
