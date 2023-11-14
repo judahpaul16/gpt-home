@@ -13,6 +13,7 @@ from phue import Bridge
 import subprocess
 import traceback
 import requests
+import asyncio
 import spotipy
 import hashlib
 import openai
@@ -127,8 +128,9 @@ async def gpt_restart(request: Request):
 
 @app.post("/spotifyRestart")
 async def spotify_restart(request: Request):
+    loop = asyncio.get_event_loop()
     subprocess.run(["sudo", "systemctl", "stop", "spotifyd"])
-    time.sleep(3)
+    await loop.run_in_executor(None, time.sleep, 10)
     subprocess.run(["sudo", "systemctl", "start", "spotifyd"])
     return JSONResponse(content={"success": True})
 
