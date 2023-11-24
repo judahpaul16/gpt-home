@@ -1,5 +1,5 @@
 # 🏠 GPT Home
-ChatGPT at home! Basically a better G**gle Nest Hub desk assistant. Built on the Raspberry Pi using the OpenAI API.
+ChatGPT at home! Basically a better Google Nest Hub or Amazon Alexa home assistant. Built on the Raspberry Pi using the OpenAI API.
 
 This guide will explain how to build your own. It's pretty straight forward. You can also use this as a reference for building other projects on the Raspberry Pi.
 
@@ -83,8 +83,7 @@ Before running this project on your Raspberry Pi, you'll need to install some sy
     ```
 
 ### Installing Dependencies  
-If you want to use the example setup script, you can skip this section.
-
+If you want to use the [setup.sh](#-example-setup-script) script, you can skip this section. Otherwise, you can install the dependencies manually.
 
 1. **OpenAI API Key**: Required for OpenAI's GPT API.  
     Setup: Set up as an environment variable.  
@@ -180,7 +179,7 @@ alias web-log="tail -n 100 -f /var/log/nginx/access.log"
 alias web-error="tail -n 100 -f /var/log/nginx/error.log"
 ```
 
-
+## setup.sh
 Create a script outside the local repo folder with `vim setup.sh`
 ```bash
 #!/bin/bash
