@@ -1,9 +1,59 @@
-# 🏠 GPT Home
+# 🏠 GPT Home 🤖💬
+
+![Ubuntu Server Version](https://img.shields.io/badge/Ubuntu_Server-v23.04-orange?style=flat-square&logo=ubuntu)
+![Raspberry Pi Version](https://img.shields.io/badge/Raspberry_Pi-4B-red?style=flat-square&logo=raspberry-pi)
+![Python Version](https://img.shields.io/badge/Python-v3.11-blue?style=flat-square&logo=python)
+![Node.js Version](https://img.shields.io/badge/Node.js-v18.17.1-green?style=flat-square&logo=node.js)
+
 ChatGPT at home! Basically a better Google Nest Hub or Amazon Alexa home assistant. Built on the Raspberry Pi using the OpenAI API.
+
+![My Build](screenshots/my_build.jpg)
 
 This guide will explain how to build your own. It's pretty straight forward. You can also use this as a reference for building other projects on the Raspberry Pi.
 
-* *This guide assumes you're using Ubuntu Server as your Raspberry Pi operating system. You may need to make certain modifications to accomodate other operating systems*
+* *This guide assumes you're using Ubuntu Server as your Raspberry Pi's operating system. You may need to make certain modifications to accomodate other operating systems. See Issue [#12](https://github.com/judahpaul16/gpt-home/issues/12).*
+
+## ⚠️ Schematics / Wiring Diagram
+### Caution: Battery Connection
+**IMPORTANT**: Before connecting the battery, ensure that the polarity is correct to avoid damage to your Raspberry Pi or other components. Disconnect power sources before making changes.
+
+<table style="border-collapse: collapse; border: 0;">
+  <tr>
+    <td style="border: none;"><img src="screenshots/schematic_bb.png" alt="Schematics Breadboard" height="350px" /></td>
+    <td style="border: none;"><img src="screenshots/schematic_schem.png" alt="Schematics Schematic" height="350px" /></td>
+  </tr>
+</table>
+<span style="font-size: 1em; display:block;">[click to enlarge]</span>
+
+
+---
+
+## 🛠 My Parts List
+
+### Core Components
+- **Raspberry Pi 4B**: [Link](https://a.co/d/aH6YCXY) - $50-$70
+- **Mini Speaker**: [Link](https://a.co/d/9bN8LZ2) - $18
+- **128x32 OLED Display**: [Link](https://a.co/d/4Scrfjq) - $13-$14
+- **128 GB MicroSD card**: [Link](https://a.co/d/0SxSg7O) - $13
+- **USB 2.0 Mini Microphone**: [Link](https://a.co/d/eIrQUXC) - $8
+
+---
+
+### 🌟 Optional Components
+- **Standoff Spacer Column M3x40mm**: [Link](https://a.co/d/ees6oEA) - $14
+- **M1.4 M1.7 M2 M2.5 M3 Screw Kit**: [Link](https://a.co/d/4XJwiBY) - $15
+- **Raspberry Pi UPS Power Supply with Battery**: [Link](https://a.co/d/1rMMCPR) - $30
+- **Cool Case for Raspberry Pi 4B**: [Link](https://a.co/d/idSKJIG) - $16
+
+---
+
+## 💲 Total Price Range
+- **Core Components**: $102-$123
+- **Optional Components**: $75
+- **Total (Without Optional)**: $102-$123
+- **Total (With Optional)**: $177-$198
+
+---
 
 ## 📶 Configuring Wi-Fi via wpa_supplicant
 
@@ -395,53 +445,6 @@ Be sure to make the script executable to run it
 chmod +x setup.sh
 ./setup.sh
 ```
-
----
-
-## ⚠️ Schematics / Wiring Diagram
-### Caution: Battery Connection
-**IMPORTANT**: Before connecting the battery, ensure that the polarity is correct to avoid damage to your Raspberry Pi or other components. Disconnect power sources before making changes.
-
-<table style="border-collapse: collapse; border: 0;">
-  <tr>
-    <td style="border: none;"><img src="screenshots/schematic_bb.png" alt="Schematics Breadboard" height="350px" /></td>
-    <td style="border: none;"><img src="screenshots/schematic_schem.png" alt="Schematics Schematic" height="350px" /></td>
-  </tr>
-</table>
-<span style="font-size: 1em; display:block;">[click to enlarge]</span>
-
----
-
-## 📸 My Build
-![My Build](screenshots/my_build.jpg)
-<span style="font-size: 1em; display:block;">[click to enlarge]</span>
-
----
-
-## 🛠 My Parts List
-
-### Core Components
-- **Raspberry Pi 4B**: [Link](https://a.co/d/aH6YCXY) - $50-$70
-- **Mini Speaker**: [Link](https://a.co/d/9bN8LZ2) - $18
-- **128x32 OLED Display**: [Link](https://a.co/d/4Scrfjq) - $13-$14
-- **128 GB MicroSD card**: [Link](https://a.co/d/0SxSg7O) - $13
-- **USB 2.0 Mini Microphone**: [Link](https://a.co/d/eIrQUXC) - $8
-
----
-
-### 🌟 Optional Components
-- **Standoff Spacer Column M3x40mm**: [Link](https://a.co/d/ees6oEA) - $14
-- **M1.4 M1.7 M2 M2.5 M3 Screw Kit**: [Link](https://a.co/d/4XJwiBY) - $15
-- **Raspberry Pi UPS Power Supply with Battery**: [Link](https://a.co/d/1rMMCPR) - $30
-- **Cool Case for Raspberry Pi 4B**: [Link](https://a.co/d/idSKJIG) - $16
-
----
-
-## 💲 Total Price Range
-- **Core Components**: $102-$123
-- **Optional Components**: $75
-- **Total (Without Optional)**: $102-$123
-- **Total (With Optional)**: $177-$198
 
 ---
 
