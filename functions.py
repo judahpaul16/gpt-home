@@ -84,36 +84,38 @@ async def calculate_delay(message):
     return base_delay + extra_delay
 
 def initLCD():
-    # Create the I2C interface.
-    i2c = busio.I2C(SCL, SDA)
-    # Create the SSD1306 OLED class.
-    # The first two parameters are the pixel width and pixel height. Change these
-    # to the right size for your display
-    display = adafruit_ssd1306.SSD1306_I2C(128, 32, i2c)
-    # Alternatively, you can change the I2C address of the device with an addr parameter:
-    # display = adafruit_ssd1306.SSD1306_I2C(128, 32, i2c, addr=0x31)
-    # Set the display rotation to 180 degrees.
-    display.rotation = 2
-    # Clear the display. Always call show after changing pixels to make the display
-    # update visible
-    display.fill(0)
-    # Display IP address
-    ip_address = subprocess.check_output(["hostname", "-I"]).decode("utf-8").split(" ")[0]
-    display.text(f"{ip_address}", 0, 0, 1)
-    # Display CPU temperature in Celsius (e.g., 39°)
-    cpu_temp = int(float(subprocess.check_output(["vcgencmd", "measure_temp"]).decode("utf-8").split("=")[1].split("'")[0]))
-    temp_text_x = 100
-    display.text(f"{cpu_temp}", temp_text_x, 0, 1)
-    # degree symbol
-    degree_x = 100 + len(f"{cpu_temp}") * 7 # Assuming each character is 7 pixels wide
-    degree_y = 2
-    degree_symbol(display, degree_x, degree_y, 2, 1)
-    c_x = degree_x + 7 # Assuming each character is 7 pixels wide
-    display.text("C", c_x, 0, 1)
-
-    # Show the updated display with the text.
-    display.show()
-    return display
+    try:
+        # Create the I2C interface.
+        i2c = busio.I2C(SCL, SDA)
+        # Create the SSD1306 OLED class.
+        # The first two parameters are the pixel width and pixel height. Change these
+        # to the right size for your display
+        display = adafruit_ssd1306.SSD1306_I2C(128, 32, i2c)
+        # Alternatively, you can change the I2C address of the device with an addr parameter:
+        # display = adafruit_ssd1306.SSD1306_I2C(128, 32, i2c, addr=0x31)
+        # Set the display rotation to 180 degrees.
+        display.rotation = 2
+        # Clear the display. Always call show after changing pixels to make the display
+        # update visible
+        display.fill(0)
+        # Display IP address
+        ip_address = subprocess.check_output(["hostname", "-I"]).decode("utf-8").split(" ")[0]
+        display.text(f"{ip_address}", 0, 0, 1)
+        # Display CPU temperature in Celsius (e.g., 39°)
+        cpu_temp = int(float(subprocess.check_output(["vcgencmd", "measure_temp"]).decode("utf-8").split("=")[1].split("'")[0]))
+        temp_text_x = 100
+        display.text(f"{cpu_temp}", temp_text_x, 0, 1)
+        # degree symbol
+        degree_x = 100 + len(f"{cpu_temp}") * 7 # Assuming each character is 7 pixels wide
+        degree_y = 2
+        degree_symbol(display, degree_x, degree_y, 2, 1)
+        c_x = degree_x + 7 # Assuming each character is 7 pixels wide
+        display.text("C", c_x, 0, 1)
+        # Show the updated display with the text.
+        display.show()
+        return display
+    except ValueError:
+        return None
 
 async def initialize_system():
     display = initLCD()
@@ -135,6 +137,9 @@ def load_settings():
         return settings
 
 async def updateLCD(text, display, stop_event=None, delay=0.02):
+    if display is None:
+        return  # Skip updating the display if it's not initialized
+    
     async with display_lock:
         if stop_event is None:
             stop_event = asyncio.Event()
@@ -226,6 +231,8 @@ async def listen(display, state_task, stop_event):
     return text
 
 async def display_state(state, display, stop_event):
+    if display is None:
+        return # Skip updating the display if it's not initialized
     async with display_lock:
         # if state 'Connecting', display the 'No Network' and CPU temperature
         if state == "Connecting":
