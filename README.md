@@ -258,7 +258,12 @@ update_system_time() {
 update_system_time
 
 # Update package list
+yes | sudo add-apt-repository universe
 sudo apt update
+
+# Set permissions
+sudo chown -R $(whoami):$(whoami) $HOME
+sudo chmod -R 755 $HOME
 
 # Check and install missing dependencies
 check_and_install "python3" "sudo apt-get install -y python3 python3-dev python3-venv"
