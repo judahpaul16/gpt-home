@@ -348,7 +348,7 @@ StartLimitIntervalSec=10
 StartLimitBurst=10
 
 [Service]
-User=ubuntu
+User=$(whoami)
 WorkingDirectory=/home/$(whoami)/gpt-home
 $EXEC_START
 $ENV
