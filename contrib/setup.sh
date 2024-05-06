@@ -24,7 +24,12 @@ update_system_time() {
 update_system_time
 
 # Update package list
+yes | sudo add-apt-repository universe
 sudo apt update
+
+# Set permissions
+sudo chown -R $(whoami):$(whoami) $HOME
+sudo chmod -R 755 $HOME
 
 # Check and install missing dependencies
 check_and_install "python3" "sudo apt-get install -y python3 python3-dev python3-venv"
@@ -45,6 +50,7 @@ check_and_install "git" "sudo apt-get install -y git"
 check_and_install "nginx" "sudo apt-get install -y nginx"
 check_and_install "expect" "sudo apt-get install -y expect"
 check_and_install "avahi-daemon" "sudo apt-get install -y avahi-daemon avahi-utils"
+check_and_install "nodejs" "curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - && sudo apt-get install -y nodejs"
 
 # Install cargo and rust
 if ! command -v cargo &> /dev/null; then
@@ -79,7 +85,7 @@ cat <<EOF > $HOME/.config/spotifyd/spotifyd.conf
 backend = "alsa" # Or pulseaudio if you use it
 device_name = "GPT Home" # Name your device shows in Spotify Connect
 bitrate = 320 # Choose bitrate from 96/160/320 kbps
-cache_path = "/home/ubuntu/.spotifyd/cache"
+cache_path = "/home/$(whoami)/.spotifyd/cache"
 discovery = false
 EOF
 
@@ -109,7 +115,7 @@ StartLimitBurst=10
 
 [Service]
 User=ubuntu
-WorkingDirectory=/home/ubuntu/gpt-home
+WorkingDirectory=/home/$(whoami)/gpt-home
 $EXEC_START
 $ENV
 $HOSTNAME
@@ -214,7 +220,7 @@ setup_service \
 # Setup gpt-home service
 setup_service \
     "gpt-home.service" \
-    "ExecStart=/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" \
+    "ExecStart=/bin/bash -c 'source /home/$(whoami)/gpt-home/env/bin/activate && python /home/$(whoami)/gpt-home/app.py'" \
     "" \
     "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" \
     "Environment=\"HOSTNAME=$HOSTNAME\"" \
@@ -225,7 +231,7 @@ setup_service \
 # Setup FastAPI service for web interface backend
 setup_service \
     "gpt-web.service" \
-    "ExecStart=/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && uvicorn gpt-web.backend:app --host 0.0.0.0 --port 8000'" \
+    "ExecStart=/bin/bash -c 'source /home/$(whoami)/gpt-home/env/bin/activate && uvicorn gpt-web.backend:app --host 0.0.0.0 --port 8000'" \
     "" \
     "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" \
     "Environment=\"HOSTNAME=$HOSTNAME\"" \
