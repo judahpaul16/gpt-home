@@ -322,10 +322,12 @@ setup_service() {
     # Parameters
     local SERVICE_NAME=$1
     local EXEC_START=$2
-    local AFTER=$3
+    local DEPENDS=$3
     local ENV=$4
     local HOSTNAME=$5
-    local LMEMLOCK=$6
+    local TYPE=$6
+    local LMEMLOCK=$7
+    local RESTART=$8
 
     # Stop the service if it's already running
     sudo systemctl stop "$SERVICE_NAME" &>/dev/null
@@ -335,18 +337,18 @@ setup_service() {
     cat <<EOF | sudo tee "/etc/systemd/system/$SERVICE_NAME" >/dev/null
 [Unit]
 Description=$SERVICE_NAME
-After=$AFTER
-StartLimitIntervalSec=500
+$DEPENDS
+StartLimitIntervalSec=10
 StartLimitBurst=10
 
 [Service]
 User=ubuntu
 WorkingDirectory=/home/ubuntu/gpt-home
-ExecStart=$EXEC_START
+$EXEC_START
 $ENV
 $HOSTNAME
-Restart=always
-Type=simple
+$RESTART
+$TYPE
 $LMEMLOCK
 
 [Install]
@@ -430,30 +432,40 @@ npm run build
 ## Setup Services
 # Setup spotifyd service
 setup_service \
-  "spotifyd.service" \
-  "/usr/local/bin/spotifyd --no-daemon" \
-  "network.target" \
-  "" \
-  "" \
-  ""
+    "spotifyd.service" \
+    "ExecStart=/usr/local/bin/spotifyd --no-daemon" \
+    "Wants=sound.target
+    After=sound.target
+    Wants=network-online.target
+    After=network-online.target" \
+    "" \
+    "" \
+    "" \
+    "" \
+    "Restart=always
+    RestartSec=12"
 
 # Setup gpt-home service
 setup_service \
-  "gpt-home.service" \
-  "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" \
-  "" \
-  "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" \
-  "Environment=\"HOSTNAME=$HOSTNAME\"" \
-  "LimitMEMLOCK=infinity"
+    "gpt-home.service" \
+    "ExecStart=/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && python /home/ubuntu/gpt-home/app.py'" \
+    "" \
+    "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" \
+    "Environment=\"HOSTNAME=$HOSTNAME\"" \
+    "Type=simple" \
+    "LimitMEMLOCK=infinity" \
+    "Restart=always"
 
 # Setup FastAPI service for web interface backend
 setup_service \
-  "gpt-web.service" \
-  "/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && uvicorn gpt-web.backend:app --host 0.0.0.0 --port 8000'" \
-  "" \
-  "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" \
-  "Environment=\"HOSTNAME=$HOSTNAME\"" \
-  ""
+    "gpt-web.service" \
+    "ExecStart=/bin/bash -c 'source /home/ubuntu/gpt-home/env/bin/activate && uvicorn gpt-web.backend:app --host 0.0.0.0 --port 8000'" \
+    "" \
+    "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" \
+    "Environment=\"HOSTNAME=$HOSTNAME\"" \
+    "Type=simple" \
+    "" \
+    "Restart=always"
 
 # Mask systemd-networkd-wait-online.service to prevent boot delays
 sudo systemctl mask systemd-networkd-wait-online.service
