@@ -50,6 +50,7 @@ check_and_install "git" "sudo apt-get install -y git"
 check_and_install "nginx" "sudo apt-get install -y nginx"
 check_and_install "expect" "sudo apt-get install -y expect"
 check_and_install "avahi-daemon" "sudo apt-get install -y avahi-daemon avahi-utils"
+check_and_install "nodejs" "curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - && sudo apt-get install -y nodejs"
 
 # Install cargo and rust
 if ! command -v cargo &> /dev/null; then
