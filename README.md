@@ -11,7 +11,15 @@ ChatGPT at home! Basically a better Google Nest Hub or Amazon Alexa home assista
 
 This guide will explain how to build your own. It's pretty straight forward. You can also use this as a reference for building other projects on the Raspberry Pi.
 
-* *This guide assumes you're using Ubuntu Server as your Raspberry Pi's operating system. You may need to make certain modifications to accommodate other operating systems. See Issue [#12](https://github.com/judahpaul16/gpt-home/issues/12).*
+* *This guide assumes you're using Ubuntu Server as your Raspberry Pi's operating system. You may need to make certain modifications to accommodate other operating systems. See Issue [#12](https://github.com/judahpaul16/gpt-home/issues/12) if you're having trouble.*
+
+**Integrations:**
+- [x] OpenAI
+- [x] Spotify
+- [x] Philips Hue
+- [x] OpenWeatherMap
+- [ ] Calendar
+- [ ] Alarms & Reminders
 
 ## ⚠️ Schematics / Wiring Diagram
 ### Caution: Battery Connection
