@@ -242,6 +242,18 @@ Create a script outside the local repo folder with `vim setup.sh`
 ```bash
 #!/bin/bash
 
+# Function to check if service is running and stop it
+check_and_stop_service() {
+    service=$1
+
+    if sudo systemctl is-active --quiet $service; then
+        echo "Stopping $service..."
+        sudo systemctl stop $service
+    else
+        echo "$service is not running."
+    fi
+}
+
 # Function to check and install a package if it's not installed
 check_and_install() {
     package=$1
@@ -262,19 +274,33 @@ update_system_time() {
     sudo ntpdate -u ntp.ubuntu.com
 }
 
-# Update system time
-update_system_time
-
-# Update package list
-yes | sudo add-apt-repository universe
-sudo apt update
+# Check if service is running and stop it
+check_and_stop_service "spotifyd"
+check_and_stop_service "gpt-home"
+check_and_stop_service "gpt-web"
 
 # Set permissions
 sudo chown -R $(whoami):$(whoami) $HOME
 sudo chmod -R 755 $HOME
 
+# Remove existing local repo if it exists
+[ -d "gpt-home" ] && rm -rf gpt-home
+
+# Clone gpt-home repo and navigate into its directory
+git clone https://github.com/judahpaul16/gpt-home.git
+cd gpt-home
+
+# Update system time
+update_system_time
+
+# Update package list
+yes | sudo add-apt-repository universe
+sudo apt-get update
+
 # Check and install missing dependencies
-check_and_install "python3" "sudo apt-get install -y python3 python3-dev python3-venv"
+check_and_install "python3" "sudo apt-get install -y python3"
+check_and_install "python3-venv" "sudo apt-get install -y python3-venv"
+check_and_install "python3-dev" "sudo apt-get install -y python3-dev"
 check_and_install "portaudio19-dev" "sudo apt-get install -y portaudio19-dev"
 check_and_install "alsa-utils" "sudo apt-get install -y alsa-utils"
 check_and_install "libjpeg-dev" "sudo apt-get install -y libjpeg-dev"
@@ -282,10 +308,10 @@ check_and_install "build-essential" "sudo apt-get install -y build-essential"
 check_and_install "libasound2-dev" "sudo apt-get install -y libasound2-dev"
 check_and_install "i2c-tools" "sudo apt-get install -y i2c-tools"
 check_and_install "python3-smbus" "sudo apt-get install -y python3-smbus"
-check_and_install "libespeak1" "sudo apt-get install -y libespeak1"
 check_and_install "jackd2" "sudo apt-get install -y jackd2"
-check_and_install "flac" "sudo apt-get install -y flac"
-check_and_install "libflac12:armhf" "sudo apt-get install -y libflac12:armhf"
+check_and_install "libogg0" "sudo apt-get install -y libogg0"
+check_and_install "libflac12:armhf" "sudo dpkg -i contrib/libflac12_armhf.deb && sudo apt-get -f install -y && sudo apt-get install -y flac"
+check_and_install "libespeak1" "sudo apt-get install -y libespeak1"
 check_and_install "cmake" "sudo apt-get install -y cmake"
 check_and_install "openssl" "sudo apt-get install -y openssl"
 check_and_install "git" "sudo apt-get install -y git"
@@ -416,13 +442,6 @@ sudo nginx -t
 
 # Reload NGINX to apply changes
 sudo systemctl reload nginx
-
-# Remove existing local repo if it exists
-[ -d "gpt-home" ] && rm -rf gpt-home
-
-# Clone gpt-home repo and navigate into its directory
-git clone https://github.com/judahpaul16/gpt-home.git
-cd gpt-home
 
 ## Setup main app
 # Create and activate a virtual environment, then install dependencies
