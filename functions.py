@@ -320,7 +320,10 @@ async def open_weather_action(text: str):
                     # Current weather
                     if not re.search(r'(forecast|future)', text, re.IGNORECASE):
                         coords = await coords_from_city(city, api_key)
-                        response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&units=imperial")
+                        if coords is None:
+                            return f"No weather data available for {city}. Please check the city name and try again."
+                        else:
+                            response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&units=imperial")
                         if response.status == 200:
                             json_response = await response.json()
                             logger.debug(json_response)
