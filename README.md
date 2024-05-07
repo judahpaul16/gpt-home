@@ -13,7 +13,7 @@ This guide will explain how to build your own. It's pretty straight forward. You
 
 * *This guide assumes you're using Ubuntu Server as your Raspberry Pi's operating system. You may need to make certain modifications to accommodate other operating systems. See Issue [#12](https://github.com/judahpaul16/gpt-home/issues/12) if you're having trouble.*
 
-**Integrations:**
+## 🔌 Integrations
 - [x] OpenAI
 - [x] Spotify
 - [x] Philips Hue
@@ -146,8 +146,8 @@ If you want to use the [setup.sh](#-example-setup-script) script, you can skip t
 1. **OpenAI API Key**: Required for OpenAI's GPT API.  
     Setup: Set up as an environment variable.  
 
-2. **Python 3.x**: Required for running the Python code.  
-   Installation: `sudo apt-get install -y python3 python3-dev`
+2. **Python 3.11.x**: Required for running the Python code.  
+   Installation: `sudo apt-get install -y python3.11 python3-dev`
 
 3. **PortAudio**: Required for `pyttsx3` (text-to-speech).  
    Installation: `sudo apt-get install -y portaudio19-dev`
@@ -298,7 +298,7 @@ yes | sudo add-apt-repository universe
 sudo apt-get update
 
 # Check and install missing dependencies
-check_and_install "python3" "sudo apt-get install -y python3"
+check_and_install "python3" "sudo apt-get install -y python3.11"
 check_and_install "python3-venv" "sudo apt-get install -y python3-venv"
 check_and_install "python3-dev" "sudo apt-get install -y python3-dev"
 check_and_install "portaudio19-dev" "sudo apt-get install -y portaudio19-dev"

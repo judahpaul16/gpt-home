@@ -56,7 +56,7 @@ yes | sudo add-apt-repository universe
 sudo apt-get update
 
 # Check and install missing dependencies
-check_and_install "python3" "sudo apt-get install -y python3"
+check_and_install "python3" "sudo apt-get install -y python3.11"
 check_and_install "python3-venv" "sudo apt-get install -y python3-venv"
 check_and_install "python3-dev" "sudo apt-get install -y python3-dev"
 check_and_install "portaudio19-dev" "sudo apt-get install -y portaudio19-dev"
