@@ -234,9 +234,6 @@ npm install
 sudo sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf
 sudo systemctl restart avahi-daemon
 
-# Build the React App
-npm run build
-
 ## Setup Services
 # Setup spotifyd service
 setup_service \
