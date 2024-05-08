@@ -57,14 +57,14 @@ sudo apt-get update
 
 # Check and install missing dependencies
 # Ensure python3.11
-if ! dpkg -l | grep -q "pyenv" || ! dpkg -l | grep -q "python3.11"; then
+if ! command -v pyenv >/dev/null 2>&1 || ! dpkg -l | grep -q "python3.11"; then
     cd ~
     sudo rm -rf ~/.pyenv
     curl https://pyenv.run | bash
-    echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bash_profile
-    echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bash_profile
-    echo 'eval "$(pyenv init -)"' >> ~/.bash_profile
-    source ~/.bash_profile
+    echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+    echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
+    echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+    source ~/.bashrc
     pyenv install 3.11
     pyenv global 3.11
     pyenv shell 3.11
