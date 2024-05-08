@@ -56,7 +56,24 @@ yes | sudo add-apt-repository universe
 sudo apt-get update
 
 # Check and install missing dependencies
-check_and_install "python3" "sudo apt-get install -y python3.11"
+# Ensure python3.11
+if ! dpkg -l | grep -q "pyenv" || ! dpkg -l | grep -q "python3.11"; then
+    cd ~
+    sudo rm -rf ~/.pyenv
+    curl https://pyenv.run | bash
+    echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bash_profile
+    echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bash_profile
+    echo 'eval "$(pyenv init -)"' >> ~/.bash_profile
+    source ~/.bash_profile
+    pyenv install 3.11
+    pyenv global 3.11
+    pyenv shell 3.11
+    pyenv rehash
+    cd gpt-home
+    echo "python3.11 is installed."
+else
+    echo "python3.11 is already installed."
+fi
 check_and_install "python3-venv" "sudo apt-get install -y python3-venv"
 check_and_install "python3-dev" "sudo apt-get install -y python3-dev"
 check_and_install "portaudio19-dev" "sudo apt-get install -y portaudio19-dev"
