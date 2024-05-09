@@ -12,19 +12,36 @@ ChatGPT at home! Basically a better Google Nest Hub or Amazon Alexa home assista
 
 This guide will explain how to build your own. It's pretty straight forward. You can also use this as a reference for building other projects on the Raspberry Pi.
 
-* *This guide assumes you're using Ubuntu Server as your Raspberry Pi's operating system. You may need to make certain modifications to accommodate other operating systems. See Issue [#12](https://github.com/judahpaul16/gpt-home/issues/12) if you're having trouble.*
+* *In my testing I'm running Ubuntu Server 23.04 on a Raspberry Pi 4B and on an Orange Pi 3B. You may need to make certain modifications to accommodate other operating systems (e.g. the package manager `apt` used in the setup script is debian specific). Theoretically the app should run on any linux system but I can only vouch for the versions listed in the [compatibility table](#%EF%B8%8F-compatibility).*
+
+* *You can theoretically use any USB/3.5mm speaker or microphone.*
+
+## 🚀 TL;DR
+```bash
+cd ~
+echo "export OPENAI_API_KEY=\"your_openai_api_key\"" >> ~/.bashrc
+source ~/.bashrc
+wget -O setup.sh https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh
+sudo chown -R $(whoami):$(whoami) .
+sudo chmod -R 755 .
+sudo chmod +x setup.sh
+./setup.sh
+```
 
 ## 🔌 Integrations
 - [x] OpenAI
 - [x] Spotify
 - [x] Philips Hue
 - [x] OpenWeatherMap
+- [ ] Open-Meteo
 - [ ] Calendar
 - [ ] Alarms & Reminders
 
 ## ⚠️ Schematics / Wiring Diagram
 ### Caution: Battery Connection
-**IMPORTANT**: Before connecting the battery, ensure that the polarity is correct to avoid damage to your Raspberry Pi or other components. Disconnect power sources before making changes.
+**IMPORTANT**: The image on the left is for illustration purposes. ***Do not connect the battery directly to the Raspberry Pi. Use a UPS or power supply with a battery like this [one](https://a.co/d/1rMMCPR).*** Connecting the battery directly to the Raspberry Pi can cause damage to the board from voltage fluctuations.
+
+Before connecting the battery, ensure that the polarity is correct to avoid damage to your Raspberry Pi or other components. Disconnect power sources before making changes.
 
 <table style="border-collapse: collapse; border: 0;">
   <tr>
@@ -42,13 +59,13 @@ This guide will explain how to build your own. It's pretty straight forward. You
 ### Core Components
 - **Raspberry Pi 4B**: [Link](https://a.co/d/aH6YCXY) - $50-$70
 - **Mini Speaker**: [Link](https://a.co/d/9bN8LZ2) - $18
-- **128x32 OLED Display**: [Link](https://a.co/d/4Scrfjq) - $13-$14
 - **128 GB MicroSD card**: [Link](https://a.co/d/0SxSg7O) - $13
 - **USB 2.0 Mini Microphone**: [Link](https://a.co/d/eIrQUXC) - $8
 
 ---
 
-### 🌟 Optional Components
+### Optional Components
+- **128x32 OLED Display**: [Link](https://a.co/d/4Scrfjq) - $13-$14
 - **Standoff Spacer Column M3x40mm**: [Link](https://a.co/d/ees6oEA) - $14
 - **M1.4 M1.7 M2 M2.5 M3 Screw Kit**: [Link](https://a.co/d/4XJwiBY) - $15
 - **Raspberry Pi UPS Power Supply with Battery**: [Link](https://a.co/d/1rMMCPR) - $30
@@ -203,7 +220,7 @@ If you want to use the [setup.sh](#-example-setup-script) script, you can skip t
 
 ---
 
-## 📜 Example Setup script:
+## 🐚 Example setup script:
 This script will install all the dependencies and completely set up the project for you. The first time you run it, it will take a while to install all the dependencies. After that, it will be much faster and you can just run it to reinstall the project if you make any changes to the code or want the latest version of the project.
 
 You will need to initialize an environment variable with your OpenAI API Key.  
@@ -236,10 +253,23 @@ alias web-status="sudo systemctl status gpt-web"
 alias web-enable="sudo systemctl enable gpt-web"
 alias web-log="tail -n 100 -f /var/log/nginx/access.log"
 alias web-error="tail -n 100 -f /var/log/nginx/error.log"
+
+alias spotifyd-start="sudo systemctl start spotifyd"
+alias spotifyd-restart="sudo systemctl restart spotifyd"
+alias spotifyd-stop="sudo systemctl stop spotifyd"
+alias spotifyd-disable="sudo systemctl disable spotifyd"
+alias spotifyd-status="sudo systemctl status spotifyd"
+alias spotifyd-enable="sudo systemctl enable spotifyd"
+alias spotifyd-log="journalctl -eu spotifyd"
 ```
+Run `source ~/.bashrc` to apply the changes to your current terminal session.
 
 ## setup.sh
-Create a script outside the local repo folder with `vim setup.sh`
+Create a script in your home folder with `vim ~/setup.sh` and paste in the following:
+
+<details><summary>👈 View script</summary>
+<p>
+
 ```bash
 #!/bin/bash
 
@@ -519,11 +549,80 @@ setup_service \
 # Mask systemd-networkd-wait-online.service to prevent boot delays
 sudo systemctl mask systemd-networkd-wait-online.service
 ```
+
+</p>
+</details>
+
 Be sure to make the script executable to run it
 ```bash
+cd ~
 chmod +x setup.sh
 ./setup.sh
 ```
+
+---
+
+## ✔️ Compatibility
+
+<p align="center">
+  <table>
+    <tr valign="top">
+      <!-- Operating Systems -->
+      <td>
+        <table>
+          <tr><th>Operating System</th><th>Compatibility</th></tr>
+          <tr><td>Ubuntu Server 20.04 LTS</td><td>❓</td></tr>
+          <tr><td>Ubuntu Server 22.04 LTS</td><td>❓</td></tr>
+          <tr><td>Ubuntu Server 23.04</td><td>✔️</td></tr>
+          <tr><td>Ubuntu Desktop 20.04 LTS</td><td>❓</td></tr>
+          <tr><td>Ubuntu Desktop 22.04 LTS</td><td>❓</td></tr>
+          <tr><td>Raspbian Buster</td><td>❓</td></tr>
+          <tr><td>Raspbian Bullseye</td><td>❓</td></tr>
+          <tr><td>CentOS 7</td><td>❓</td></tr>
+          <tr><td>CentOS 8</td><td>❓</td></tr>
+        </table>
+      </td>
+      <!-- Raspberry Pi -->
+      <td>
+        <table>
+          <tr><th>Raspberry Pi</th><th>Compatibility</th></tr>
+          <tr><td>3B</td><td>❓</td></tr>
+          <tr><td>3B+</td><td>❓</td></tr>
+          <tr><td>4B</td><td>✔️</td></tr>
+          <tr><td>400</td><td>❓</td></tr>
+          <tr><td>Zero 2 W</td><td>❓</td></tr>
+          <tr><td>Orange Pi 3B</td><td>✔️</td></tr>
+        </table>
+      </td>
+      <!-- Python -->
+      <td>
+        <table>
+          <tr><th>Python</th><th>Compatibility</th></tr>
+          <tr><td>3.7</td><td>❓</td></tr>
+          <tr><td>3.8</td><td>❓</td></tr>
+          <tr><td>3.9</td><td>❓</td></tr>
+          <tr><td>3.10</td><td>❓</td></tr>
+          <tr><td>3.11</td><td>✔️</td></tr>
+          <tr><td>3.12</td><td>❌</td></tr>
+        </table>
+      </td>
+      <!-- Node.js -->
+      <td>
+        <table>
+          <tr><th>Node.js</th><th>Compatibility</th></tr>
+          <tr><td>14.x</td><td>❓</td></tr>
+          <tr><td>15.x</td><td>❓</td></tr>
+          <tr><td>16.x</td><td>❓</td></tr>
+          <tr><td>17.x</td><td>❓</td></tr>
+          <tr><td>18.x</td><td>✔️</td></tr>
+          <tr><td>19.x</td><td>❓</td></tr>
+          <tr><td>20.x</td><td>❓</td></tr>
+          <tr><td>21.x</td><td>❓</td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</p>
 
 ---
 
@@ -533,7 +632,7 @@ chmod +x setup.sh
 <tr>
 <td>
 
-- [OpenAI API Docs](https://beta.openai.com/docs/introduction)
+- [OpenAI API Docs](https://platform.openai.com/docs/introduction)
 - [Raspberry Pi Docs](https://www.raspberrypi.com/documentation)
 - [Node.js Docs](https://nodejs.org/en/docs/)
 - [npm Docs](https://docs.npmjs.com/)
@@ -545,7 +644,6 @@ chmod +x setup.sh
 </td>
 <td>
 
-- [Python3 Docs](https://docs.python.org/3/)
 - [GPIO Pinout](https://www.raspberrypi.com/documentation/computers/images/GPIO-Pinout-Diagram-2.png)
 - [Adafruit SSD1306 Docs](https://circuitpython.readthedocs.io/projects/ssd1306/en/latest/)
 - [pyttsx3 Docs](https://pypi.org/project/pyttsx3/)
@@ -559,10 +657,11 @@ chmod +x setup.sh
 
 - [Spotify API Docs](https://developer.spotify.com/documentation/web-api/)
 - [Spotify API Python Docs (Spotipy)](https://spotipy.readthedocs.io/)
-- [Spotifyd Docs](https://github.com/Spotifyd/spotifyd)
+- [Spotifyd Docs](https://docs.spotifyd.rs/)
 - [Phillips Hue API Docs](https://developers.meethue.com/develop/get-started-2/)
 - [Phillips Hue Python API Docs](https://github.com/studioimaginaire/phue)
 - [OpenWeatherMap API Docs](https://openweathermap.org/api/one-call-3)
+- [Open-Meteo API Docs](https://open-meteo.com/en/docs)
 - [Fritzing Schematics](https://fritzing.org/)
 
 </td>
