@@ -1,6 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
 from dotenv.main import set_key
 import speech_recognition as sr
 from asyncio import create_task
