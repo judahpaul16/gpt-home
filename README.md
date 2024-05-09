@@ -12,7 +12,7 @@ ChatGPT at home! Basically a better Google Nest Hub or Amazon Alexa home assista
 
 This guide will explain how to build your own. It's pretty straight forward. You can also use this as a reference for building other projects on the Raspberry Pi.
 
-* *In my testing I'm running Ubuntu Server 23.04 on a Raspberry Pi 4B and on an Orange Pi 3B. You may need to make certain modifications to accommodate other operating systems (e.g. the package manager `apt` used in the setup script is debian specific). Theoretically the app should run on any linux system but I can only vouch for the versions listed in the [compatibility table](#%EF%B8%8F-compatibility).*
+* *In my testing, I am running Ubuntu Server 23.04 on a Raspberry Pi 4B. You may need to make certain modifications to accommodate other operating systems (e.g., the package manager `apt` used in the setup script is debian specific). Theoretically, the app should run on any linux system, but I can only vouch for the versions listed in the [compatibility table](#-compatibility).*
 
 * *You can theoretically use any USB/3.5mm speaker or microphone.*
 
@@ -562,66 +562,62 @@ chmod +x setup.sh
 
 ---
 
-## ✔️ Compatibility
+## ✅ Compatibility
 
 <p align="center">
-  <table>
+    <table>
     <tr valign="top">
-      <!-- Operating Systems -->
-      <td>
+        <!-- Raspberry Pi -->
+        <td>
         <table>
-          <tr><th>Operating System</th><th>Compatibility</th></tr>
-          <tr><td>Ubuntu Server 20.04 LTS</td><td>❓</td></tr>
-          <tr><td>Ubuntu Server 22.04 LTS</td><td>❓</td></tr>
-          <tr><td>Ubuntu Server 23.04</td><td>✔️</td></tr>
-          <tr><td>Ubuntu Desktop 20.04 LTS</td><td>❓</td></tr>
-          <tr><td>Ubuntu Desktop 22.04 LTS</td><td>❓</td></tr>
-          <tr><td>Raspbian Buster</td><td>❓</td></tr>
-          <tr><td>Raspbian Bullseye</td><td>❓</td></tr>
-          <tr><td>CentOS 7</td><td>❓</td></tr>
-          <tr><td>CentOS 8</td><td>❓</td></tr>
+            <tr><th colspan="2">Raspberry Pi</th></tr>
+            <tr><td>3B</td><td>✅</td></tr>
+            <tr><td>3B+</td><td>✅</td></tr>
+            <tr><td>4B</td><td>✅</td></tr>
+            <tr><td>Zero 2 W</td><td>❔</td></tr>
+            <tr><td>Orange Pi 3B</td><td>✅</td></tr>
         </table>
-      </td>
-      <!-- Raspberry Pi -->
-      <td>
+        </td>
+        <!-- Python -->
+        <td>
         <table>
-          <tr><th>Raspberry Pi</th><th>Compatibility</th></tr>
-          <tr><td>3B</td><td>❓</td></tr>
-          <tr><td>3B+</td><td>❓</td></tr>
-          <tr><td>4B</td><td>✔️</td></tr>
-          <tr><td>400</td><td>❓</td></tr>
-          <tr><td>Zero 2 W</td><td>❓</td></tr>
-          <tr><td>Orange Pi 3B</td><td>✔️</td></tr>
+            <tr><th colspan="2">Python</th></tr>
+            <tr><td>3.7</td><td>❌</td></tr>
+            <tr><td>3.8</td><td>✅</td></tr>
+            <tr><td>3.9</td><td>✅</td></tr>
+            <tr><td>3.10</td><td>✅</td></tr>
+            <tr><td>3.11</td><td>✅</td></tr>
+            <tr><td>3.12</td><td>❌</td></tr>
         </table>
-      </td>
-      <!-- Python -->
-      <td>
+        </td>
+        <!-- Operating Systems -->
+        <td>
         <table>
-          <tr><th>Python</th><th>Compatibility</th></tr>
-          <tr><td>3.7</td><td>❓</td></tr>
-          <tr><td>3.8</td><td>❓</td></tr>
-          <tr><td>3.9</td><td>❓</td></tr>
-          <tr><td>3.10</td><td>❓</td></tr>
-          <tr><td>3.11</td><td>✔️</td></tr>
-          <tr><td>3.12</td><td>❌</td></tr>
+            <tr><th colspan="2">Operating System</th></tr>
+            <tr><td>Ubuntu 22.04</td><td>❔</td></tr>
+            <tr><td>Ubuntu 23.04</td><td>✅</td></tr>
+            <tr><td>Ubuntu 24.04</td><td>❔</td></tr>
+            <tr><td>Raspbian Buster</td><td>❔</td></tr>
+            <tr><td>Raspbian Bullseye</td><td>❔</td></tr>
+            <tr><td>CentOS 7</td><td>❔</td></tr>
+            <tr><td>CentOS 8</td><td>❔</td></tr>
+            <tr><td>CentOS 9</td><td>❔</td></tr>
         </table>
-      </td>
-      <!-- Node.js -->
-      <td>
+        </td>
+        <!-- Node.js -->
+        <td>
         <table>
-          <tr><th>Node.js</th><th>Compatibility</th></tr>
-          <tr><td>14.x</td><td>❓</td></tr>
-          <tr><td>15.x</td><td>❓</td></tr>
-          <tr><td>16.x</td><td>❓</td></tr>
-          <tr><td>17.x</td><td>❓</td></tr>
-          <tr><td>18.x</td><td>✔️</td></tr>
-          <tr><td>19.x</td><td>❓</td></tr>
-          <tr><td>20.x</td><td>❓</td></tr>
-          <tr><td>21.x</td><td>❓</td></tr>
+            <tr><th colspan="2">Node.js</th></tr>
+            <tr><td>17.x</td><td>❔</td></tr>
+            <tr><td>18.x</td><td>✅</td></tr>
+            <tr><td>19.x</td><td>❔</td></tr>
+            <tr><td>20.x</td><td>❔</td></tr>
+            <tr><td>21.x</td><td>❔</td></tr>
+            <tr><td>22.x</td><td>❔</td></tr>
         </table>
-      </td>
+        </td>
     </tr>
-  </table>
+    </table>
 </p>
 
 ---
