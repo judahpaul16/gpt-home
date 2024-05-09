@@ -28,6 +28,7 @@ ROOT_DIRECTORY = Path(__file__).parent
 PARENT_DIRECTORY = ROOT_DIRECTORY.parent
 ENV_FILE_PATH = ROOT_DIRECTORY / ".env"
 TOKEN_PATH = "spotify_token.json"
+log_file_path = PARENT_DIRECTORY / "events.log"
 
 load_dotenv(ENV_FILE_PATH)
 
@@ -62,8 +63,6 @@ def get_local_ip():
 
 @app.post("/logs")
 def logs(request: Request):
-    log_file_path = PARENT_DIRECTORY / "events.log"
-
     if log_file_path.exists() and log_file_path.is_file():
         with log_file_path.open("r") as f:
             log_data = f.read()
@@ -71,25 +70,42 @@ def logs(request: Request):
     else:
         return Response(status_code=status.HTTP_404_NOT_FOUND, content="Log file not found")
     
+def is_start_of_new_log(line):
+    return re.match(r"^(INFO|SUCCESS|DEBUG|ERROR|WARNING|CRITICAL):", line)
+
 @app.post("/new-logs")
 def last_logs(request: Request, last_line_number: Optional[int] = 0):
-    log_file_path = PARENT_DIRECTORY / "events.log"
-
     if log_file_path.exists() and log_file_path.is_file():
+        new_logs = []
+        current_entry = []
+        total_lines = 0
         with log_file_path.open("r") as f:
-            lines = f.readlines()
-            if len(lines) != last_line_number:
-                new_logs = lines[last_line_number:]
-                return JSONResponse(content={"last_logs": new_logs, "new_last_line_number": len(lines)})
-            else:
-                return JSONResponse(content={"last_logs": [], "new_last_line_number": len(lines)})
+            for line in f:
+                if is_start_of_new_log(line):
+                    if current_entry:  # If there's an accumulated entry, add it to new_logs
+                        new_logs.append(''.join(current_entry))
+                        current_entry = []  # Reset for the next entry
+                current_entry.append(line)
+                total_lines += 1
+
+            # Append the last accumulated entry if present
+            if current_entry:
+                new_logs.append(''.join(current_entry))
+
+        # Slice new_logs to only include entries after the last checked line number
+        # Calculate where to start based on entries, not lines
+        if last_line_number < len(new_logs):
+            return JSONResponse(content={
+                "last_logs": new_logs[last_line_number:],
+                "new_last_line_number": len(new_logs)
+            })
+        else:
+            return JSONResponse(content={"last_logs": [], "new_last_line_number": len(new_logs)})
     else:
         return Response(status_code=status.HTTP_404_NOT_FOUND, content="Log file not found")
 
 @app.post("/clear-logs")
 def clear_logs(request: Request):
-    log_file_path = PARENT_DIRECTORY / "events.log"
-
     if log_file_path.exists() and log_file_path.is_file():
         with log_file_path.open("w") as f:
             f.write("")
