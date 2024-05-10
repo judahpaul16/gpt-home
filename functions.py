@@ -321,8 +321,7 @@ async def open_weather_action(text: str):
                         coords = await coords_from_city(city, api_key)
                         if coords is None:
                             return f"No weather data available for {city}. Please check the city name and try again."
-                        else:
-                            response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&units=imperial")
+                        response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&units=imperial")
                         if response.status == 200:
                             json_response = await response.json()
                             logger.debug(json_response)
@@ -336,6 +335,8 @@ async def open_weather_action(text: str):
                     else:
                         coords = await coords_from_city(city, api_key)
                         tomorrow = datetime.now() + timedelta(days=1)
+                        if coords is None:
+                            return f"No weather data available for {city}. Please check the city name and try again."
                         response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&units=imperial")
                         if response.status == 200:
                             json_response = await response.json()
@@ -359,6 +360,10 @@ async def open_weather_action(text: str):
                     # General weather based on IP address location
                     city = await city_from_ip()
                     coords = await coords_from_city(city, api_key)
+                    if city is None:
+                        return f"Could not determine your city based on your IP address. Please provide a city name."
+                    if coords is None:
+                        return f"No weather data available for {city}."
                     response = await session.get(f"http://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&units=imperial")
                     if response.status == 200:
                         json_response = await response.json()
