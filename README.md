@@ -418,6 +418,7 @@ sudo nginx -t
 [ -L "/etc/nginx/sites-enabled/default" ] && sudo unlink /etc/nginx/sites-enabled/default
 
 # Reload NGINX to apply changes
+sudo systemctl enable nginx
 sudo systemctl reload nginx
 
 sudo systemctl status nginx
