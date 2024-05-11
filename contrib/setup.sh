@@ -1,6 +1,57 @@
 #!/bin/bash
 
+# Install system dependencies
+function install() {
+    local package=$1
+    echo " Installing $package..."
+
+    # Detect the package management system
+    if command -v apt-get >/dev/null; then
+        if ! dpkg -s "$package" >/dev/null 2>&1; then
+            sudo add-apt-repository universe >/dev/null 2>&1 || true
+            sudo apt update || true
+            sudo apt install -y "$package"
+        fi
+    elif command -v yum >/dev/null; then
+        if ! rpm -q "$package" >/dev/null 2>&1; then
+            sudo yum install -y epel-release >/dev/null 2>&1 || true
+            sudo yum makecache --timer || true
+            sudo yum install -y "$package"
+        fi
+    elif command -v dnf >/dev/null; then
+        if ! dnf list installed "$package" >/dev/null 2>&1; then
+            sudo dnf install -y epel-release >/dev/null 2>&1 || true
+            sudo dnf makecache --timer || true
+            sudo dnf install -y "$package"
+        fi
+    elif command -v zypper >/dev/null; then
+        if ! zypper se -i "$package" >/dev/null 2>&1; then
+            sudo zypper refresh || true
+            sudo zypper install -y "$package"
+        fi
+    elif command -v pacman >/dev/null; then
+        if ! pacman -Q "$package" >/dev/null 2>&1; then
+            sudo pacman -Sy
+            sudo pacman -S --noconfirm "$package"
+        fi
+    else
+        echo "Package manager not supported."
+        return 1
+    fi
+}
+
+if command -v apt-get >/dev/null ||
+    command -v yum >/dev/null ||
+    command -v dnf >/dev/null ||
+    command -v zypper >/dev/null ||
+    command -v pacman >/dev/null; then
+        install chrony
+        install docker
+        install nginx
+fi
+
 if [[ "$1" != "--no-build" ]]; then
+    cd ~/gpt-home
     echo "Checking if the container 'gpt-home' is already running..."
     if [ $(docker ps -q -f name=gpt-home) ]; then
         echo "Stopping running container 'gpt-home'..."
