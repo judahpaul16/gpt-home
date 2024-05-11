@@ -5,14 +5,25 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Install all necessary packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential python3.11 python3-pip python3-dev \
-    curl git libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
+    build-essential curl git libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
     libsqlite3-dev llvm libncursesw5-dev xz-utils tk-dev \
     libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev libjpeg-dev \
     portaudio19-dev alsa-utils libasound2-dev i2c-tools python3-smbus \
     jackd2 libogg0 flac libespeak1 cmake openssl expect \
     avahi-daemon avahi-utils nodejs supervisor && \
     rm -rf /var/lib/apt/lists/*
+
+# Install Python via pyenv
+RUN curl https://pyenv.run | bash && \
+    echo 'export PATH="/root/.pyenv/bin:$PATH"' >> ~/.bashrc && \
+    echo 'eval "$(pyenv init --path)"' >> ~/.bashrc && \
+    echo 'eval "$(pyenv init -)"' >> ~/.bashrc && \
+    . ~/.bashrc && \
+    pyenv install 3.11 && \
+    pyenv global 3.11 && \
+    pyenv rehash
+
+RUN apt-get update && apt-get install -y python3-pip python3-dev python-venv
 
 # Install Node.js
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
