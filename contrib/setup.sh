@@ -131,3 +131,6 @@ sudo nginx -t
 
 # Reload NGINX to apply changes
 sudo systemctl reload nginx
+
+sudo systemctl status nginx
+docker ps -a
