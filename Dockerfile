@@ -4,12 +4,12 @@ FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install all necessary packages
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN yes | add-apt-repository universe && apt-get update && apt-get install -y --no-install-recommends \
     build-essential curl git libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
     libsqlite3-dev llvm libncursesw5-dev xz-utils tk-dev \
     libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev libjpeg-dev \
     portaudio19-dev alsa-utils libasound2-dev i2c-tools python3-smbus \
-    jackd2 libogg0 flac libespeak1 cmake openssl expect \
+    jackd2 libogg0 libflac12:armhf flac libespeak1 cmake openssl expect \
     avahi-daemon avahi-utils nodejs supervisor && \
     rm -rf /var/lib/apt/lists/*
 
