@@ -4,7 +4,7 @@ FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install CA certificates first to handle SSL/TLS downloads properly
-RUN apt-get update && apt-get install -y ca-certificates
+RUN apt-get update && apt-get install -y ca-certificates software-properties-common
 
 # Install necessary packages
 RUN /bin/bash -c "yes | add-apt-repository universe && apt-get update && apt-get install -y --no-install-recommends \
