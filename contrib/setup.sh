@@ -3,7 +3,7 @@
 # Install system dependencies
 function install() {
     local package=$1
-    echo " Installing $package..."
+    echo " Ensuring package '$package' is installed..."
 
     # Detect the package management system
     if command -v apt-get >/dev/null; then
