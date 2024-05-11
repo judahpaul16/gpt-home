@@ -7,14 +7,16 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y ca-certificates software-properties-common
 
 # Install necessary packages
-RUN /bin/bash -c "yes | add-apt-repository universe && apt-get update && apt-get install -y --no-install-recommends \
-    build-essential curl git libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
-    libsqlite3-dev llvm libncursesw5-dev xz-utils tk-dev \
-    libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev libjpeg-dev \
-    portaudio19-dev alsa-utils libasound2-dev i2c-tools python3-smbus \
-    jackd2 libogg0 libflac12:armhf flac libespeak1 cmake openssl expect \
-    avahi-daemon avahi-utils nodejs supervisor && \
-    rm -rf /var/lib/apt/lists/*"
+RUN /bin/bash -c "yes | add-apt-repository universe && \
+    dpkg --add-architecture armhf && apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential curl git libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
+        libsqlite3-dev llvm libncursesw5-dev xz-utils tk-dev \
+        libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev libjpeg-dev \
+        portaudio19-dev alsa-utils libasound2-dev i2c-tools python3-smbus \
+        jackd2 libogg0 libflac12:armhf flac libespeak1 cmake openssl expect \
+        avahi-daemon avahi-utils nodejs supervisor && \
+        rm -rf /var/lib/apt/lists/*"
 
 # Install Python via pyenv using bash explicitly
 RUN /bin/bash -c "curl https://pyenv.run | bash && \
