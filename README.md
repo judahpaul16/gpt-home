@@ -39,6 +39,11 @@ This guide will explain how to build your own. It's pretty straight forward. You
 
 ## 🚀 TL;DR
 ```bash
+cd ~
+if ! grep -q "OPENAI_API_KEY" ~/.bashrc; then
+    echo 'export OPENAI_API_KEY="your_openai_api_key"' >> ~/.bashrc
+fi
+source ~/.bashrc
 docker ps -aq -f name=gpt-home | xargs -r docker rm -f
 docker pull judahpaul/gpt-home
 docker run -d --name gpt-home --device /dev/snd:/dev/snd --privileged -p 8000:8000 judahpaul/gpt-home
@@ -250,30 +255,26 @@ Alternatively, you can put this at the end of your `~/.bashrc` file. (recommende
 export OPENAI_API_KEY="your_openai_api_key_here"
 
 # Optional: Add these aliases to your .bashrc file for easier management
-alias gpt-start="sudo systemctl start gpt-home"
-alias gpt-restart="sudo systemctl restart gpt-home"
-alias gpt-stop="sudo systemctl stop gpt-home"
-alias gpt-disable="sudo systemctl disable gpt-home"
-alias gpt-status="sudo systemctl status gpt-home"
-alias gpt-enable="sudo systemctl enable gpt-home"
-alias gpt-log="tail -n 100 -f /home/$(whoami)/gpt-home/events.log"
+alias gpt-start="docker exec -it gpt-home supervisorctl start gpt-home"
+alias gpt-restart="docker exec -it gpt-home supervisorctl restart gpt-home"
+alias gpt-stop="docker exec -it gpt-home supervisorctl stop gpt-home"
+alias gpt-status="docker exec -it gpt-home supervisorctl status gpt-home"
+alias gpt-log="docker exec -it gpt-home tail -n 100 -f /path/to/your/application/logs/events.log"
 
-alias web-start="sudo systemctl start gpt-web"
-alias web-restart="sudo systemctl restart gpt-web && sudo systemctl restart nginx"
-alias web-stop="sudo systemctl stop gpt-web"
-alias web-disable="sudo systemctl disable gpt-web"
-alias web-status="sudo systemctl status gpt-web"
-alias web-enable="sudo systemctl enable gpt-web"
+alias web-start="docker exec -it gpt-home supervisorctl start gpt-web"
+alias web-restart="docker exec -it gpt-home supervisorctl restart gpt-web && sudo systemctl restart nginx"
+alias web-stop="docker exec -it gpt-home supervisorctl stop gpt-web"
+alias web-status="docker exec -it gpt-home supervisorctl status gpt-web"
 alias web-log="tail -n 100 -f /var/log/nginx/access.log"
 alias web-error="tail -n 100 -f /var/log/nginx/error.log"
 
-alias spotifyd-start="sudo systemctl start spotifyd"
-alias spotifyd-restart="sudo systemctl restart spotifyd"
-alias spotifyd-stop="sudo systemctl stop spotifyd"
-alias spotifyd-disable="sudo systemctl disable spotifyd"
-alias spotifyd-status="sudo systemctl status spotifyd"
-alias spotifyd-enable="sudo systemctl enable spotifyd"
-alias spotifyd-log="journalctl -eu spotifyd"
+alias spotifyd-start="docker exec -it gpt-home supervisorctl start spotifyd"
+alias spotifyd-restart="docker exec -it gpt-home supervisorctl restart spotifyd"
+alias spotifyd-stop="docker exec -it gpt-home supervisorctl stop spotifyd"
+alias spotifyd-disable="docker exec -it gpt-home supervisorctl disable spotifyd"
+alias spotifyd-status="docker exec -it gpt-home supervisorctl status spotifyd"
+alias spotifyd-enable="docker exec -it gpt-home supervisorctl enable spotifyd"
+alias spotifyd-log="docker exec -it gpt-home tail -n 100 -f /var/log/spotifyd.log"
 ```
 Run `source ~/.bashrc` to apply the changes to your current terminal session.
 
