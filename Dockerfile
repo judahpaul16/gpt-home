@@ -1,6 +1,4 @@
-FROM rust:latest as rust-builder
-WORKDIR /usr/src/spotifyd
-RUN cargo install spotifyd
+ARG HOST_HOME
 
 FROM ubuntu:24.04
 
@@ -47,8 +45,9 @@ RUN apt-get update && apt-get install -y python3-pip python3-dev
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
     apt-get install -y nodejs
 
-# Copy spotifyd binary from rust-builder stage
-COPY --from=rust-builder /usr/local/cargo/bin/spotifyd /usr/local/bin/spotifyd
+# Copy the pre-built spotifyd binary and existing config
+COPY ${HOST_HOME}/.cargo/bin/spotifyd /usr/local/bin/spotifyd
+COPY ${HOST_HOME}/.config/spotifyd/spotifyd.conf /root/.config/spotifyd/spotifyd.conf
 
 # Prepare application directory
 WORKDIR /app
@@ -57,15 +56,6 @@ COPY . /app
 # Install Python and Node dependencies
 RUN pip install --no-cache-dir -r requirements.txt && \
     npm install
-
-# Setup spotifyd config
-RUN mkdir -p /root/.config/spotifyd && \
-echo "[global]"\
-    "\nbackend = \"alsa\""\
-    "\ndevice_name = \"GPT Home\""\
-    "\nbitrate = 320"\
-    "\ncache_path = \"/root/.spotifyd/cache\""\
-    "\ndiscovery = false" > /root/.config/spotifyd/spotifyd.conf
 
 # Configure Avahi
 RUN sed -i 's/#host-name=.*$/host-name=docker-gpt-home/g' /etc/avahi/avahi-daemon.conf && \

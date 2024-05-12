@@ -462,6 +462,44 @@ if command -v apt-get >/dev/null ||
         install nginx
 fi
 
+# Prebuild Spotifyd
+# Install cargo and rust
+if ! command -v cargo &> /dev/null; then
+    echo "Installing cargo and rust..."
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+    # Source the environment for cargo and rust
+    if [ -f "$HOME/.cargo/env" ]; then
+        source $HOME/.cargo/env
+    else
+        echo "Error: Unable to source Rust environment. Installation may have failed or path is incorrect."
+    fi
+else
+    echo "cargo is already installed."
+fi
+
+# Ensure directory exists for the configuration
+mkdir -p $HOME/.config/spotifyd
+
+# Install spotifyd using Rust's Cargo
+if ! command -v spotifyd &> /dev/null; then
+    echo "Installing spotifyd..."
+    cargo install spotifyd
+    sudo mv $HOME/.cargo/bin/spotifyd /usr/local/bin/
+else
+    echo "spotifyd is already installed."
+fi
+
+# Create Spotifyd configuration (this is just a basic config; adjust accordingly)
+cat <<EOF > $HOME/.config/spotifyd/spotifyd.conf
+[global]
+backend = "alsa" # Or pulseaudio if you use it
+device_name = "GPT Home" # Name your device shows in Spotify Connect
+bitrate = 320 # Choose bitrate from 96/160/320 kbps
+cache_path = "/home/$(whoami)/.spotifyd/cache"
+discovery = false
+EOF
+
 if [[ "$1" != "--no-build" ]]; then
     [ -d ~/gpt-home ] && rm -rf ~/gpt-home
     git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
@@ -482,7 +520,7 @@ if [[ "$1" != "--no-build" ]]; then
     docker system prune -f
 
     echo "Building Docker image 'gpt-home'..."
-    docker build -t gpt-home .
+    docker build --build-arg HOST_HOME="/home/$(whoami)" -t gpt-home .
 
     if [ $? -ne 0 ]; then
         echo "Docker build failed. Exiting..."
