@@ -34,15 +34,15 @@ load_dotenv(ENV_FILE_PATH)
 
 app = FastAPI()
 
-app.mount("/static", StaticFiles(directory=ROOT_DIRECTORY / "build" / "static"), name="static")
+app.mount("/static", StaticFiles(directory=ROOT_DIRECTORY / "frontend" / "build" / "static"), name="static")
 
 @app.get("/favicon.ico")
 def read_favicon():
-    return FileResponse(ROOT_DIRECTORY / "build" / "favicon.ico")
+    return FileResponse(ROOT_DIRECTORY / "frontend" / "build" / "favicon.ico")
 
 @app.get("/robot.gif")
 def read_robot():
-    return FileResponse(ROOT_DIRECTORY / "build" / "robot.gif")
+    return FileResponse(ROOT_DIRECTORY / "frontend" / "build" / "robot.gif")
 
 ## React App + API Calls ##
 
@@ -52,7 +52,7 @@ async def read_root(request: Request, path: str):
     if path == 'api/callback':
         return await handle_callback(request)
     else:
-        return FileResponse(ROOT_DIRECTORY / "build" / "index.html")
+        return FileResponse(ROOT_DIRECTORY / "frontend" / "build" / "index.html")
     
 @app.post("/get-local-ip")
 def get_local_ip():
