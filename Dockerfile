@@ -22,9 +22,9 @@ RUN /bin/bash -c "yes | add-apt-repository universe && \
 RUN /bin/bash -c "curl https://pyenv.run | bash && \
     echo 'export PATH=\"/root/.pyenv/bin:\$PATH\"' >> ~/.bashrc && \
     echo 'eval \"\$(pyenv init --path)\"' >> ~/.bashrc && \
-    echo 'eval \"\$(pyenv init -)\"' >> ~/.bashrc && \
-    . ~/.bashrc && \
-    pyenv install 3.11 && \
+    echo 'eval \"\$(pyenv init -)\"' >> ~/.bashrc"
+
+RUN /bin/bash -lc "pyenv install 3.11 && \
     pyenv global 3.11 && \
     pyenv rehash"
 
