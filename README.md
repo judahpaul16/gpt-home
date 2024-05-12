@@ -112,9 +112,10 @@ Wants=network.target
 Before=network.target
 
 [Service]
+User=root
 Type=oneshot
-ExecStart=/sbin/ip link set wlan0 up
-ExecStartPost=/sbin/dhclient wlan0
+ExecStart=/usr/sbin/ip link set wlan0 up
+ExecStartPost=/sbin/dhcpcd wlan0
 RemainAfterExit=yes
 
 [Install]

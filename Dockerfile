@@ -34,9 +34,10 @@ RUN /bin/bash -lc "eval \"\$(pyenv init --path)\" && \
                    eval \"\$(pyenv init -)\" && \
                    pyenv install 3.11 && \
                    pyenv global 3.11 && \
-                   pyenv rehash"
+                   pyenv rehash && \
+                   python3 --version"
 
-RUN apt-get update && apt-get install -y python3-pip python3-dev python-venv
+RUN apt-get update && apt-get install -y python3-pip python3-dev
 
 # Install Node.js
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
