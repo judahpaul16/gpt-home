@@ -97,7 +97,8 @@ Before connecting the battery, ensure that the polarity is correct to avoid dama
 
 ## 📶 Configuring Wi-Fi via wpa_supplicant
 
-To configure Wi-Fi on your Raspberry Pi, you'll need to edit the `wpa_supplicant.conf` file and ensure the wireless interface is enabled at boot. You could also use the `raspi-config` or the `nmcli` utility to configure Wi-Fi or simply use an Ethernet connection.
+To configure Wi-Fi on your Raspberry Pi, you'll need to edit the `wpa_supplicant.conf` file and ensure the wireless interface is enabled at boot. This method supports configuring multiple Wi-Fi networks and is suitable for headless setups.
+*You could also use the `raspi-config` or the `nmcli` utility to configure Wi-Fi; or simply use an Ethernet connection if you prefer.*
 
 1. Install `net-tools` to get the `ifconfig` command:
    ```bash
@@ -154,7 +155,11 @@ Your Raspberry Pi should now connect to the Wi-Fi network automatically on boot.
 
 ## 🛠 System Dependencies
 
-Before running this project on your system, ensure some system-level dependencies are installed alongside the Python packages. These instructions are adaptable across various Linux distributions.
+Before running this project on your system, ensure your system clock is synchronized, your package lists are updated, and NGINX and Docker are installed. The setup script will take care of this for you but you can also do this manually.
+
+<details>
+<summary>👈 View Instructions</summary>
+<p>
 
 **Synchronize your system clock:**  
 *Install `chrony` for time synchronization:*
@@ -239,6 +244,9 @@ sudo dnf groupinstall -y "Development Tools"   # For RHEL/CentOS/Alma 9^
     sudo zypper install -y nginx    # For openSUSE
     sudo pacman -S nginx            # For Arch Linux
     ```
+
+</p>
+</details>
 
 ---
 
