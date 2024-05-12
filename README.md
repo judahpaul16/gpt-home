@@ -344,7 +344,7 @@ sudo dnf groupinstall -y "Development Tools"   # For RHEL/CentOS/Alma 9^
 ---
 
 ## 🐳 Building the Docker Container
-Before you run the script to build the container you must first export your `OPENAI_API_KEY`. The first time you run it, it will take a while to install all the dependencies. The script is platform-agnostic and should work on any Linux system.
+Before you run the setup script to build the container you should first export your `OPENAI_API_KEY` to an environment variable. The setup script will use this to initialize the container with your OpenAI API key.
 
 ***Note: Executing `export` directly in the terminal does not persist after reboot.***
 ```bash
@@ -379,6 +379,23 @@ alias spotifyd-enable="docker exec -it gpt-home supervisorctl enable spotifyd"
 alias spotifyd-log="docker exec -it gpt-home tail -n 100 -f /var/log/spotifyd.log"
 ```
 Run `source ~/.bashrc` to apply the changes to your current terminal session.
+
+The setup script will take quite a while to run *(at least it did on my 1GB RAM Pi 4B)*. It will install all the dependencies and build the Docker container. However, you can skip the build process by passing the `--no-build` flag to the script; it will only install the dependencies and set up the firewall and NGINX. You can then pull the container from Docker Hub and run it.
+
+```bash
+curl -s https://raw.githubusercontent.com/judahpaul/gpt-home/main/contrib/setup.sh | \
+    bash -s -- --no-build
+docker ps -aq -f name=gpt-home | xargs -r docker rm -f
+docker pull judahpaul/gpt-home
+docker run -d --name gpt-home \
+    --device /dev/snd:/dev/snd \
+    --privileged \
+    -p 8000:8000 \
+    -e OPENAI_API_KEY=your_key_here \
+    judahpaul/gpt-home
+```
+
+***Note: For development purposes, running `setup.sh` without the `--no-build` flag mounts the project directory to the container by adding `-v ~/gpt-home:/app` to the `docker run` command. This allows you to make changes to the project files on your Raspberry Pi and see the changes reflected in the container, eliminating the need to rebuild the container each time you make a change.***
 
 ## 🐚 setup.sh
 Create a script in your ***home*** folder with `vim ~/setup.sh` and paste in the following:
