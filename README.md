@@ -75,7 +75,7 @@ This guide will explain how to build your own. It's pretty straight forward. You
 
 ## 🚀 TL;DR
 ```bash
-curl -s https://raw.githubusercontent.com/judahpaul/gpt-home/main/contrib/setup.sh | \
+curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh | \
     bash -s -- --no-build
 docker ps -aq -f name=gpt-home | xargs -r docker rm -f
 docker pull judahpaul/gpt-home
@@ -383,7 +383,7 @@ Run `source ~/.bashrc` to apply the changes to your current terminal session.
 The setup script will take quite a while to run *(at least it did on my 1GB RAM Pi 4B)*. It will install all the dependencies and build the Docker container. However, you can skip the build process by passing the `--no-build` flag to the script; it will only install the dependencies and set up the firewall and NGINX. You can then pull the container from Docker Hub and run it.
 
 ```bash
-curl -s https://raw.githubusercontent.com/judahpaul/gpt-home/main/contrib/setup.sh | \
+curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh | \
     bash -s -- --no-build
 docker ps -aq -f name=gpt-home | xargs -r docker rm -f
 docker pull judahpaul/gpt-home
@@ -395,7 +395,12 @@ docker run -d --name gpt-home \
     judahpaul/gpt-home
 ```
 
-***Note: For development purposes, running `setup.sh` without the `--no-build` flag mounts the project directory to the container by adding `-v ~/gpt-home:/app` to the `docker run` command. This allows you to make changes to the project files on your Raspberry Pi and see the changes reflected in the container, eliminating the need to rebuild the container each time you make a change.***
+***Note: For development purposes, running `setup.sh` without the `--no-build` flag mounts the project directory to the container by adding `-v ~/gpt-home:/app` to the `docker run` command. This allows you to make changes to the project files on your Raspberry Pi and see the changes reflected in the container.***
+
+```bash
+curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh | \
+    bash -s
+```
 
 ## 🐚 setup.sh
 Create a script in your ***home*** folder with `vim ~/setup.sh` and paste in the following:
