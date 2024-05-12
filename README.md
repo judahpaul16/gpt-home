@@ -100,56 +100,51 @@ Before connecting the battery, ensure that the polarity is correct to avoid dama
 To configure Wi-Fi on your Raspberry Pi, you'll need to edit the `wpa_supplicant.conf` file and ensure the wireless interface is enabled at boot. This method supports configuring multiple Wi-Fi networks and is suitable for headless setups.
 *You could also use the `raspi-config` or the `nmcli` utility to configure Wi-Fi; or simply use an Ethernet connection if you prefer.*
 
-1. Install `net-tools` to get the `ifconfig` command:
-   ```bash
-   sudo apt install net-tools
-   ```
+**Step 1: Create a systemd service to enable the Wi-Fi interface at boot**
+```bash
+sudo nano /etc/systemd/system/wifi-up.service
+```
+Insert the following content:
+```ini
+[Unit]
+Description=Bring up Wi-Fi Interface
+Wants=network.target
+Before=network.target
 
-2. To enable the wireless interface (`wlan0` in most cases) at boot, add the following command to `/etc/rc.local` before the `exit 0` line:  
-    *Create the file if it doesn't exist*
-    ```bash
-    sudo vim /etc/rc.local
-    ```
-    Add the following contents:
-    ```bash
-    #!/bin/bash
-    sudo ifconfig wlan0 up &
-    sudo wpa_supplicant -i wlan0 -c /etc/wpa_supplicant/wpa_supplicant.conf -B &
-    sudo dhclient wlan0 &
-    exit 0
-    ```
-    Ensure the file has executable permissions and is enabled as a service:
-    ```bash
-    sudo chmod +x /etc/rc.local
-    sudo systemctl enable rc-local.service
-    sudo systemctl start rc-local.service
-    ```
+[Service]
+Type=oneshot
+ExecStart=/sbin/ip link set wlan0 up
+ExecStartPost=/sbin/dhclient wlan0
+RemainAfterExit=yes
 
-3. Open the configuration file in a text editor:
-    ```bash
-    sudo vim /etc/wpa_supplicant/wpa_supplicant.conf
-    ```
+[Install]
+WantedBy=multi-user.target
+```
+Enable and start the service:
+```bash
+sudo systemctl enable wifi-up.service
+sudo systemctl start wifi-up.service
+```
 
-4. Add the following lines at the end of the file:  
-*You can define multiple `network` blocks for multiple Wi-Fi networks*
-    ```bash
-    network={
-        ssid="Your_Wi-Fi_Name"
-        psk="Your_Wi-Fi_Password"
-        key_mgmt=WPA-PSK
-    }
-    ```
-    Replace `Your_Wi-Fi_Name` and `Your_Wi-Fi_Password` with your actual Wi-Fi credentials.
+**Step 2: Configure wpa_supplicant**
+```bash
+sudo nano /etc/wpa_supplicant/wpa_supplicant.conf
+```
+Add network configuration:
+```bash
+network={
+    ssid="Your_Wi-Fi_Name"
+    psk="Your_Wi-Fi_Password"
+    key_mgmt=WPA-PSK
+}
+```
+Replace `Your_Wi-Fi_Name` and `Your_Wi-Fi_Password` with your Wi-Fi details.
 
-4. Ensure `wpa_supplicant` service starts at boot:
-    ```bash
-    sudo systemctl enable wpa_supplicant.service
-    ```
-
-5. Start `wpa_supplicant` service:
-    ```bash
-    sudo systemctl start wpa_supplicant.service
-    ```
+**Step 3: Enable and start wpa_supplicant service**
+```bash
+sudo systemctl enable wpa_supplicant.service
+sudo systemctl start wpa_supplicant.service
+```
 
 Your Raspberry Pi should now connect to the Wi-Fi network automatically on boot. If you face issues, refer to the [official Raspberry Pi documentation on wireless connectivity](https://www.raspberrypi.com/documentation/computers/configuration.html#setting-up-a-wireless-lan-via-the-command-line).
 
