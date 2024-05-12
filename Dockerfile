@@ -58,7 +58,12 @@ RUN pip install --no-cache-dir -r requirements.txt && \
 
 # Setup spotifyd config
 RUN mkdir -p /root/.config/spotifyd && \
-    echo "[global]\nbackend = \"alsa\"\ndevice_name = \"Docker GPT Home\"\nbitrate = 320\ncache_path = \"/root/.spotifyd/cache\"\ndiscovery = false" > /root/.config/spotifyd/spotifyd.conf
+echo "[global]"\
+    "\nbackend = \"alsa\""\
+    "\ndevice_name = \"GPT Home\""\
+    "\nbitrate = 320"\
+    "\ncache_path = \"/root/.spotifyd/cache\""\
+    "\ndiscovery = false" > /root/.config/spotifyd/spotifyd.conf
 
 # Configure Avahi
 RUN sed -i 's/#host-name=.*$/host-name=docker-gpt-home/g' /etc/avahi/avahi-daemon.conf && \
