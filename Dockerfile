@@ -20,13 +20,21 @@ RUN /bin/bash -c "yes | add-apt-repository universe && \
 
 # Install Python via pyenv using bash explicitly
 RUN /bin/bash -c "curl https://pyenv.run | bash && \
-    echo 'export PATH=\"/root/.pyenv/bin:\$PATH\"' >> ~/.bashrc && \
+    echo 'export PYENV_ROOT=\"$HOME/.pyenv\"' >> ~/.bashrc && \
+    echo 'export PATH=\"$PYENV_ROOT/bin:\$PATH\"' >> ~/.bashrc && \
     echo 'eval \"\$(pyenv init --path)\"' >> ~/.bashrc && \
     echo 'eval \"\$(pyenv init -)\"' >> ~/.bashrc"
 
-RUN /bin/bash -lc "pyenv install 3.11 && \
-    pyenv global 3.11 && \
-    pyenv rehash"
+# Ensure pyenv is in the PATH
+ENV PYENV_ROOT /root/.pyenv
+ENV PATH /root/.pyenv/bin:$PATH
+
+# Initialize pyenv and install Python
+RUN /bin/bash -lc "eval \"\$(pyenv init --path)\" && \
+                   eval \"\$(pyenv init -)\" && \
+                   pyenv install 3.11 && \
+                   pyenv global 3.11 && \
+                   pyenv rehash"
 
 RUN apt-get update && apt-get install -y python3-pip python3-dev python-venv
 
