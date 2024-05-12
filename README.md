@@ -69,6 +69,11 @@ Before connecting the battery, ensure that the polarity is correct to avoid dama
 ---
 
 ## 🛠 My Parts List
+This is the list of parts I used to build my first GPT Home. You can use this as a reference for building your own. I've also included optional parts that you can add to enhance your setup. ***To be clear you can use any system that runs Linux.***
+
+<details>
+<summary>👈 View My Parts List</summary>
+<p>
 
 **Core Components**  
 - **Raspberry Pi 4B**: [Link](https://a.co/d/aH6YCXY) - $50-$70
@@ -95,59 +100,111 @@ Before connecting the battery, ensure that the polarity is correct to avoid dama
 
 ---
 
+</p>
+</details>
+
 ## 📶 Configuring Wi-Fi via wpa_supplicant
 
 To configure Wi-Fi on your Raspberry Pi, you'll need to edit the `wpa_supplicant.conf` file and ensure the wireless interface is enabled at boot. This method supports configuring multiple Wi-Fi networks and is suitable for headless setups.
-*You could also use the `raspi-config` or the `nmcli` utility to configure Wi-Fi; or simply use an Ethernet connection if you prefer.*
+*You could also use the [`raspi-config`](https://www.raspberrypi.com/documentation/computers/configuration.html) or the [`nmcli`](https://ubuntu.com/core/docs/networkmanager/configure-wifi-connections) utility to configure Wi-Fi; or simply use an Ethernet connection if you prefer.*
 
-**Step 1: Create a systemd service to enable the Wi-Fi interface at boot**
+<details>
+<summary>👈 View Instructions</summary>
+<p>
+
+**Step 1: Create the Bash Script**  
+
 ```bash
-sudo nano /etc/systemd/system/wifi-up.service
+sudo nano /usr/local/bin/start_wifi.sh
 ```
-Insert the following content:
-```ini
-[Unit]
-Description=Bring up Wi-Fi Interface
-Wants=network.target
-Before=network.target
 
-[Service]
-User=root
-Type=oneshot
-ExecStart=/usr/sbin/ip link set wlan0 up
-ExecStartPost=/sbin/dhcpcd wlan0
-RemainAfterExit=yes
+Add the following content to the script:
 
-[Install]
-WantedBy=multi-user.target
-```
-Enable and start the service:
 ```bash
-sudo systemctl enable wifi-up.service
-sudo systemctl start wifi-up.service
+#!/bin/bash
+
+# Set the interface and SSID details
+INTERFACE="wlan0"
+SSID="your_wifi_ssid"
+PASSWORD="your_wifi_password"
+
+# Ensure the wireless interface is up
+ip link set $INTERFACE up
+
+# Create a wpa_supplicant configuration file
+WPA_CONF="/etc/wpa_supplicant/wpa_supplicant_${INTERFACE}.conf"
+wpa_passphrase $SSID $PASSWORD > $WPA_CONF
+
+# Start wpa_supplicant
+wpa_supplicant -B -i $INTERFACE -c $WPA_CONF
+
+# Obtain an IP address
+dhcpcd $INTERFACE
 ```
 
-**Step 2: Configure wpa_supplicant**
+Make sure to replace `your_wifi_ssid` and `your_wifi_password` with your actual WiFi network's SSID and password.
+
+**Step 2: Make the Script Executable**  
+
 ```bash
-sudo nano /etc/wpa_supplicant/wpa_supplicant.conf
+sudo chmod +x /usr/local/bin/start_wifi.sh
 ```
-Add network configuration:
+
+**Step 3: Execute the Script at Boot**  
+
+To run this script at boot time, you can add it to your `rc.local` file, which is executed by the init system at the end of each multiuser runlevel.
+
+Edit the `rc.local` file:
+
+```bash
+sudo nano /etc/rc.local
+```
+
+Add the following line before the `exit 0` at the end of the file:
+
+```bash
+/usr/local/bin/start_wifi.sh &
+```
+
+Execute the script to start the Wi-Fi connection:
+
+```bash
+sudo /usr/local/bin/start_wifi.sh
+```
+
+Your Raspberry Pi should now connect to the Wi-Fi network automatically on boot.
+
+If you want to connect to hidden networks or multiple networks, edit the `wpa_supplicant.conf` file located at `/etc/wpa_supplicant/wpa_supplicant.conf` and add the following configuration:
+
 ```bash
 network={
+    priority=1 # Higher priority networks are attempted first
     ssid="Your_Wi-Fi_Name"
     psk="Your_Wi-Fi_Password"
     key_mgmt=WPA-PSK
+    scan_ssid=1 # Hidden network
+
+    priority=2
+    ssid="Enterprise_Wi-Fi_Name"
+    key_mgmt=WPA-EAP
+    eap=PEAP # or TTLS, TLS, FAST, LEAP
+    identity="Your_Username"
+    password="Your_Password" 
+    phase1="peaplabel=0" # or "peapver=0" for PEAPv0
+    phase2="auth=MSCHAPV2" # or "auth=MSCHAP" for MSCHAPv1
 }
 ```
-Replace `Your_Wi-Fi_Name` and `Your_Wi-Fi_Password` with your Wi-Fi details.
 
-**Step 3: Enable and start wpa_supplicant service**
+Restart the `wpa_supplicant` service to apply the changes:
+
 ```bash
-sudo systemctl enable wpa_supplicant.service
-sudo systemctl start wpa_supplicant.service
+sudo systemctl restart wpa_supplicant
 ```
 
-Your Raspberry Pi should now connect to the Wi-Fi network automatically on boot. If you face issues, refer to the [official Raspberry Pi documentation on wireless connectivity](https://www.raspberrypi.com/documentation/computers/configuration.html#setting-up-a-wireless-lan-via-the-command-line).
+See the [wpa_supplicant example file](https://w1.fi/cgit/hostap/plain/wpa_supplicant/wpa_supplicant.conf) for more information on the configuration options.
+
+</p>
+</details>
 
 ## 🛠 System Dependencies
 
