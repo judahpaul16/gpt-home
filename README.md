@@ -5,7 +5,7 @@
 ![Python Version](https://img.shields.io/badge/Python-v3.11-blue?style=flat-square&logo=python)
 ![Node.js Version](https://img.shields.io/badge/Node.js-v18.17.1-green?style=flat-square&logo=node.js)
 [![Release](https://img.shields.io/github/v/release/judahpaul16/gpt-home?style=flat-square)](https://github.com/judahpaul16/gpt-home/tags)
-[![Docker Pulls](https://img.shields.io/docker/pulls/judahpaul16/gpt-home?style=flat-square)](https://hub.docker.com/r/judahpaul16/gpt-home)
+[![Docker Pulls](https://img.shields.io/docker/pulls/judahpaul/gpt-home?style=flat-square)](https://hub.docker.com/r/judahpaul/gpt-home)
 
 ChatGPT at home! Basically a better Google Nest Hub or Amazon Alexa home assistant. Built on the Raspberry Pi using the OpenAI API.
 
