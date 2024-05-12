@@ -1,3 +1,7 @@
+FROM rust:latest as rust-builder
+WORKDIR /usr/src/spotifyd
+RUN cargo install spotifyd
+
 FROM ubuntu:24.04
 
 # Set non-interactive installation to avoid tzdata prompt
@@ -43,10 +47,8 @@ RUN apt-get update && apt-get install -y python3-pip python3-dev
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
     apt-get install -y nodejs
 
-# Install Rust and spotifyd
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
-    . $HOME/.cargo/env && \
-    cargo install spotifyd
+# Copy spotifyd binary from rust-builder stage
+COPY --from=rust-builder /usr/local/cargo/bin/spotifyd /usr/local/bin/spotifyd
 
 # Prepare application directory
 WORKDIR /app
