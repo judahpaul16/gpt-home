@@ -39,15 +39,16 @@ This guide will explain how to build your own. It's pretty straight forward. You
 
 ## 🚀 TL;DR
 ```bash
-cd ~
-if ! grep -q "OPENAI_API_KEY" ~/.bashrc; then
-    echo 'export OPENAI_API_KEY="your_openai_api_key"' >> ~/.bashrc
-fi
-source ~/.bashrc
-curl -s https://raw.githubusercontent.com/judahpaul/gpt-home/main/contrib/setup.sh | bash -s -- --no-build
+curl -s https://raw.githubusercontent.com/judahpaul/gpt-home/main/contrib/setup.sh | \
+    bash -s -- --no-build
 docker ps -aq -f name=gpt-home | xargs -r docker rm -f
 docker pull judahpaul/gpt-home
-docker run -d --name gpt-home --device /dev/snd:/dev/snd --privileged -p 8000:8000 judahpaul/gpt-home
+docker run -d --name gpt-home \
+    --device /dev/snd:/dev/snd \
+    --privileged \
+    -p 8000:8000 \
+    -e OPENAI_API_KEY=your_key_here \
+    judahpaul/gpt-home
 ```
 
 ## Schematics / Wiring Diagram
