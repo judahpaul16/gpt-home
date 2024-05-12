@@ -52,7 +52,7 @@ fi
 
 if [[ "$1" != "--no-build" ]]; then
     [ -d ~/gpt-home ] && rm -rf ~/gpt-home
-    git clone https://github.com/judahpaul16/gpt-home ~/
+    git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
     cd ~/gpt-home
     echo "Checking if the container 'gpt-home' is already running..."
     if [ $(docker ps -q -f name=gpt-home) ]; then
