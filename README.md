@@ -361,7 +361,7 @@ alias gpt-start="docker exec -it gpt-home supervisorctl start gpt-home"
 alias gpt-restart="docker exec -it gpt-home supervisorctl restart gpt-home"
 alias gpt-stop="docker exec -it gpt-home supervisorctl stop gpt-home"
 alias gpt-status="docker exec -it gpt-home supervisorctl status gpt-home"
-alias gpt-log="docker exec -it gpt-home tail -n 100 -f /path/to/your/application/logs/events.log"
+alias gpt-log="docker exec -it gpt-home tail -n 100 -f /app/src/events.log"
 
 alias wi-start="docker exec -it gpt-home supervisorctl start web-interface"
 alias wi-restart="docker exec -it gpt-home supervisorctl restart web-interface && sudo systemctl restart nginx"

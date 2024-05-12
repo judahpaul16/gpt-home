@@ -24,25 +24,25 @@ import json
 import os
 import re
 
-ROOT_DIRECTORY = Path(__file__).parent
-PARENT_DIRECTORY = ROOT_DIRECTORY.parent
-ENV_FILE_PATH = ROOT_DIRECTORY / ".env"
+SOURCE_DIR = Path(__file__).parent
+ROOT_DIR = SOURCE_DIR.parent
+ENV_FILE_PATH = SOURCE_DIR / "frontend" / ".env"
 TOKEN_PATH = "spotify_token.json"
-log_file_path = PARENT_DIRECTORY / "events.log"
+log_file_path = SOURCE_DIR / "events.log"
 
 load_dotenv(ENV_FILE_PATH)
 
 app = FastAPI()
 
-app.mount("/static", StaticFiles(directory=ROOT_DIRECTORY / "frontend" / "build" / "static"), name="static")
+app.mount("/static", StaticFiles(directory=SOURCE_DIR / "frontend" / "build" / "static"), name="static")
 
 @app.get("/favicon.ico")
 def read_favicon():
-    return FileResponse(ROOT_DIRECTORY / "frontend" / "build" / "favicon.ico")
+    return FileResponse(SOURCE_DIR / "frontend" / "build" / "favicon.ico")
 
 @app.get("/robot.gif")
 def read_robot():
-    return FileResponse(ROOT_DIRECTORY / "frontend" / "build" / "robot.gif")
+    return FileResponse(SOURCE_DIR / "frontend" / "build" / "robot.gif")
 
 ## React App + API Calls ##
 
@@ -52,7 +52,7 @@ async def read_root(request: Request, path: str):
     if path == 'api/callback':
         return await handle_callback(request)
     else:
-        return FileResponse(ROOT_DIRECTORY / "frontend" / "build" / "index.html")
+        return FileResponse(SOURCE_DIR / "frontend" / "build" / "index.html")
     
 @app.post("/get-local-ip")
 def get_local_ip():
@@ -117,7 +117,7 @@ def clear_logs(request: Request):
 
 @app.post("/settings")
 async def settings(request: Request):
-    settings_path = PARENT_DIRECTORY / "settings.json"
+    settings_path = SOURCE_DIR / "settings.json"
     incoming_data = await request.json()
 
     if 'action' in incoming_data and incoming_data['action'] == 'read':
@@ -190,7 +190,7 @@ async def update_model(request: Request):
         # Check if model is supported
         if model_id in supported_models:
             # Update settings.json
-            settings_path = PARENT_DIRECTORY / "settings.json"
+            settings_path = SOURCE_DIR / "settings.json"
             with settings_path.open("r") as f:
                 settings = json.load(f)
             settings['model'] = model_id
@@ -211,7 +211,7 @@ async def update_model(request: Request):
 
 @app.on_event("startup")
 async def startup_event():
-    password_file_path = PARENT_DIRECTORY / "hashed_password.txt"
+    password_file_path = SOURCE_DIR / "hashed_password.txt"
     if not password_file_path.exists():
         with password_file_path.open("w") as f:
             f.write("")
@@ -234,7 +234,7 @@ async def hash_password_route(request: Request):
 @app.post("/getHashedPassword")
 def get_hashed_password():
     try:
-        password_file_path = PARENT_DIRECTORY / "hashed_password.txt"
+        password_file_path = SOURCE_DIR / "hashed_password.txt"
 
         if password_file_path.exists() and password_file_path.is_file():
             with password_file_path.open("r") as f:
@@ -250,7 +250,7 @@ async def set_hashed_password(request: Request):
     try:
         incoming_data = await request.json()
         new_hashed_password = incoming_data["hashedPassword"]
-        password_file_path = PARENT_DIRECTORY / "hashed_password.txt"
+        password_file_path = SOURCE_DIR / "hashed_password.txt"
 
         with password_file_path.open("w") as f:
             f.write(new_hashed_password)
@@ -264,7 +264,7 @@ async def change_password(request: Request):
         incoming_data = await request.json()
         old_password = incoming_data["oldPassword"]
         new_password = incoming_data["newPassword"]
-        password_file_path = PARENT_DIRECTORY / "hashed_password.txt"
+        password_file_path = SOURCE_DIR / "hashed_password.txt"
         
         if password_file_path.exists() and password_file_path.is_file():
             with password_file_path.open("r") as f:
@@ -333,7 +333,7 @@ async def connect_service(request: Request):
             
             if spotify_username and spotify_password:
                 # Update the spotifyd configuration dynamically
-                config_path = PARENT_DIRECTORY.parent / ".config/spotifyd/spotifyd.conf"
+                config_path = ROOT_DIR.parent / ".config/spotifyd/spotifyd.conf"
                 whoami = subprocess.run(["whoami"], capture_output=True).stdout.decode().strip()
                 with open(config_path, "w") as file:
                     file.write("[global]\n")
