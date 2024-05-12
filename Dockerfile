@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM ubuntu:23.04
 
 # Set non-interactive installation to avoid tzdata prompt
 ENV DEBIAN_FRONTEND=noninteractive
@@ -13,7 +13,8 @@ RUN /bin/bash -c "yes | add-apt-repository universe && \
         build-essential curl git libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
         libsqlite3-dev llvm libncursesw5-dev xz-utils tk-dev \
         libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev libjpeg-dev \
-        portaudio19-dev alsa-utils libasound2-dev i2c-tools python3-smbus \
+        portaudio19-dev alsa-utils libasound2-dev i2c-tools \
+        python3 python3-pip python3-dev python3-smbus \
         jackd2 libogg0 libflac-dev flac libespeak1 cmake openssl expect \
         avahi-daemon avahi-utils nodejs supervisor && \
         rm -rf /var/lib/apt/lists/*"
@@ -31,27 +32,6 @@ RUN mkdir -p /root/.config/spotifyd && \
     "\nbitrate = 320 # Choose bitrate from 96/160/320 kbps" \
     "\ncache_path = \"/root/.spotifyd/cache\"" \
     "\ndiscovery = false" > /root/.config/spotifyd/spotifyd.conf
-
-# Install Python via pyenv using bash explicitly
-RUN /bin/bash -c "curl https://pyenv.run | bash && \
-    echo 'export PYENV_ROOT=\"$HOME/.pyenv\"' >> ~/.bashrc && \
-    echo 'export PATH=\"$PYENV_ROOT/bin:\$PATH\"' >> ~/.bashrc && \
-    echo 'eval \"\$(pyenv init --path)\"' >> ~/.bashrc && \
-    echo 'eval \"\$(pyenv init -)\"' >> ~/.bashrc"
-
-# Ensure pyenv is in the PATH
-ENV PYENV_ROOT /root/.pyenv
-ENV PATH /root/.pyenv/bin:$PATH
-
-# Initialize pyenv and install Python
-RUN /bin/bash -lc "eval \"\$(pyenv init --path)\" && \
-                   eval \"\$(pyenv init -)\" && \
-                   pyenv install 3.11 && \
-                   pyenv global 3.11 && \
-                   pyenv rehash && \
-                   python3 --version"
-
-RUN apt-get update && apt-get install -y python3-pip python3-dev
 
 # Install Node.js
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
