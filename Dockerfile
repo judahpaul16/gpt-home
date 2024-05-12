@@ -14,7 +14,7 @@ RUN /bin/bash -c "yes | add-apt-repository universe && \
         libsqlite3-dev llvm libncursesw5-dev xz-utils tk-dev \
         libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev libjpeg-dev \
         portaudio19-dev alsa-utils libasound2-dev i2c-tools python3-smbus \
-        jackd2 libogg0 libflac libflac-dev flac libespeak1 cmake openssl expect \
+        jackd2 libogg0 libflac-dev flac libespeak1 cmake openssl expect \
         avahi-daemon avahi-utils nodejs supervisor && \
         rm -rf /var/lib/apt/lists/*"
 
