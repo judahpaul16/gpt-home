@@ -176,3 +176,4 @@ sudo systemctl reload nginx
 
 sudo systemctl status nginx
 docker ps -a
+docker exec -it gpt-home supervisorctl status
