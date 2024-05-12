@@ -15,27 +15,63 @@ This guide will explain how to build your own. It's pretty straight forward. You
 
 * *Theoretically, the app should run on any linux system thanks to docker, but I can only vouch for the versions listed in the [compatibility table](#-compatibility). You should be able use any plug-and-play USB/3.5mm speaker or microphone as long as it's supported by [ALSA](https://www.alsa-project.org) or [PortAudio](http://www.portaudio.com/docs/v19-doxydocs/index.html).*
 
-### 🔌 Integrations
+<table align="center">
+
+<tr>
+<td>
+  
 <table>
-  <tr>
-  <td>
+<th colspan="2" style="text-align: center;">📦 Integrations</th>
+<tr>
+<td>
       
 ✅ OpenAI  
 ✅ Spotify  
 ✅ Philips Hue  
 ✅ OpenWeatherMap  
 
-  </td>
-  <td>
+</td>
+<td>
 
 🔲 Open-Meteo  
 🔲 Alarms  
 🔲 Reminders  
 🔲 LiteLLM  
 
-  </td>
-  </tr>
+</td>
+</tr>
 </table>
+
+</td>
+<td>
+    
+<table>
+<th colspan="2" style="text-align: center;">🔧 Use Cases
+<tr>
+<td>
+      
+🌈 Weather  
+🌡️ Temperature  
+🌅 Sunrise/Sunset  
+📅 Calendar  
+
+</td>
+<td>
+
+📚 General Knowledge  
+🎵 Music  
+💡 Lights  
+😆 Fun & Games
+
+</td>
+</tr>
+</table>
+
+</td>
+</tr>
+
+</table>
+
 
 ## 🚀 TL;DR
 ```bash
@@ -51,7 +87,7 @@ docker run -d --name gpt-home \
     judahpaul/gpt-home
 ```
 
-## Schematics / Wiring Diagram
+## 🔌 Schematics / Wiring Diagram
 ### ⚠️ Caution: Battery Connection
 **IMPORTANT**: The image on the left is for illustration purposes. ***Do not connect the battery directly to the Raspberry Pi. Use a UPS or power supply with a battery like this [one](https://a.co/d/1rMMCPR).*** Connecting the battery directly to the Raspberry Pi can cause damage to the board from voltage fluctuations.
 
@@ -128,11 +164,15 @@ INTERFACE="wlan0"
 SSID="your_wifi_ssid"
 PASSWORD="your_wifi_password"
 
+# Make sure no previous configuration interferes
+sudo killall wpa_supplicant
+sudo dhcpcd -x $INTERFACE
+
 # Ensure the wireless interface is up
 ip link set $INTERFACE up
 
 # Create a wpa_supplicant configuration file
-WPA_CONF="/etc/wpa_supplicant/wpa_supplicant_${INTERFACE}.conf"
+WPA_CONF="/etc/wpa_supplicant/wpa_supplicant.conf"
 wpa_passphrase $SSID $PASSWORD > $WPA_CONF
 
 # Start wpa_supplicant
