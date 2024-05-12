@@ -72,8 +72,8 @@ RUN sed -i 's/#host-name=.*$/host-name=docker-gpt-home/g' /etc/avahi/avahi-daemo
 # Supervisord configuration
 RUN echo "[supervisord]\nnodaemon=true\n" \
     "[program:spotifyd]\ncommand=spotifyd --no-daemon\n" \
-    "[program:gpt-home]\ncommand=python app.py\n" \
-    "[program:gpt-web]\ncommand=uvicorn gpt-web.backend:app --host 0.0.0.0 --port 8000\n" > /etc/supervisor/conf.d/supervisord.conf
+    "[program:gpt-home]\ncommand=python src/app.py\n" \
+    "[program:web-interface]\ncommand=uvicorn backend:app --host 0.0.0.0 --port 8000\n" > /etc/supervisor/conf.d/supervisord.conf
 
 # Expose the Uvicorn port
 EXPOSE 8000

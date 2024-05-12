@@ -27,7 +27,7 @@ import os
 import re
 
 # Load .env file
-load_dotenv(dotenv_path='gpt-web/.env')
+load_dotenv(dotenv_path='frontend/.env')
 
 # Add a new 'SUCCESS' logging level
 logging.SUCCESS = 25  # Between INFO and WARNING
