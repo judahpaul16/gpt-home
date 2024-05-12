@@ -87,7 +87,7 @@ docker run -d --name gpt-home \
     judahpaul/gpt-home
 ```
 
-## 🔌 Schematics / Wiring Diagram
+## 🔌 Schematics
 ### ⚠️ Caution: Battery Connection
 **IMPORTANT**: The image on the left is for illustration purposes. ***Do not connect the battery directly to the Raspberry Pi. Use a UPS or power supply with a battery like this [one](https://a.co/d/1rMMCPR).*** Connecting the battery directly to the Raspberry Pi can cause damage to the board from voltage fluctuations.
 
@@ -402,8 +402,8 @@ curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setu
     bash -s
 ```
 
-## 🐚 setup.sh
-Create a script in your ***home*** folder with `vim ~/setup.sh` and paste in the following:
+### 🐚 setup.sh
+If you prefer to run the setup script manually, you can do so. Create a script in your ***home*** folder with `vim ~/setup.sh` or `nano ~/setup.sh` and paste in the following:
 
 <details>
 <summary>👈 View Script</summary>
