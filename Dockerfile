@@ -42,11 +42,11 @@ WORKDIR /app
 COPY . /app
 
 # Install Python and Node dependencies
-RUN pip install --no-cache-dir --break-system-packages -r requirements.txt && \
+RUN pip install --no-cache-dir --break-system-packages -r src/requirements.txt && \
     npm install
 
 # Configure Avahi
-RUN sed -i 's/#host-name=.*$/host-name=docker-gpt-home/g' /etc/avahi/avahi-daemon.conf && \
+RUN sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf && \
     systemctl restart avahi-daemon
 
 # Supervisord configuration
