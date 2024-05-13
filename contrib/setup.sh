@@ -40,15 +40,9 @@ function install() {
     fi
 }
 
-if command -v apt-get >/dev/null ||
-    command -v yum >/dev/null ||
-    command -v dnf >/dev/null ||
-    command -v zypper >/dev/null ||
-    command -v pacman >/dev/null; then
-        install chrony
-        install docker
-        install nginx
-fi
+install chrony
+install docker
+install nginx
 
 if [[ "$1" != "--no-build" ]]; then
     [ -d ~/gpt-home ] && rm -rf ~/gpt-home
@@ -70,7 +64,7 @@ if [[ "$1" != "--no-build" ]]; then
     docker system prune -f
 
     echo "Building Docker image 'gpt-home'..."
-    docker build --build-arg HOST_HOME="/home/$(whoami)" -t gpt-home .
+    docker build -t gpt-home .
 
     if [ $? -ne 0 ]; then
         echo "Docker build failed. Exiting..."
@@ -82,6 +76,7 @@ if [[ "$1" != "--no-build" ]]; then
         --name gpt-home \
         --device /dev/snd:/dev/snd \
         --privileged \
+        --net=host \
         -p 8000:8000 \
         -v ~/gpt-home:/app \
         -e OPENAI_API_KEY=$OPENAI_API_KEY \
@@ -107,10 +102,10 @@ echo "y" | sudo ufw enable
 
 # Setup NGINX for reverse proxy
 echo "Setting up NGINX..."
+sudo mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
 sudo tee /etc/nginx/sites-available/gpt-home <<EOF
 server {
     listen 80;
-
     location / {
         proxy_pass http://127.0.0.1:8000/;
         proxy_set_header Host \$host;
@@ -120,27 +115,16 @@ server {
 }
 EOF
 
-# Remove existing symlink if it exists
+# Remove gpt-home site symlink if it exists
 [ -L "/etc/nginx/sites-enabled/gpt-home" ] && sudo unlink /etc/nginx/sites-enabled/gpt-home
-
-# Symlink the site configuration
-sudo ln -s /etc/nginx/sites-available/gpt-home /etc/nginx/sites-enabled
-
-# Test the NGINX configuration
-sudo nginx -t
 
 # Remove the default site if it exists
 [ -L "/etc/nginx/sites-enabled/default" ] && sudo unlink /etc/nginx/sites-enabled/default
 
-# Reload NGINX to apply changes
+# Create a symlink to the gpt-home site and reload NGINX
+sudo ln -sf /etc/nginx/sites-available/gpt-home /etc/nginx/sites-enabled/gpt-home
 sudo systemctl enable nginx
-sudo systemctl reload nginx
-
-# Setup Avahi for mDNS (https://gpt-home.local)
-install avahi-daemon
-install avahi-utils
-sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf && \
-    systemctl restart avahi-daemon
+sudo nginx -t && sudo systemctl restart nginx
 
 sudo systemctl status nginx
 docker ps -a

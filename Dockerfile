@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y ca-certificates software-properties-com
 # Install necessary packages
 RUN /bin/bash -c "yes | add-apt-repository universe && \
     dpkg --add-architecture armhf && apt-get update && \
-    apt-get install -y --no-install-recommends \
+    apt-get install -y --no-install-recommends avahi-daemon avahi-utils \
         build-essential curl git libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
         libsqlite3-dev llvm libncursesw5-dev xz-utils tk-dev \
         libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev libjpeg-dev \
@@ -25,7 +25,7 @@ RUN wget https://github.com/Spotifyd/spotifyd/releases/latest/download/spotifyd-
 
 # Create Spotifyd configuration (this is just a basic config; adjust accordingly)
 RUN mkdir -p /root/.config/spotifyd && \
-    echo "[global]" \
+    echo -e "[global]" \
     "\nbackend = \"alsa\" # Or pulseaudio if you use it" \
     "\ndevice_name = \"GPT Home\" # Name your device shows in Spotify Connect" \
     "\nbitrate = 320 # Choose bitrate from 96/160/320 kbps" \
@@ -45,8 +45,12 @@ RUN python3 -m venv env && \
     /bin/bash -c "source env/bin/activate && cd src && \
     pip install --no-cache-dir --use-pep517 -r requirements.txt"
 
+# Setup Avahi for mDNS (https://gpt-home.local)
+RUN sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf && \
+    systemctl restart avahi-daemon
+
 # Supervisord configuration
-RUN echo "[supervisord]\nnodaemon=true\n" \
+RUN echo -e "[supervisord]\nnodaemon=true\n" \
     "[program:spotifyd]\ncommand=spotifyd --no-daemon\n" \
     "[program:gpt-home]\ncommand=python src/app.py\n" \
     "[program:web-interface]\ncommand=uvicorn backend:app --host 0.0.0.0 --port 8000\n" > /etc/supervisor/conf.d/supervisord.conf
