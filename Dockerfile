@@ -9,7 +9,8 @@ RUN apt-get update && apt-get install -y ca-certificates software-properties-com
 # Install necessary packages
 RUN /bin/bash -c "yes | add-apt-repository universe && \
     dpkg --add-architecture armhf && apt-get update && \
-    apt-get install -y --no-install-recommends avahi-daemon avahi-utils \
+    apt-get install -y --no-install-recommends \
+        avahi-daemon avahi-utils libnss-mdns dbus \
         build-essential curl git libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
         libsqlite3-dev llvm libncursesw5-dev xz-utils tk-dev \
         libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev libjpeg-dev \
@@ -47,8 +48,10 @@ RUN python3 -m venv /env && \
 
 # Setup Avahi for mDNS (https://gpt-home.local)
 RUN sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf && \
-    echo "AVAHI_DAEMON_DETECT_LOCAL=0" >> /etc/default/avahi-daemon && \
-    echo "AVAHI_DAEMON_START=0" >> /etc/default/avahi-daemon
+    dbus-uuidgen > /var/lib/dbus/machine-id && \
+    mkdir -p /var/run/dbus && \
+    dbus-daemon --system --fork && \
+    avahi-daemon --no-drop-root --daemonize --debug
 
 # Supervisord configuration
 RUN { \
@@ -60,8 +63,6 @@ RUN { \
     echo 'command=/bin/bash -c "source /env/bin/activate && python /app/src/app.py"'; \
     echo '[program:web-interface]'; \
     echo 'command=/bin/bash -c "source /env/bin/activate && uvicorn backend:app --host 0.0.0.0 --port 8000"'; \
-    echo '[program:avahi-daemon]'; \
-    echo 'command=/usr/sbin/avahi-daemon --no-drop-root --daemonize=no --debug'; \
 } > /etc/supervisor/conf.d/supervisord.conf
 
 # Expose the Uvicorn port
