@@ -549,6 +549,9 @@ if [[ "$1" != "--no-build" ]]; then
         --device /dev/snd:/dev/snd \
         --privileged \
         --net=host \
+        -v /dev:/dev \
+        -v /etc/hostname:/etc/hostname \
+        -v /proc/cpuinfo:/proc/cpuinfo \
         -v ~/gpt-home:/app \
         -v /etc/asound.conf:/etc/asound.conf \
         -v /usr/share/alsa:/usr/share/alsa \
