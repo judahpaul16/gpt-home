@@ -24,13 +24,14 @@ RUN wget https://github.com/Spotifyd/spotifyd/releases/latest/download/spotifyd-
     rm spotifyd-linux-armhf-default.tar.gz
 
 # Create Spotifyd configuration (this is just a basic config; adjust accordingly)
-RUN mkdir -p /root/.config/spotifyd && echo -e \
-"[global]\
-\nbackend = \"alsa\" # Or pulseaudio if you use it \
-\ndevice_name = \"GPT Home\" # Name your device shows in Spotify Connect \
-\nbitrate = 320 # Choose bitrate from 96/160/320 kbps \
-\ncache_path = \"/root/.spotifyd/cache\" \
-\ndiscovery = false" > /root/.config/spotifyd/spotifyd.conf
+RUN mkdir -p /root/.config/spotifyd && { \
+    echo '[global]'; \
+    echo 'backend = "alsa" # Or pulseaudio if you use it'; \
+    echo 'device_name = "GPT Home" # Name your device shows in Spotify Connect'; \
+    echo 'bitrate = 320 # Choose bitrate from 96/160/320 kbps'; \
+    echo 'cache_path = "/root/.spotifyd/cache"'; \
+    echo 'discovery = false'; \
+} > /root/.config/spotifyd/spotifyd.conf
 
 # Install Node.js
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
@@ -50,11 +51,18 @@ RUN sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf 
     echo "AVAHI_DAEMON_START=0" >> /etc/default/avahi-daemon
 
 # Supervisord configuration
-RUN echo -e "[supervisord]\nnodaemon=true\n\
-[program:spotifyd]\ncommand=spotifyd --no-daemon\n\
-[program:gpt-home]\ncommand=/app/env/python /app/src/app.py\n\
-[program:web-interface]\ncommand=uvicorn backend:app --host 0.0.0.0 --port 8000\n\
-[program:avahi-daemon]\ncommand=/usr/sbin/avahi-daemon --no-drop-root --daemonize=no --debug\n" > /etc/supervisor/conf.d/supervisord.conf
+RUN { \
+    echo '[supervisord]'; \
+    echo 'nodaemon=true'; \
+    echo '[program:spotifyd]'; \
+    echo 'command=spotifyd --no-daemon'; \
+    echo '[program:gpt-home]'; \
+    echo 'command=/app/env/bin/python /app/src/app.py'; \
+    echo '[program:web-interface]'; \
+    echo 'command=uvicorn backend:app --host 0.0.0.0 --port 8000'; \
+    echo '[program:avahi-daemon]'; \
+    echo 'command=/usr/sbin/avahi-daemon --no-drop-root --daemonize=no --debug'; \
+} > /etc/supervisor/conf.d/supervisord.conf
 
 # Expose the Uvicorn port
 EXPOSE 8000
