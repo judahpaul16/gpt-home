@@ -40,13 +40,11 @@ RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
 WORKDIR /app
 COPY . /app
 
-# Create a virtual environment
-RUN python3 -m venv env
-RUN . env/bin/activate
-
-# Install Python and Node dependencies
-RUN pip install --no-cache-dir --break-system-packages -r src/requirements.txt && \
-    npm install
+# Create virtual environment and install dependencies
+RUN python3 -m venv env && \
+    /bin/bash -c "source env/bin/activate && \
+    pip install --no-cache-dir -r src/requirements.txt && \
+    npm install"
 
 # Supervisord configuration
 RUN echo "[supervisord]\nnodaemon=true\n" \
