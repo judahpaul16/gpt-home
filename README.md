@@ -533,7 +533,6 @@ if [[ "$1" != "--no-build" ]]; then
         --device /dev/snd:/dev/snd \
         --privileged \
         --net=host \
-        -p 8000:8000 \
         -v ~/gpt-home:/app \
         -e OPENAI_API_KEY=$OPENAI_API_KEY \
         gpt-home
