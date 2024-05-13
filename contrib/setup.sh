@@ -43,6 +43,7 @@ function install() {
 install chrony
 install docker
 install nginx
+install alsa-utils
 
 # Setup UFW Firewall
 echo "Setting up UFW Firewall..."
@@ -130,6 +131,8 @@ if [[ "$1" != "--no-build" ]]; then
         --privileged \
         --net=host \
         -v ~/gpt-home:/app \
+        -v /etc/asound.conf:/etc/asound.conf \
+        -v /usr/share/alsa:/usr/share/alsa \
         -e OPENAI_API_KEY=$OPENAI_API_KEY \
         gpt-home
 

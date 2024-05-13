@@ -1,4 +1,4 @@
-from src.functions import *
+from functions import *
 
 async def main():
     state_task = None

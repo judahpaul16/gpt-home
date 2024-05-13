@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y ca-certificates software-properties-com
 RUN /bin/bash -c "yes | add-apt-repository universe && \
     dpkg --add-architecture armhf && apt-get update && \
     apt-get install -y --no-install-recommends \
-        avahi-daemon avahi-utils libnss-mdns dbus \
+        avahi-daemon avahi-utils libnss-mdns dbus iputils-ping \
         build-essential curl git libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
         libsqlite3-dev llvm libncursesw5-dev xz-utils tk-dev \
         libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev libjpeg-dev \
