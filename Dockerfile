@@ -3,13 +3,11 @@ FROM ubuntu:23.04
 # Set non-interactive installation to avoid tzdata prompt
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install CA certificates first to handle SSL/TLS downloads properly
-RUN apt-get update && apt-get install -y ca-certificates software-properties-common wget tar
-
 # Install necessary packages
 RUN /bin/bash -c "yes | add-apt-repository universe && \
     dpkg --add-architecture armhf && apt-get update && \
     apt-get install -y --no-install-recommends avahi-daemon avahi-utils \
+        ca-certificates software-properties-common wget tar \
         build-essential curl git libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
         libsqlite3-dev llvm libncursesw5-dev xz-utils tk-dev \
         libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev libjpeg-dev \
@@ -42,21 +40,22 @@ COPY . /app
 
 # Create virtual environment and install dependencies
 RUN python3 -m venv env && \
-    /bin/bash -c "source env/bin/activate && cd src && \
-    pip install --no-cache-dir --use-pep517 -r requirements.txt"
+    env/bin/pip install --no-cache-dir --use-pep517 -r requirements.txt
 
 # Setup Avahi for mDNS (https://gpt-home.local)
 RUN sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf && \
-    systemctl restart avahi-daemon
+    echo "AVAHI_DAEMON_DETECT_LOCAL=0" >> /etc/default/avahi-daemon && \
+    echo "AVAHI_DAEMON_START=0" >> /etc/default/avahi-daemon
 
 # Supervisord configuration
 RUN echo -e "[supervisord]\nnodaemon=true\n" \
     "[program:spotifyd]\ncommand=spotifyd --no-daemon\n" \
     "[program:gpt-home]\ncommand=python src/app.py\n" \
-    "[program:web-interface]\ncommand=uvicorn backend:app --host 0.0.0.0 --port 8000\n" > /etc/supervisor/conf.d/supervisord.conf
+    "[program:web-interface]\ncommand=uvicorn backend:app --host 0.0.0.0 --port 8000\n" \
+    "[program:avahi-daemon]\ncommand=/usr/sbin/avahi-daemon --no-drop-root --daemonize=no --debug\n" > /etc/supervisor/conf.d/supervisord.conf
 
 # Expose the Uvicorn port
 EXPOSE 8000
 
 # Start all processes
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+ENTRYPOINT ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
