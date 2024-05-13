@@ -416,7 +416,7 @@ If you prefer to run the setup script manually, you can do so. Create a script i
 # Install system dependencies
 function install() {
     local package=$1
-    echo " Ensuring package '$package' is installed..."
+    echo "Ensuring package '$package' is installed..."
 
     # Detect the package management system
     if command -v apt-get >/dev/null; then
@@ -456,6 +456,13 @@ function install() {
 install chrony
 install docker
 install nginx
+install alsa-utils
+
+# Install Docker Buildx
+echo "Installing Docker Buildx..."
+mkdir -p ~/.docker/cli-plugins/
+curl -SL https://github.com/docker/buildx/releases/download/v0.10.4/buildx-v0.10.4.linux-arm-v7 -o ~/.docker/cli-plugins/docker-buildx
+chmod +x ~/.docker/cli-plugins/docker-buildx
 
 # Setup UFW Firewall
 echo "Setting up UFW Firewall..."
