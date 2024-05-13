@@ -598,8 +598,8 @@ chmod +x setup.sh
         <tr><td>Ubuntu 22.04</td><td>✅</td></tr>
         <tr><td>Ubuntu 23.04</td><td>✅</td></tr>
         <tr><td>Ubuntu 24.04</td><td>✅</td></tr>
-        <tr><td>Raspbian Buster</td><td>✅</td></tr>
-        <tr><td>Raspbian Bullseye</td><td>✅</td></tr>
+        <tr><td>Debian Buster</td><td>✅</td></tr>
+        <tr><td>Debian Bullseye</td><td>✅</td></tr>
         <tr><td>Alma Linux 8</td><td>✅</td></tr>
         <tr><td>Alma Linux 9</td><td>✅</td></tr>
     </table>
