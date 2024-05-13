@@ -4,14 +4,7 @@ from dotenv.main import set_key
 import speech_recognition as sr
 from asyncio import create_task
 from dotenv import load_dotenv
-try:
-    from board import SCL, SDA
-except NotImplementedError:
-    print("Board not detected. Using default I2C pins.")
-    SCL = 3  # Replace with correct pin number for SCL
-    SDA = 2  # Replace with correct pin number for SDA
 from phue import Bridge
-import adafruit_ssd1306
 import subprocess
 import traceback
 import datetime
@@ -46,6 +39,17 @@ logging.Logger.success = success
 
 logging.basicConfig(filename='events.log', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+try:
+    from board import SCL, SDA
+except NotImplementedError:
+    logger.debug("Board not detected. Using default I2C pins.")
+    SCL = 3  # Replace with correct pin number for SCL
+    SDA = 2  # Replace with correct pin number for SDA
+try:
+    import adafruit_ssd1306
+except AttributeError:
+    logger.debug("Board not detected. Skipping `adafruit_ssd1306` import.")
 
 # Initialize the speech recognition engine
 r = sr.Recognizer()
@@ -118,7 +122,8 @@ def initLCD():
         # Show the updated display with the text.
         display.show()
         return display
-    except ValueError:
+    except Exception as e:
+        logger.debug(f"Failed to initialize display, skipping...\nError: {e}\n{traceback.format_exc()}")
         return None
 
 async def initialize_system():

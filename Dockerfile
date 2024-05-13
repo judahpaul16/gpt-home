@@ -19,6 +19,14 @@ RUN /bin/bash -c "yes | add-apt-repository universe && \
         jackd2 libogg0 libflac-dev flac libespeak1 cmake openssl expect \
         nodejs supervisor && rm -rf /var/lib/apt/lists/*"
 
+# Add ALSA configuration
+RUN echo 'pcm.!default { type hw card 0 }' > /etc/asound.conf && \
+    echo 'ctl.!default { type hw card 0 }' >> /etc/asound.conf
+
+# Start with JACK server
+RUN echo '/usr/bin/jackd -r -d alsa -d hw:0 -r 44100 -p 1024 -n 3' > /usr/local/bin/start_jack.sh && \
+    chmod +x /usr/local/bin/start_jack.sh
+
 # Download and setup spotifyd binary from latest GitHub release
 RUN wget https://github.com/Spotifyd/spotifyd/releases/latest/download/spotifyd-linux-armhf-default.tar.gz && \
     tar xzf spotifyd-linux-armhf-default.tar.gz -C /usr/local/bin && \
@@ -62,7 +70,9 @@ RUN { \
     echo '[program:gpt-home]'; \
     echo 'command=/bin/bash -c "source /env/bin/activate && python /app/src/app.py"'; \
     echo '[program:web-interface]'; \
-    echo 'command=/bin/bash -c "source /env/bin/activate && uvicorn src.backend:app --host 0.0.0.0 --port 8000"'; \
+    echo 'command=/bin/bash -c "source /env/bin/activate && cd /app/src && uvicorn backend:app --host 0.0.0.0 --port 8000"'; \
+    echo '[program:jack]'; \
+    echo 'command=/usr/local/bin/start_jack.sh'; \
 } > /etc/supervisor/conf.d/supervisord.conf
 
 # Expose the Uvicorn port

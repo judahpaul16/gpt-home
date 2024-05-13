@@ -137,8 +137,10 @@ if [[ "$1" != "--no-build" ]]; then
         --privileged \
         --net=host \
         -v ~/gpt-home:/app \
+        -v /dev/shm:/dev/shm \
         -v /etc/asound.conf:/etc/asound.conf \
         -v /usr/share/alsa:/usr/share/alsa \
+        -v /var/run/dbus:/var/run/dbus \
         -e OPENAI_API_KEY=$OPENAI_API_KEY \
         gpt-home
 
