@@ -4,7 +4,12 @@ from dotenv.main import set_key
 import speech_recognition as sr
 from asyncio import create_task
 from dotenv import load_dotenv
-from board import SCL, SDA
+try:
+    from board import SCL, SDA
+except NotImplementedError:
+    print("Board not detected. Using default I2C pins.")
+    SCL = 3  # Replace with correct pin number for SCL
+    SDA = 2  # Replace with correct pin number for SDA
 from phue import Bridge
 import adafruit_ssd1306
 import subprocess
