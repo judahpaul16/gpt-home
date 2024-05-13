@@ -16,8 +16,7 @@ RUN /bin/bash -c "yes | add-apt-repository universe && \
         portaudio19-dev alsa-utils libasound2-dev i2c-tools \
         python3 python3-pip python3-dev python3-smbus python3-venv \
         jackd2 libogg0 libflac-dev flac libespeak1 cmake openssl expect \
-        avahi-daemon avahi-utils nodejs supervisor && \
-        rm -rf /var/lib/apt/lists/*"
+        nodejs supervisor && rm -rf /var/lib/apt/lists/*"
 
 # Download and setup spotifyd binary from latest GitHub release
 RUN wget https://github.com/Spotifyd/spotifyd/releases/latest/download/spotifyd-linux-armhf-default.tar.gz && \

@@ -137,6 +137,8 @@ sudo systemctl enable nginx
 sudo systemctl reload nginx
 
 # Setup Avahi for mDNS (https://gpt-home.local)
+install avahi-daemon
+install avahi-utils
 sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf && \
     systemctl restart avahi-daemon
 
