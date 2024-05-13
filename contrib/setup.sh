@@ -136,6 +136,10 @@ sudo nginx -t
 sudo systemctl enable nginx
 sudo systemctl reload nginx
 
+# Setup Avahi for mDNS (https://gpt-home.local)
+sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf && \
+    systemctl restart avahi-daemon
+
 sudo systemctl status nginx
 docker ps -a
 docker exec -it gpt-home supervisorctl status

@@ -14,7 +14,7 @@ RUN /bin/bash -c "yes | add-apt-repository universe && \
         libsqlite3-dev llvm libncursesw5-dev xz-utils tk-dev \
         libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev libjpeg-dev \
         portaudio19-dev alsa-utils libasound2-dev i2c-tools \
-        python3 python3-pip python3-dev python3-smbus \
+        python3 python3-pip python3-dev python3-smbus python3-venv \
         jackd2 libogg0 libflac-dev flac libespeak1 cmake openssl expect \
         avahi-daemon avahi-utils nodejs supervisor && \
         rm -rf /var/lib/apt/lists/*"
@@ -41,13 +41,13 @@ RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
 WORKDIR /app
 COPY . /app
 
+# Create a virtual environment
+RUN python3 -m venv env
+RUN . env/bin/activate
+
 # Install Python and Node dependencies
 RUN pip install --no-cache-dir --break-system-packages -r src/requirements.txt && \
     npm install
-
-# Configure Avahi
-RUN sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf && \
-    systemctl restart avahi-daemon
 
 # Supervisord configuration
 RUN echo "[supervisord]\nnodaemon=true\n" \
