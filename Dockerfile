@@ -42,9 +42,9 @@ COPY . /app
 
 # Create virtual environment and install dependencies
 RUN python3 -m venv env && \
-    /bin/bash -c "source env/bin/activate && \
-    pip install --no-cache-dir -r src/requirements.txt && \
-    npm install"
+    /bin/bash -c "source env/bin/activate && cd src && \
+    pip install --no-cache-dir --use-pep517 -r requirements.txt && \
+    cd frontend && npm install"
 
 # Supervisord configuration
 RUN echo "[supervisord]\nnodaemon=true\n" \
