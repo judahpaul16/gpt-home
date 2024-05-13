@@ -537,7 +537,7 @@ if [[ "$1" != "--no-build" ]]; then
     echo "Container 'gpt-home' is now ready to run."
 
     echo "Running container 'gpt-home' from image 'gpt-home'..."
-    docker run -it \
+    docker run -d \
         --name gpt-home \
         --device /dev/snd:/dev/snd \
         --privileged \
@@ -547,7 +547,7 @@ if [[ "$1" != "--no-build" ]]; then
         -v /usr/share/alsa:/usr/share/alsa \
         -e OPENAI_API_KEY=$OPENAI_API_KEY \
         gpt-home
-        
+
     echo "Container 'gpt-home' is now running."
 fi
 ```
