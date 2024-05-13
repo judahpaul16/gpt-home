@@ -3,11 +3,13 @@ FROM ubuntu:23.04
 # Set non-interactive installation to avoid tzdata prompt
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Install CA certificates first to handle SSL/TLS downloads properly
+RUN apt-get update && apt-get install -y ca-certificates software-properties-common wget tar
+
 # Install necessary packages
 RUN /bin/bash -c "yes | add-apt-repository universe && \
     dpkg --add-architecture armhf && apt-get update && \
     apt-get install -y --no-install-recommends avahi-daemon avahi-utils \
-        ca-certificates software-properties-common wget tar \
         build-essential curl git libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
         libsqlite3-dev llvm libncursesw5-dev xz-utils tk-dev \
         libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev libjpeg-dev \
@@ -40,7 +42,7 @@ COPY . /app
 
 # Create virtual environment and install dependencies
 RUN python3 -m venv env && \
-    env/bin/pip install --no-cache-dir --use-pep517 -r requirements.txt
+    env/bin/pip install --no-cache-dir --use-pep517 -r src/requirements.txt
 
 # Setup Avahi for mDNS (https://gpt-home.local)
 RUN sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf && \
@@ -50,7 +52,7 @@ RUN sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf 
 # Supervisord configuration
 RUN echo -e "[supervisord]\nnodaemon=true\n" \
     "[program:spotifyd]\ncommand=spotifyd --no-daemon\n" \
-    "[program:gpt-home]\ncommand=python src/app.py\n" \
+    "[program:gpt-home]\ncommand=/app/env/python /app/src/app.py\n" \
     "[program:web-interface]\ncommand=uvicorn backend:app --host 0.0.0.0 --port 8000\n" \
     "[program:avahi-daemon]\ncommand=/usr/sbin/avahi-daemon --no-drop-root --daemonize=no --debug\n" > /etc/supervisor/conf.d/supervisord.conf
 
