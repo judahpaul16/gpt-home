@@ -122,7 +122,7 @@ EOF
 [ -L "/etc/nginx/sites-enabled/default" ] && sudo unlink /etc/nginx/sites-enabled/default
 
 # Create a symlink to the gpt-home site and reload NGINX
-sudo ln -sf /etc/nginx/sites-available/gpt-home /etc/nginx/sites-enabled/gpt-home
+sudo ln -s /etc/nginx/sites-available/gpt-home /etc/nginx/sites-enabled
 sudo systemctl enable nginx
 sudo nginx -t && sudo systemctl restart nginx
 
