@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from spotipy.oauth2 import SpotifyClientCredentials
 from fastapi.exceptions import HTTPException
 from datetime import datetime, timedelta
-from functions import logger
+from src.functions import logger
 from typing import Optional
 import spotipy.util as util
 from pathlib import Path

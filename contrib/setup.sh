@@ -106,13 +106,22 @@ if [[ "$1" != "--no-build" ]]; then
     echo "Pruning Docker system..."
     docker system prune -f
 
-    echo "Building Docker image 'gpt-home'..."
-    docker build -t gpt-home .
+    # Check if the buildx builder exists, if not create and use it
+    if ! docker buildx ls | grep -q mybuilder; then
+        docker buildx create --name mybuilder --use
+        docker buildx inspect --bootstrap
+    fi
+
+    # Building Docker image 'gpt-home' for ARMhf architecture
+    echo "Building Docker image 'gpt-home' for ARMhf..."
+    docker buildx build --platform linux/arm/v7 -t gpt-home . --load
 
     if [ $? -ne 0 ]; then
         echo "Docker build failed. Exiting..."
         exit 1
     fi
+
+    echo "Container 'gpt-home' is now ready to run."
 
     echo "Running container 'gpt-home' from image 'gpt-home'..."
     docker run -it \

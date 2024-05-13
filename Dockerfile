@@ -58,11 +58,11 @@ RUN { \
     echo '[supervisord]'; \
     echo 'nodaemon=true'; \
     echo '[program:spotifyd]'; \
-    echo 'command=spotifyd --no-daemon'; \
+    echo 'command=/usr/local/bin/spotifyd --no-daemon'; \
     echo '[program:gpt-home]'; \
     echo 'command=/bin/bash -c "source /env/bin/activate && python /app/src/app.py"'; \
     echo '[program:web-interface]'; \
-    echo 'command=/bin/bash -c "source /env/bin/activate && uvicorn backend:app --host 0.0.0.0 --port 8000"'; \
+    echo 'command=/bin/bash -c "source /env/bin/activate && uvicorn src.backend:app --host 0.0.0.0 --port 8000"'; \
 } > /etc/supervisor/conf.d/supervisord.conf
 
 # Expose the Uvicorn port
