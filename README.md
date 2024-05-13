@@ -457,47 +457,6 @@ install chrony
 install docker
 install nginx
 
-if [[ "$1" != "--no-build" ]]; then
-    [ -d ~/gpt-home ] && rm -rf ~/gpt-home
-    git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
-    cd ~/gpt-home
-    echo "Checking if the container 'gpt-home' is already running..."
-    if [ $(docker ps -q -f name=gpt-home) ]; then
-        echo "Stopping running container 'gpt-home'..."
-        docker stop gpt-home
-    fi
-
-    echo "Checking for existing container 'gpt-home'..."
-    if [ $(docker ps -aq -f status=exited -f name=gpt-home) ]; then
-        echo "Removing existing container 'gpt-home'..."
-        docker rm -f gpt-home
-    fi
-
-    echo "Pruning Docker system..."
-    docker system prune -f
-
-    echo "Building Docker image 'gpt-home'..."
-    docker build -t gpt-home .
-
-    if [ $? -ne 0 ]; then
-        echo "Docker build failed. Exiting..."
-        exit 1
-    fi
-
-    echo "Running container 'gpt-home' from image 'gpt-home'..."
-    docker run -d \
-        --name gpt-home \
-        --device /dev/snd:/dev/snd \
-        --privileged \
-        --net=host \
-        -p 8000:8000 \
-        -v ~/gpt-home:/app \
-        -e OPENAI_API_KEY=$OPENAI_API_KEY \
-        gpt-home
-
-    echo "Container 'gpt-home' is now running."
-fi
-
 # Setup UFW Firewall
 echo "Setting up UFW Firewall..."
 if which firewalld >/dev/null; then
@@ -540,8 +499,47 @@ sudo systemctl enable nginx
 sudo nginx -t && sudo systemctl restart nginx
 
 sudo systemctl status nginx
-docker ps -a
-docker exec -it gpt-home supervisorctl status
+
+if [[ "$1" != "--no-build" ]]; then
+    [ -d ~/gpt-home ] && rm -rf ~/gpt-home
+    git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
+    cd ~/gpt-home
+    echo "Checking if the container 'gpt-home' is already running..."
+    if [ $(docker ps -q -f name=gpt-home) ]; then
+        echo "Stopping running container 'gpt-home'..."
+        docker stop gpt-home
+    fi
+
+    echo "Checking for existing container 'gpt-home'..."
+    if [ $(docker ps -aq -f status=exited -f name=gpt-home) ]; then
+        echo "Removing existing container 'gpt-home'..."
+        docker rm -f gpt-home
+    fi
+
+    echo "Pruning Docker system..."
+    docker system prune -f
+
+    echo "Building Docker image 'gpt-home'..."
+    docker build -t gpt-home .
+
+    if [ $? -ne 0 ]; then
+        echo "Docker build failed. Exiting..."
+        exit 1
+    fi
+
+    echo "Running container 'gpt-home' from image 'gpt-home'..."
+    docker run -d \
+        --name gpt-home \
+        --device /dev/snd:/dev/snd \
+        --privileged \
+        --net=host \
+        -p 8000:8000 \
+        -v ~/gpt-home:/app \
+        -e OPENAI_API_KEY=$OPENAI_API_KEY \
+        gpt-home
+
+    echo "Container 'gpt-home' is now running."
+fi
 ```
 
 </p>
