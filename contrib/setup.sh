@@ -179,5 +179,7 @@ fi
 # Show status of the container
 docker ps -a | grep gpt-home
 
+sleep 5
+
 # Show status of all programs managed by Supervisor
 docker exec -it gpt-home supervisorctl status

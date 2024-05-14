@@ -72,8 +72,8 @@ RUN mkdir -p /etc/supervisor/conf.d && { \
     echo ''; \
     echo '[program:spotifyd]'; \
     echo 'command=/usr/local/bin/spotifyd --no-daemon'; \
-    echo 'stdout_logfile=/dev/fd/1'; \
-    echo 'stdout_logfile_maxbytes=0'; \
+    echo 'stdout_logfile=/var/log/spotifyd.log'; \
+    echo 'stdout_logfile_maxbytes=1MB'; \
     echo 'redirect_stderr=true'; \
     echo ''; \
     echo '[program:app]'; \
