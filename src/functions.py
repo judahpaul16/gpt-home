@@ -4,6 +4,7 @@ from dotenv.main import set_key
 import speech_recognition as sr
 from asyncio import create_task
 from dotenv import load_dotenv
+from pathlib import Path
 from phue import Bridge
 import subprocess
 import traceback
@@ -23,6 +24,8 @@ import json
 import time
 import os
 import re
+
+SOURCE_DIR = Path(__file__).parent
 
 # Load .env file
 load_dotenv(dotenv_path='frontend/.env')
@@ -138,7 +141,7 @@ async def initialize_system():
     return display
 
 def load_settings():
-    settings_path = "settings.json"
+    settings_path = SOURCE_DIR / "settings.json"
     with open(settings_path, "r") as f:
         settings = json.load(f)
         return settings
