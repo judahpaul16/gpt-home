@@ -454,9 +454,13 @@ function install() {
     # Detect the package management system
     if command -v apt-get >/dev/null; then
         if ! dpkg -s "$package" >/dev/null 2>&1; then
-            sudo add-apt-repository universe >/dev/null 2>&1 || true
+            sudo yes | add-apt-repository universe >/dev/null 2>&1 || true
             sudo apt update || true
-            sudo apt install -y "$package"
+            if [ "$package" == "docker" ]; then
+                sudo apt install -y docker.io
+            else
+                sudo apt install -y "$package"
+            fi
         fi
     elif command -v yum >/dev/null; then
         if ! rpm -q "$package" >/dev/null 2>&1; then
