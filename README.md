@@ -79,7 +79,7 @@ curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setu
     bash -s -- --no-build
 docker ps -aq -f name=gpt-home | xargs -r docker rm -f
 docker pull judahpaul/gpt-home
-docker run -d --name gpt-home -p 8000:8000 \
+docker run -d --name gpt-home \
     --privileged \
     --net=host \
     --tmpfs /run \
@@ -396,7 +396,7 @@ curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setu
     bash -s -- --no-build
 docker ps -aq -f name=gpt-home | xargs -r docker rm -f
 docker pull judahpaul/gpt-home
-docker run -d --name gpt-home -p 8000:8000 \
+docker run -d --name gpt-home \
     --privileged \
     --net=host \
     --tmpfs /run \
@@ -587,7 +587,7 @@ if [[ "$1" != "--no-build" ]]; then
     echo "Container 'gpt-home' is now ready to run."
 
     echo "Running container 'gpt-home' from image 'gpt-home'..."
-    docker run -d --name gpt-home -p 8000:8000 \
+    docker run -d --name gpt-home \
         --privileged \
         --net=host \
         --tmpfs /run \
