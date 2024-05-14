@@ -47,11 +47,11 @@ logger = logging.getLogger(__name__)
 try:
     from board import SCL, SDA
 except Exception:
-    logger.debug("Board not detected. Skipping... \nError: {e}\n{traceback.format_exc()}")
+    logger.debug("Board not detected. Skipping... \n    Reason: {e}\n{traceback.format_exc()}")
 try:
     import adafruit_ssd1306
 except Exception as e:
-    logger.debug(f"Failed to import adafruit_ssd1306. Skipping...\nError: {e}\n{traceback.format_exc()}")
+    logger.debug(f"Failed to import adafruit_ssd1306. Skipping...\n    Reason: {e}\n{traceback.format_exc()}")
 
 # Initialize the speech recognition engine
 r = sr.Recognizer()
