@@ -80,8 +80,9 @@ curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setu
 docker ps -aq -f name=gpt-home | xargs -r docker rm -f
 docker pull judahpaul/gpt-home
 docker run -d --name gpt-home \
-    --device /dev/snd:/dev/snd \
     --privileged \
+    -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
+    -v /dev/snd:/dev/snd \
     -v /dev/shm:/dev/shm \
     -v /etc/asound.conf:/etc/asound.conf \
     -v /usr/share/alsa:/usr/share/alsa \
@@ -361,26 +362,26 @@ Alternatively, you can put this at the end of your `~/.bashrc` file. (recommende
 export OPENAI_API_KEY="your_openai_api_key_here"
 
 # Optional: Add these aliases to your .bashrc file for easier management
-alias gpt-start="docker exec -it gpt-home supervisorctl start gpt-home"
-alias gpt-restart="docker exec -it gpt-home supervisorctl restart gpt-home"
-alias gpt-stop="docker exec -it gpt-home supervisorctl stop gpt-home"
-alias gpt-status="docker exec -it gpt-home supervisorctl status gpt-home"
+alias gpt-start="docker exec -it gpt-home systemctl start gpt-home"
+alias gpt-restart="docker exec -it gpt-home systemctl restart gpt-home"
+alias gpt-stop="docker exec -it gpt-home systemctl stop gpt-home"
+alias gpt-status="docker exec -it gpt-home systemctl status gpt-home"
 alias gpt-log="docker exec -it gpt-home tail -n 100 -f /app/src/events.log"
 
-alias wi-start="docker exec -it gpt-home supervisorctl start web-interface"
-alias wi-restart="docker exec -it gpt-home supervisorctl restart web-interface && sudo systemctl restart nginx"
-alias wi-stop="docker exec -it gpt-home supervisorctl stop web-interface"
-alias wi-status="docker exec -it gpt-home supervisorctl status web-interface"
+alias wi-start="docker exec -it gpt-home systemctl start web-interface"
+alias wi-restart="docker exec -it gpt-home systemctl restart web-interface && sudo systemctl restart nginx"
+alias wi-stop="docker exec -it gpt-home systemctl stop web-interface"
+alias wi-status="docker exec -it gpt-home systemctl status web-interface"
 alias wi-build="docker exec -it gpt-home cd /app/src/frontend && npm run build"
 alias wi-log="tail -n 100 -f /var/log/nginx/access.log"
 alias wi-error="tail -n 100 -f /var/log/nginx/error.log"
 
-alias spotifyd-start="docker exec -it gpt-home supervisorctl start spotifyd"
-alias spotifyd-restart="docker exec -it gpt-home supervisorctl restart spotifyd"
-alias spotifyd-stop="docker exec -it gpt-home supervisorctl stop spotifyd"
-alias spotifyd-disable="docker exec -it gpt-home supervisorctl disable spotifyd"
-alias spotifyd-status="docker exec -it gpt-home supervisorctl status spotifyd"
-alias spotifyd-enable="docker exec -it gpt-home supervisorctl enable spotifyd"
+alias spotifyd-start="docker exec -it gpt-home systemctl start spotifyd"
+alias spotifyd-restart="docker exec -it gpt-home systemctl restart spotifyd"
+alias spotifyd-stop="docker exec -it gpt-home systemctl stop spotifyd"
+alias spotifyd-disable="docker exec -it gpt-home systemctl disable spotifyd"
+alias spotifyd-status="docker exec -it gpt-home systemctl status spotifyd"
+alias spotifyd-enable="docker exec -it gpt-home systemctl enable spotifyd"
 alias spotifyd-log="docker exec -it gpt-home tail -n 100 -f /var/log/spotifyd.log"
 ```
 Run `source ~/.bashrc` to apply the changes to your current terminal session.
@@ -393,8 +394,13 @@ curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setu
 docker ps -aq -f name=gpt-home | xargs -r docker rm -f
 docker pull judahpaul/gpt-home
 docker run -d --name gpt-home \
-    --device /dev/snd:/dev/snd \
     --privileged \
+    -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
+    -v /dev/snd:/dev/snd \
+    -v /dev/shm:/dev/shm \
+    -v /etc/asound.conf:/etc/asound.conf \
+    -v /usr/share/alsa:/usr/share/alsa \
+    -v /var/run/dbus:/var/run/dbus \
     -p 8000:8000 \
     -e OPENAI_API_KEY=your_key_here \
     judahpaul/gpt-home
@@ -550,10 +556,11 @@ if [[ "$1" != "--no-build" ]]; then
     echo "Running container 'gpt-home' from image 'gpt-home'..."
     docker run -d \
         --name gpt-home \
-        --device /dev/snd:/dev/snd \
         --privileged \
         --net=host \
         -v ~/gpt-home:/app \
+        -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
+        -v /dev/snd:/dev/snd \
         -v /dev/shm:/dev/shm \
         -v /etc/asound.conf:/etc/asound.conf \
         -v /usr/share/alsa:/usr/share/alsa \

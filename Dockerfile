@@ -3,8 +3,10 @@ FROM ubuntu:23.04
 # Set non-interactive installation to avoid tzdata prompt
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install CA certificates first to handle SSL/TLS downloads properly
-RUN apt-get update && apt-get install -y ca-certificates software-properties-common wget tar
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates software-properties-common wget tar \
+    systemd systemd-sysv libpam-systemd dbus
 
 # Install necessary packages
 RUN /bin/bash -c "yes | add-apt-repository universe && \
@@ -17,7 +19,7 @@ RUN /bin/bash -c "yes | add-apt-repository universe && \
         portaudio19-dev alsa-utils libasound2-dev i2c-tools \
         python3 python3-pip python3-dev python3-smbus python3-venv \
         jackd2 libogg0 libflac-dev flac libespeak1 cmake openssl expect \
-        nodejs supervisor && rm -rf /var/lib/apt/lists/*"
+        nodejs && rm -rf /var/lib/apt/lists/*"
 
 # Add ALSA configuration
 RUN echo 'pcm.!default { type hw card 0 }' > /etc/asound.conf && \
@@ -61,22 +63,43 @@ RUN sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf 
     dbus-daemon --system --fork && \
     avahi-daemon --no-drop-root --daemonize --debug
 
-# Supervisord configuration
+# Function to generate systemd service files
+RUN generate_service() { \
+    local name=$1; \
+    local description=$2; \
+    local exec_start=$3; \
+    mkdir -p /etc/systemd/system/; \
+    { \
+        echo '[Unit]'; \
+        echo "Description=${description}"; \
+        echo 'After=network.target'; \
+        echo '[Service]'; \
+        echo "ExecStart=${exec_start}"; \
+        echo 'Restart=always'; \
+        echo '[Install]'; \
+        echo 'WantedBy=multi-user.target'; \
+    } > /etc/systemd/system/${name}.service; \
+}; \
+generate_service "jack" "JACK server" "/usr/local/bin/start_jack.sh"; \
+generate_service "spotifyd" "Spotifyd service" "/usr/local/bin/spotifyd --no-daemon"; \
+generate_service "gpt-home" "GPT Home service" "/bin/bash -c 'source /env/bin/activate && python /app/src/app.py'"; \
+generate_service "web-interface" "Web Interface for GPT Home service" "/bin/bash -c 'source /env/bin/activate && cd src && uvicorn backend:app --host 0.0.0.0 --port 8000'";
+
+# Enable services
+RUN systemctl enable spotifyd.service gpt-home.service web-interface.service jack.service
+
+# Create a startup script to start services when the container runs
 RUN { \
-    echo '[supervisord]'; \
-    echo 'nodaemon=true'; \
-    echo '[program:spotifyd]'; \
-    echo 'command=/usr/local/bin/spotifyd --no-daemon'; \
-    echo '[program:gpt-home]'; \
-    echo 'command=/bin/bash -c "source /env/bin/activate && python /app/src/app.py"'; \
-    echo '[program:web-interface]'; \
-    echo 'command=/bin/bash -c "source /env/bin/activate && cd /app/src && uvicorn backend:app --host 0.0.0.0 --port 8000"'; \
-    echo '[program:jack]'; \
-    echo 'command=/usr/local/bin/start_jack.sh'; \
-} > /etc/supervisor/conf.d/supervisord.conf
+    echo '#!/bin/bash'; \
+    echo 'systemctl start spotifyd.service'; \
+    echo 'systemctl start gpt-home.service'; \
+    echo 'systemctl start web-interface.service'; \
+    echo 'systemctl start jack.service'; \
+    echo 'exec /bin/systemd'; \
+} > /usr/local/bin/start_services.sh && \
+    chmod +x /usr/local/bin/start_services.sh
 
 # Expose the Uvicorn port
 EXPOSE 8000
 
-# Start all processes
-ENTRYPOINT ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+CMD ["/usr/local/bin/start_services.sh"]

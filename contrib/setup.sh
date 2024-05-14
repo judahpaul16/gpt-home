@@ -133,10 +133,11 @@ if [[ "$1" != "--no-build" ]]; then
     echo "Running container 'gpt-home' from image 'gpt-home'..."
     docker run -d \
         --name gpt-home \
-        --device /dev/snd:/dev/snd \
         --privileged \
         --net=host \
         -v ~/gpt-home:/app \
+        -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
+        -v /dev/snd:/dev/snd \
         -v /dev/shm:/dev/shm \
         -v /etc/asound.conf:/etc/asound.conf \
         -v /usr/share/alsa:/usr/share/alsa \
@@ -146,3 +147,12 @@ if [[ "$1" != "--no-build" ]]; then
 
     echo "Container 'gpt-home' is now running."
 fi
+
+# Show status of the container
+docker ps -a | grep gpt-home
+
+# Show status of each service withing the container
+docker exec -it gpt-home systemctl status jackd
+docker exec -it gpt-home systemctl status spotifyd
+docker exec -it gpt-home systemctl status gpt-home
+docker exec -it gpt-home systemctl status web-interface
