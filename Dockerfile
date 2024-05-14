@@ -2,10 +2,12 @@ FROM ubuntu:23.04
 
 # Set non-interactive installation to avoid tzdata prompt
 ENV DEBIAN_FRONTEND=noninteractive
+ENV TINI_VERSION v0.19.0
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
+RUN chmod +x /tini
 
-# Install tini for process management
+# Install dependencies
 RUN apt-get update && apt-get install -y \
-    tini \
     ca-certificates software-properties-common wget tar 
     
 # Install necessary packages
@@ -20,14 +22,6 @@ RUN /bin/bash -c "yes | add-apt-repository universe && \
         python3 python3-pip python3-dev python3-smbus python3-venv \
         jackd2 libogg0 libflac-dev flac libespeak1 cmake openssl expect \
         nodejs && rm -rf /var/lib/apt/lists/*"
-
-# Add ALSA configuration
-RUN echo 'pcm.!default { type plug slave.pcm "dmix0" }' > /etc/asound.conf && \
-    echo 'ctl.!default { type hw card 0 }' >> /etc/asound.conf && \
-    echo 'pcm.dmix0 { type dmix ipc_key 1024 ipc_perm 0666 slave { pcm "hw:0,0" channels 2 period_time 0 period_size 1024 buffer_size 4096 rate 48000 } bindings { 0 0 1 1 } }' >> /etc/asound.conf && \
-    echo 'pcm.!hdmi { type plug slave.pcm "dmix1" }' >> /etc/asound.conf && \
-    echo 'ctl.!hdmi { type hw card 1 }' >> /etc/asound.conf && \
-    echo 'pcm.dmix1 { type dmix ipc_key 1025 ipc_perm 0666 slave { pcm "hw:1,0" channels 2 period_time 0 period_size 1024 buffer_size 4096 rate 48000 } bindings { 0 0 1 1 } }' >> /etc/asound.conf
 
 # Start with JACK server
 RUN echo '/usr/bin/jackd -r -d alsa -d hw:0 -r 44100 -p 1024 -n 3' > /usr/local/bin/start_jack.sh && \
@@ -82,7 +76,7 @@ RUN { \
 EXPOSE 8000
 
 # Use tini as the entry point to manage processes
-ENTRYPOINT ["/usr/bin/tini", "--"]
+ENTRYPOINT ["/tini", "--"]
 
 # Start the services
 CMD ["/usr/local/bin/start_services.sh"]

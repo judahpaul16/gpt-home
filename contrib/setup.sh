@@ -54,6 +54,16 @@ install docker
 install docker-buildx-plugin
 install alsa-utils
 
+# Create ALSA config (asound.conf, adjust as needed)
+sudo cat > /etc/asound.conf <<EOF
+pcm.!default { type plug; slave.pcm "dmix0"; }
+ctl.!default { type hw; card 0; }
+pcm.dmix0 { type dmix; ipc_key 1024; ipc_perm 0666; slave { pcm "hw:0,0"; channels 2; period_time 0; period_size 1024; buffer_size 4096; rate 48000; } bindings { 0 0; 1 1; } }
+pcm.!hdmi { type plug; slave.pcm "dmix1"; }
+ctl.!hdmi { type hw; card 1; }
+pcm.dmix1 { type dmix; ipc_key 1025; ipc_perm 0666; slave { pcm "hw:1,0"; channels 2; period_time 0; period_size 1024; buffer_size 4096; rate 48000; } bindings { 0 0; 1 1; } }
+EOF
+
 # Install Docker Buildx plugin
 DOCKER_BUILDX_PATH="$HOME/.docker/cli-plugins/docker-buildx"
 mkdir -p "$(dirname "$DOCKER_BUILDX_PATH")"
@@ -148,7 +158,7 @@ if [[ "$1" != "--no-build" ]]; then
     echo "Container 'gpt-home' is now ready to run."
 
     echo "Running container 'gpt-home' from image 'gpt-home'..."
-    docker run -d --name gpt-home \
+    docker run -d --name gpt-home --init \
         --privileged \
         --net=host \
         --tmpfs /run \
