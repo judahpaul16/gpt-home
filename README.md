@@ -79,15 +79,15 @@ curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setu
     bash -s -- --no-build
 docker ps -aq -f name=gpt-home | xargs -r docker rm -f
 docker pull judahpaul/gpt-home
-docker run -d --name gpt-home \
+docker run -d --name gpt-home -p 8000:8000 \
     --privileged \
+    --net=host \
     -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
     -v /dev/snd:/dev/snd \
     -v /dev/shm:/dev/shm \
     -v /etc/asound.conf:/etc/asound.conf \
     -v /usr/share/alsa:/usr/share/alsa \
     -v /var/run/dbus:/var/run/dbus \
-    -p 8000:8000 \
     -e OPENAI_API_KEY=your_key_here \
     judahpaul/gpt-home
 ```
@@ -393,15 +393,15 @@ curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setu
     bash -s -- --no-build
 docker ps -aq -f name=gpt-home | xargs -r docker rm -f
 docker pull judahpaul/gpt-home
-docker run -d --name gpt-home \
+docker run -d --name gpt-home -p 8000:8000 \
     --privileged \
+    --net=host \
     -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
     -v /dev/snd:/dev/snd \
     -v /dev/shm:/dev/shm \
     -v /etc/asound.conf:/etc/asound.conf \
     -v /usr/share/alsa:/usr/share/alsa \
     -v /var/run/dbus:/var/run/dbus \
-    -p 8000:8000 \
     -e OPENAI_API_KEY=your_key_here \
     judahpaul/gpt-home
 ```
@@ -554,8 +554,7 @@ if [[ "$1" != "--no-build" ]]; then
     echo "Container 'gpt-home' is now ready to run."
 
     echo "Running container 'gpt-home' from image 'gpt-home'..."
-    docker run -d \
-        --name gpt-home \
+    docker run -d --name gpt-home -p 8000:8000 \
         --privileged \
         --net=host \
         -v ~/gpt-home:/app \

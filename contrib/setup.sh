@@ -131,8 +131,7 @@ if [[ "$1" != "--no-build" ]]; then
     echo "Container 'gpt-home' is now ready to run."
 
     echo "Running container 'gpt-home' from image 'gpt-home'..."
-    docker run -d \
-        --name gpt-home \
+    docker run -d --name gpt-home -p 8000:8000 \
         --privileged \
         --net=host \
         -v ~/gpt-home:/app \
