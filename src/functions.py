@@ -6,7 +6,6 @@ from asyncio import create_task
 from dotenv import load_dotenv
 from phue import Bridge
 import subprocess
-import digitalio
 import traceback
 import datetime
 import textwrap
@@ -43,20 +42,12 @@ logger = logging.getLogger(__name__)
 
 try:
     from board import SCL, SDA
-except NotImplementedError:
-    logger.debug("Board not detected. Skipping...")
+except Exception:
+    logger.debug("Board not detected. Skipping... \nError: {e}\n{traceback.format_exc()}")
 try:
     import adafruit_ssd1306
-except AttributeError:
-    try:
-        from adafruit_blinka.microcontroller.rockchip.rk3588 import pin
-        logger.debug("Board not detected. Trying to import from blinka.")
-        SCL = pin.SCL
-        SDA = pin.SDA
-    except ImportError:
-        logger.debug("Blinka not detected. Using default I2C pins.")
-        SCL = 3
-        SDA = 2
+except Exception as e:
+    logger.debug(f"Failed to import adafruit_ssd1306. Skipping...\nError: {e}\n{traceback.format_exc()}")
 
 # Initialize the speech recognition engine
 r = sr.Recognizer()
@@ -368,7 +359,7 @@ async def open_weather_action(text: str):
                             # tomorrow
                             tomorrow_forecast = list(filter(lambda x: x.get('date') == tomorrow.strftime('%A'), forecast))[0]
                             speech_responses = []
-                            speech_responses.append(f"Tomorrow, it will be {tomorrow_forecast.get('temp')}°F and {tomorrow_forecast.get('weather')} in {city}.")
+                            speech_responses.append(f"Tomorrow, it will be {tomorrow_forecast.get('temp')}\u00B0F and {tomorrow_forecast.get('weather')} in {city}.")
                             for day in forecast:
                                 if day.get('date') != tomorrow.strftime('%A'):
                                     speech_responses.append(f"On {day.get('date')}, it will be {round(float(day.get('temp')))} degrees and {day.get('weather').lower()} in {city}.")

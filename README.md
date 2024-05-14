@@ -632,6 +632,7 @@ chmod +x setup.sh
         <tr><td>5</td><td>❔</td></tr>
         <tr><td>Zero 2 W</td><td>❔</td></tr>
         <tr><td>Orange Pi 3B</td><td>✅</td></tr>
+        <tr><td colspan=2><a href="https://learn.adafruit.com/circuitpython-on-orangepi-linux/circuitpython-orangepi">*Blinka only supports<br>the Orange Pi PC and<br>R1 if you're using i2c*</td></tr>
     </table>
     </td>
     <!-- Python -->
