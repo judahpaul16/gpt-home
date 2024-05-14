@@ -41,8 +41,12 @@ RUN /bin/bash -c "yes | add-apt-repository universe && \
         nodejs && rm -rf /var/lib/apt/lists/*"
 
 # Add ALSA configuration
-RUN echo 'pcm.!default { type hw card 0 }' > /etc/asound.conf && \
-    echo 'ctl.!default { type hw card 0 }' >> /etc/asound.conf
+RUN echo 'pcm.!default { type plug slave.pcm "dmix0" }' > /etc/asound.conf && \
+    echo 'ctl.!default { type hw card 0 }' >> /etc/asound.conf && \
+    echo 'pcm.dmix0 { type dmix ipc_key 1024 ipc_perm 0666 slave { pcm "hw:0,0" channels 2 period_time 0 period_size 1024 buffer_size 4096 rate 48000 } bindings { 0 0 1 1 } }' >> /etc/asound.conf && \
+    echo 'pcm.!hdmi { type plug slave.pcm "dmix1" }' >> /etc/asound.conf && \
+    echo 'ctl.!hdmi { type hw card 1 }' >> /etc/asound.conf && \
+    echo 'pcm.dmix1 { type dmix ipc_key 1025 ipc_perm 0666 slave { pcm "hw:1,0" channels 2 period_time 0 period_size 1024 buffer_size 4096 rate 48000 } bindings { 0 0 1 1 } }' >> /etc/asound.conf
 
 # Start with JACK server
 RUN echo '/usr/bin/jackd -r -d alsa -d hw:0 -r 44100 -p 1024 -n 3' > /usr/local/bin/start_jack.sh && \
