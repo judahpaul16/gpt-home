@@ -136,6 +136,7 @@ if [[ "$1" != "--no-build" ]]; then
         --net=host \
         --tmpfs /run \
         --tmpfs /run/lock \
+        --entrypoint /lib/systemd/systemd \
         -v ~/gpt-home:/app \
         -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
         -v /dev/snd:/dev/snd \

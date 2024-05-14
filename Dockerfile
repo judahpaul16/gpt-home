@@ -3,6 +3,25 @@ FROM ubuntu:23.04
 # Set non-interactive installation to avoid tzdata prompt
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Install systemd
+RUN apt-get update && apt-get install -y \
+    systemd \
+    systemd-sysv \
+    libpam-systemd \
+    dbus \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -f /lib/systemd/system/multi-user.target.wants/* \
+    && rm -f /etc/systemd/system/*.wants/* \
+    && rm -f /lib/systemd/system/local-fs.target.wants/* \
+    && rm -f /lib/systemd/system/sockets.target.wants/*udev* \
+    && rm -f /lib/systemd/system/sockets.target.wants/*initctl* \
+    && rm -f /lib/systemd/system/sysinit.target.wants/systemd-tmpfiles-setup* \
+    && rm -f /lib/systemd/system/systemd-update-utmp*
+
+# Set up environment for systemd
+ENV container docker
+
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     ca-certificates software-properties-common wget tar \
@@ -102,4 +121,5 @@ RUN { \
 # Expose the Uvicorn port
 EXPOSE 8000
 
+# Start systemd and the services
 CMD ["/usr/local/bin/start_services.sh"]
