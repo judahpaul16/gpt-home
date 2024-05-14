@@ -178,8 +178,5 @@ fi
 # Show status of the container
 docker ps -a | grep gpt-home
 
-# Show status of each service within the container
-docker exec -it gpt-home systemctl status jackd
-docker exec -it gpt-home systemctl status spotifyd
-docker exec -it gpt-home systemctl status gpt-home
-docker exec -it gpt-home systemctl status web-interface
+# Show status of all programs managed by Supervisor
+docker exec -it gpt-home supervisorctl status

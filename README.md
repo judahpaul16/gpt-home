@@ -363,24 +363,24 @@ Alternatively, you can put this at the end of your `~/.bashrc` file. (recommende
 export OPENAI_API_KEY="your_openai_api_key_here"
 
 # Optional: Add these aliases to your .bashrc file for easier management
-alias gpt-start="docker exec -it gpt-home bash -c 'source /env/bin/activate && python /app/src/app.py &'"
-alias gpt-restart="docker exec -it gpt-home bash -c 'pkill -f /app/src/app.py && source /env/bin/activate && python /app/src/app.py &'"
-alias gpt-stop="docker exec -it gpt-home pkill -f /app/src/app.py"
-alias gpt-status="docker exec -it gpt-home pgrep -fl /app/src/app.py"
+alias gpt-start="docker exec -it gpt-home supervisorctl start app"
+alias gpt-restart="docker exec -it gpt-home supervisorctl restart app"
+alias gpt-stop="docker exec -it gpt-home supervisorctl stop app"
+alias gpt-status="docker exec -it gpt-home supervisorctl status app"
 alias gpt-log="docker exec -it gpt-home tail -n 100 -f /app/src/events.log"
 
-alias wi-start="docker exec -it gpt-home bash -c 'source /env/bin/activate && cd /app/src && uvicorn backend:app --host 0.0.0.0 --port 8000 &'"
-alias wi-restart="docker exec -it gpt-home bash -c 'pkill -f uvicorn && source /env/bin/activate && cd /app/src && uvicorn backend:app --host 0.0.0.0 --port 8000 &' && sudo systemctl restart nginx"
-alias wi-stop="docker exec -it gpt-home pkill -f uvicorn"
-alias wi-status="docker exec -it gpt-home pgrep -fl uvicorn"
+alias wi-start="docker exec -it gpt-home supervisorctl start web-interface"
+alias wi-restart="docker exec -it gpt-home supervisorctl restart web-interface && sudo systemctl restart nginx"
+alias wi-stop="docker exec -it gpt-home supervisorctl stop web-interface"
+alias wi-status="docker exec -it gpt-home supervisorctl status web-interface"
 alias wi-build="docker exec -it gpt-home bash -c 'cd /app/src/frontend && npm run build'"
 alias wi-log="tail -n 100 -f /var/log/nginx/access.log"
 alias wi-error="tail -n 100 -f /var/log/nginx/error.log"
 
-alias spotifyd-start="docker exec -it gpt-home bash -c '/usr/local/bin/spotifyd --no-daemon &'"
-alias spotifyd-restart="docker exec -it gpt-home bash -c 'pkill -f /usr/local/bin/spotifyd && /usr/local/bin/spotifyd --no-daemon &'"
-alias spotifyd-stop="docker exec -it gpt-home pkill -f /usr/local/bin/spotifyd"
-alias spotifyd-status="docker exec -it gpt-home pgrep -fl /usr/local/bin/spotifyd"
+alias spotifyd-start="docker exec -it gpt-home supervisorctl start spotifyd"
+alias spotifyd-restart="docker exec -it gpt-home supervisorctl restart spotifyd"
+alias spotifyd-stop="docker exec -it gpt-home supervisorctl stop spotifyd"
+alias spotifyd-status="docker exec -it gpt-home supervisorctl status spotifyd"
 alias spotifyd-log="docker exec -it gpt-home tail -n 100 -f /var/log/spotifyd.log"
 ```
 Run `source ~/.bashrc` to apply the changes to your current terminal session.
@@ -624,11 +624,8 @@ fi
 # Show status of the container
 docker ps -a | grep gpt-home
 
-# Show status of each service within the container
-docker exec -it gpt-home systemctl status jackd
-docker exec -it gpt-home systemctl status spotifyd
-docker exec -it gpt-home systemctl status gpt-home
-docker exec -it gpt-home systemctl status web-interface
+# Show status of all programs managed by Supervisor
+docker exec -it gpt-home supervisorctl status
 ```
 
 </p>
