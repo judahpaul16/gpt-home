@@ -1,6 +1,10 @@
 #!/bin/bash
 
-# Install system dependencies
+# Set Permissions
+sudo chown -R $(whoami):$(whoami) .
+sudo chmod -R 755 .
+
+# Function to install system dependencies
 function install() {
     local package=$1
     echo "Ensuring package '$package' is installed..."
@@ -44,6 +48,18 @@ function install() {
     fi
 }
 
+install chrony
+install nginx
+install docker
+install docker-buildx-plugin
+install alsa-utils
+
+# Install Docker Buildx plugin
+DOCKER_BUILDX_PATH="$HOME/.docker/cli-plugins/docker-buildx"
+mkdir -p "$(dirname "$DOCKER_BUILDX_PATH")"
+curl -L "https://github.com/docker/buildx/releases/download/v0.10.4/buildx-v0.10.4.linux-arm64" -o "$DOCKER_BUILDX_PATH"
+chmod +x "$DOCKER_BUILDX_PATH"
+
 # Add current user to docker group
 sudo usermod -aG docker $USER
 # Check if the user is in the docker group
@@ -51,18 +67,6 @@ if ! groups $USER | grep -q "\bdocker\b"; then
     echo "User is not in the docker group. Please log out and log back in, then re-run this script."
     exit 1
 fi
-
-# Continue with the rest of your script
-install chrony
-install docker
-install nginx
-install alsa-utils
-
-# Install Docker Buildx
-echo "Installing Docker Buildx..."
-mkdir -p ~/.docker/cli-plugins/
-curl -SL https://github.com/docker/buildx/releases/download/v0.10.4/buildx-v0.10.4.linux-arm-v7 -o ~/.docker/cli-plugins/docker-buildx
-chmod +x ~/.docker/cli-plugins/docker-buildx
 
 # Setup UFW Firewall
 echo "Setting up UFW Firewall..."
@@ -134,7 +138,7 @@ if [[ "$1" != "--no-build" ]]; then
 
     # Building Docker image 'gpt-home' for ARMhf architecture
     echo "Building Docker image 'gpt-home' for ARMhf..."
-    docker buildx build --platform linux/arm/v7 -t gpt-home . --load
+    docker buildx build --platform linux/arm64 -t gpt-home . --load
 
     if [ $? -ne 0 ]; then
         echo "Docker build failed. Exiting..."
@@ -164,7 +168,7 @@ fi
 # Show status of the container
 docker ps -a | grep gpt-home
 
-# Show status of each service withing the container
+# Show status of each service within the container
 docker exec -it gpt-home systemctl status jackd
 docker exec -it gpt-home systemctl status spotifyd
 docker exec -it gpt-home systemctl status gpt-home
