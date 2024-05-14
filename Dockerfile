@@ -2,9 +2,6 @@ FROM ubuntu:23.04
 
 # Set non-interactive installation to avoid tzdata prompt
 ENV DEBIAN_FRONTEND=noninteractive
-ENV TINI_VERSION v0.19.0
-ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
-RUN chmod +x /tini
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
@@ -13,7 +10,7 @@ RUN apt-get update && apt-get install -y \
 # Install necessary packages
 RUN /bin/bash -c "yes | add-apt-repository universe && \
     dpkg --add-architecture armhf && apt-get update && \
-    apt-get install -y --no-install-recommends \
+    apt-get install -y --no-install-recommends supervisor \
         avahi-daemon avahi-utils libnss-mdns dbus iputils-ping \
         build-essential curl git libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
         libsqlite3-dev llvm libncursesw5-dev xz-utils tk-dev \
@@ -59,24 +56,42 @@ RUN sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf 
     dbus-uuidgen > /var/lib/dbus/machine-id && \
     mkdir -p /var/run/dbus
 
-# Create a startup script to start services when the container runs
-RUN { \
-    echo '#!/bin/bash'; \
-    echo 'dbus-daemon --system --fork'; \
-    echo 'avahi-daemon --no-drop-root --daemonize --debug'; \
-    echo '/usr/local/bin/start_jack.sh &'; \
-    echo '/usr/local/bin/spotifyd --no-daemon &'; \
-    echo 'source /env/bin/activate && python /app/src/app.py &'; \
-    echo 'source /env/bin/activate && cd src && uvicorn backend:app --host 0.0.0.0 --port 8000 &'; \
-    echo 'wait'; \
-} > /usr/local/bin/start_services.sh && \
-    chmod +x /usr/local/bin/start_services.sh
+# Manage services with Supervisor
+RUN mkdir -p /var/log/supervisor
+RUN mkdir -p /etc/supervisor/conf.d && { \
+    echo '[supervisord]'; \
+    echo 'nodaemon=true'; \
+    echo 'logfile=/dev/null'; \
+    echo 'logfile_maxbytes=0'; \
+    echo ''; \
+    echo '[program:jackd]'; \
+    echo 'command=/usr/local/bin/start_jack.sh'; \
+    echo 'stdout_logfile=/dev/fd/1'; \
+    echo 'stdout_logfile_maxbytes=0'; \
+    echo 'redirect_stderr=true'; \
+    echo ''; \
+    echo '[program:spotifyd]'; \
+    echo 'command=/usr/local/bin/spotifyd --no-daemon'; \
+    echo 'stdout_logfile=/dev/fd/1'; \
+    echo 'stdout_logfile_maxbytes=0'; \
+    echo 'redirect_stderr=true'; \
+    echo ''; \
+    echo '[program:app]'; \
+    echo 'command=bash -c "source /env/bin/activate && python /app/src/app.py 2>/dev/null"'; \
+    echo 'stdout_logfile=/dev/fd/1'; \
+    echo 'stdout_logfile_maxbytes=0'; \
+    echo 'redirect_stderr=true'; \
+    echo ''; \
+    echo '[program:web-interface]'; \
+    echo 'command=bash -c "source /env/bin/activate && cd src && uvicorn backend:app --host 0.0.0.0 --port 8000"'; \
+    echo 'stdout_logfile=/dev/fd/1'; \
+    echo 'stdout_logfile_maxbytes=0'; \
+    echo 'redirect_stderr=true'; \
+} > /etc/supervisor/conf.d/supervisord.conf
 
 # Expose the Uvicorn port
 EXPOSE 8000
 
-# Use tini as the entry point to manage processes
-ENTRYPOINT ["/tini", "--"]
+# Start services with Supervisor
+CMD ["/usr/bin/supervisord"]
 
-# Start the services
-CMD ["/usr/local/bin/start_services.sh"]
