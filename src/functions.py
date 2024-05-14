@@ -6,6 +6,7 @@ from asyncio import create_task
 from dotenv import load_dotenv
 from phue import Bridge
 import subprocess
+import digitalio
 import traceback
 import datetime
 import textwrap
@@ -43,13 +44,19 @@ logger = logging.getLogger(__name__)
 try:
     from board import SCL, SDA
 except NotImplementedError:
-    logger.debug("Board not detected. Using default I2C pins.")
-    SCL = 3  # Replace with correct pin number for SCL
-    SDA = 2  # Replace with correct pin number for SDA
+    logger.debug("Board not detected. Skipping...")
 try:
     import adafruit_ssd1306
 except AttributeError:
-    logger.debug("Board not detected. Skipping `adafruit_ssd1306` import.")
+    try:
+        from adafruit_blinka.microcontroller.rockchip.rk3588 import pin
+        logger.debug("Board not detected. Trying to import from blinka.")
+        SCL = pin.SCL
+        SDA = pin.SDA
+    except ImportError:
+        logger.debug("Blinka not detected. Using default I2C pins.")
+        SCL = 3
+        SDA = 2
 
 # Initialize the speech recognition engine
 r = sr.Recognizer()
