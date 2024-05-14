@@ -461,9 +461,9 @@ function install() {
             sudo yes | add-apt-repository universe >/dev/null 2>&1 || true
             sudo apt update || true
             if [ "$package" == "docker" ]; then
-                sudo apt install -y docker.io
+                sudo apt-get install -y docker.io
             else
-                sudo apt install -y "$package"
+                sudo apt-get install -y "$package"
             fi
         fi
     elif command -v yum >/dev/null; then
