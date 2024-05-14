@@ -50,6 +50,7 @@ function install() {
 
 install chrony
 install nginx
+install containerd
 install docker
 install docker-buildx-plugin
 install alsa-utils
