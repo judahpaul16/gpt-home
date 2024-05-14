@@ -43,6 +43,16 @@ RUN mkdir -p /root/.config/spotifyd && { \
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
     apt-get install -y nodejs
 
+# Modify D-Bus configuration for Avahi
+RUN mkdir -p /etc/dbus-1/system.d && \
+    echo '<busconfig> \
+            <policy user="avahi"> \
+                <allow own="org.freedesktop.Avahi"/> \
+                <allow send_destination="org.freedesktop.Avahi"/> \
+                <allow receive_sender="org.freedesktop.Avahi"/> \
+            </policy> \
+          </busconfig>' > /etc/dbus-1/system.d/avahi.conf
+
 # Prepare application directory
 WORKDIR /app
 COPY . /app
@@ -57,12 +67,18 @@ RUN sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf 
     mkdir -p /var/run/dbus
 
 # Manage services with Supervisor
-RUN mkdir -p /var/log/supervisor
-RUN mkdir -p /etc/supervisor/conf.d && { \
+RUN mkdir -p /var/log/supervisor && \
+    mkdir -p /etc/supervisor/conf.d && { \
     echo '[supervisord]'; \
     echo 'nodaemon=true'; \
     echo 'logfile=/dev/null'; \
     echo 'logfile_maxbytes=0'; \
+    echo ''; \
+    echo '[program:avahi]'; \
+    echo 'command=/usr/sbin/avahi-daemon --no-rlimits'; \
+    echo 'stdout_logfile=/dev/fd/1'; \
+    echo 'stdout_logfile_maxbytes=0'; \
+    echo 'redirect_stderr=true'; \
     echo ''; \
     echo '[program:jackd]'; \
     echo 'command=/usr/local/bin/start_jack.sh'; \
@@ -94,4 +110,3 @@ EXPOSE 8000
 
 # Start services with Supervisor
 CMD ["/usr/bin/supervisord"]
-
