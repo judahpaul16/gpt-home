@@ -134,6 +134,8 @@ if [[ "$1" != "--no-build" ]]; then
     docker run -d --name gpt-home -p 8000:8000 \
         --privileged \
         --net=host \
+        --tmpfs /run \
+        --tmpfs /run/lock \
         -v ~/gpt-home:/app \
         -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
         -v /dev/snd:/dev/snd \

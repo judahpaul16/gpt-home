@@ -82,6 +82,8 @@ docker pull judahpaul/gpt-home
 docker run -d --name gpt-home -p 8000:8000 \
     --privileged \
     --net=host \
+    --tmpfs /run \
+    --tmpfs /run/lock \
     -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
     -v /dev/snd:/dev/snd \
     -v /dev/shm:/dev/shm \
@@ -396,6 +398,8 @@ docker pull judahpaul/gpt-home
 docker run -d --name gpt-home -p 8000:8000 \
     --privileged \
     --net=host \
+    --tmpfs /run \
+    --tmpfs /run/lock \
     -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
     -v /dev/snd:/dev/snd \
     -v /dev/shm:/dev/shm \
@@ -404,6 +408,31 @@ docker run -d --name gpt-home -p 8000:8000 \
     -v /var/run/dbus:/var/run/dbus \
     -e OPENAI_API_KEY=your_key_here \
     judahpaul/gpt-home
+```
+**Explanation of Docker Run Flags**
+```yaml
+--tmpfs /run:
+    Mounts a tmpfs at /run for transient runtime data.
+--tmpfs /run/lock:
+    Mounts a tmpfs at /run/lock for lock files.
+--privileged:
+    Grants extended privileges to the container
+    Necessary for running systemd and accessing host devices.
+--net=host:
+    Uses the host network stack directly.
+    May be necessary for avahi-daemon services.
+-v /sys/fs/cgroup:/sys/fs/cgroup:ro:
+    Mounts the host's cgroup filesystem as read-only.
+-v /dev/snd:/dev/snd:
+    Provides access to the host's sound devices.
+-v /dev/shm:/dev/shm:
+    Provides access to shared memory.
+-v /etc/asound.conf:/etc/asound.conf:ro:
+    Maps the ALSA configuration file as read-only.
+-v /usr/share/alsa:/usr/share/alsa:ro:
+    Maps the ALSA shared data as read-only.
+-v /var/run/dbus:/var/run/dbus:
+    Provides access to the D-Bus system for inter-process communication.
 ```
 
 ***Note: For development purposes, running `setup.sh` without the `--no-build` flag mounts the project directory to the container by adding `-v ~/gpt-home:/app` to the `docker run` command. This allows you to make changes to the project files on your Raspberry Pi and see the changes reflected in the container.***
@@ -557,6 +586,8 @@ if [[ "$1" != "--no-build" ]]; then
     docker run -d --name gpt-home -p 8000:8000 \
         --privileged \
         --net=host \
+        --tmpfs /run \
+        --tmpfs /run/lock \
         -v ~/gpt-home:/app \
         -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
         -v /dev/snd:/dev/snd \
