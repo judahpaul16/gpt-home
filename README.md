@@ -490,6 +490,15 @@ function install() {
     fi
 }
 
+# Add current user to docker group
+sudo usermod -aG docker $USER
+# Check if the user is in the docker group
+if ! groups $USER | grep -q "\bdocker\b"; then
+    echo "User is not in the docker group. Please log out and log back in, then re-run this script."
+    exit 1
+fi
+
+# Continue with the rest of your script
 install chrony
 install docker
 install nginx
