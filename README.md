@@ -388,7 +388,7 @@ alias spotifyd-log="docker exec -it gpt-home tail -n 100 -f /var/log/spotifyd.lo
 ```
 Run `source ~/.bashrc` to apply the changes to your current terminal session.
 
-The setup script will take quite a while to run *(at least it did on my 1GB RAM Pi 4B)*. It will install all the dependencies and build the Docker container. However, you can skip the build process by passing the `--no-build` flag to the script; it will only install the dependencies and set up the firewall and NGINX. You can then pull the container from Docker Hub and run it.
+The setup script will take quite a while to run ***(1319.0s+ to build and setup dependencies on my quad-core Orange Pi 3B w/ 8G RAM)***. It will install all the dependencies and build the Docker container. However, you can skip the build process by passing the `--no-build` flag to the script; it will only install the dependencies and set up the firewall and NGINX. You can then pull the container from Docker Hub and run it.
 
 ```bash
 curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh | \
@@ -435,7 +435,7 @@ docker run -d --name gpt-home -p 8000:8000 \
     Provides access to the D-Bus system for inter-process communication.
 ```
 
-***Note: For development purposes, running `setup.sh` without the `--no-build` flag mounts the project directory to the container by adding `-v ~/gpt-home:/app` to the `docker run` command. This allows you to make changes to the project files on your Raspberry Pi and see the changes reflected in the container.***
+**Alternatively, for development purposes, running `setup.sh` without the `--no-build` flag mounts the project directory to the container by adding `-v ~/gpt-home:/app` to the `docker run` command. This allows you to make changes to the project files on your Raspberry Pi and see the changes reflected in the container.**
 
 ```bash
 curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh | \
