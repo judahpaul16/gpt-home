@@ -20,14 +20,21 @@ RUN /bin/bash -c "yes | add-apt-repository universe && \
         jackd2 libogg0 libflac-dev flac libespeak1 cmake openssl expect \
         nodejs && rm -rf /var/lib/apt/lists/*"
 
-# Start with JACK server
-RUN echo '/usr/bin/jackd -r -d alsa -d hw:0 -r 44100 -p 1024 -n 3' > /usr/local/bin/start_jack.sh && \
+# Setup JACK server
+RUN { \
+    echo 'if pgrep -x jackd > /dev/null; then'; \
+    echo '  echo "JACK server already running. Terminating...'; \
+    echo '  kill -9 $(pgrep -x jackd)'; \
+    echo 'fi;'; \
+    echo 'export JACK_NO_AUDIO_RESERVATION=1'; \
+    echo '/usr/bin/jackd -r -d alsa -d hw:0 -r 44100 -p 1024 -n 3'; \
+} > /usr/local/bin/start_jack.sh && \
     chmod +x /usr/local/bin/start_jack.sh
 
 # Download and setup spotifyd binary from latest GitHub release
-RUN wget https://github.com/Spotifyd/spotifyd/releases/latest/download/spotifyd-linux-armhf-default.tar.gz && \
-    tar xzf spotifyd-linux-armhf-default.tar.gz -C /usr/local/bin && \
-    rm spotifyd-linux-armhf-default.tar.gz
+RUN wget https://github.com/Spotifyd/spotifyd/releases/latest/download/spotifyd-linux-armhf-full.tar.gz && \
+    tar xzf spotifyd-linux-armhf-full.tar.gz -C /usr/local/bin && \
+    rm spotifyd-linux-armhf-full.tar.gz
 
 # Create Spotifyd configuration (this is just a basic config; adjust accordingly)
 RUN mkdir -p /root/.config/spotifyd && { \
@@ -43,16 +50,6 @@ RUN mkdir -p /root/.config/spotifyd && { \
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
     apt-get install -y nodejs
 
-# Modify D-Bus configuration for Avahi
-RUN mkdir -p /etc/dbus-1/system.d && \
-    echo '<busconfig> \
-            <policy user="avahi"> \
-                <allow own="org.freedesktop.Avahi"/> \
-                <allow send_destination="org.freedesktop.Avahi"/> \
-                <allow receive_sender="org.freedesktop.Avahi"/> \
-            </policy> \
-          </busconfig>' > /etc/dbus-1/system.d/avahi.conf
-
 # Prepare application directory
 WORKDIR /app
 COPY . /app
@@ -61,10 +58,13 @@ COPY . /app
 RUN python3 -m venv /env && \
     /env/bin/pip install --no-cache-dir --use-pep517 -r src/requirements.txt
 
-# Setup Avahi for mDNS (https://gpt-home.local)
-RUN sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf && \
-    dbus-uuidgen > /var/lib/dbus/machine-id && \
-    mkdir -p /var/run/dbus
+# Start D-Bus system bus
+RUN dbus-uuidgen > /var/lib/dbus/machine-id
+RUN mkdir -p /var/run/dbus && dbus-daemon --system
+
+# Set up Avahi
+RUN sed -i 's/#allow-interfaces=eth0/allow-interfaces=eth0/' /etc/avahi/avahi-daemon.conf
+RUN sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf
 
 # Manage services with Supervisor
 RUN mkdir -p /var/log/supervisor && \
@@ -94,7 +94,7 @@ RUN mkdir -p /var/log/supervisor && \
     echo ''; \
     echo '[program:app]'; \
     echo 'command=bash -c "source /env/bin/activate && python /app/src/app.py 2>/dev/null"'; \
-    echo 'stdout_logfile=/dev/fd/1'; \
+    echo 'stdout_logfile=/dev/null'; \
     echo 'stdout_logfile_maxbytes=0'; \
     echo 'redirect_stderr=true'; \
     echo ''; \
