@@ -26,6 +26,7 @@ import os
 import re
 
 SOURCE_DIR = Path(__file__).parent
+log_file_path = SOURCE_DIR / "events.log"
 
 # Load .env file
 load_dotenv(dotenv_path='frontend/.env')
@@ -40,7 +41,7 @@ def success(self, message, *args, **kws):
 
 logging.Logger.success = success
 
-logging.basicConfig(filename='events.log', level=logging.DEBUG)
+logging.basicConfig(filename=log_file_path, level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 try:

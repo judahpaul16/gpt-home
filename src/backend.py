@@ -1,14 +1,13 @@
-from dotenv import load_dotenv, set_key, unset_key
-from fastapi import FastAPI, Request, Response, status
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from functions import logger, SOURCE_DIR, log_file_path
+from fastapi import FastAPI, Request, Response, status
 from spotipy.oauth2 import SpotifyClientCredentials
+from dotenv import load_dotenv, set_key, unset_key
 from fastapi.exceptions import HTTPException
+from fastapi.staticfiles import StaticFiles
 from datetime import datetime, timedelta
-from functions import logger
 from typing import Optional
 import spotipy.util as util
-from pathlib import Path
 from phue import Bridge
 import subprocess
 import traceback
@@ -24,11 +23,9 @@ import json
 import os
 import re
 
-SOURCE_DIR = Path(__file__).parent
 ROOT_DIR = SOURCE_DIR.parent
 ENV_FILE_PATH = SOURCE_DIR / "frontend" / ".env"
 TOKEN_PATH = "spotify_token.json"
-log_file_path = SOURCE_DIR / "events.log"
 
 load_dotenv(ENV_FILE_PATH)
 
