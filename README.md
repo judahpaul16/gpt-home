@@ -84,8 +84,6 @@ docker run -d --name gpt-home \
     --net=host \
     --tmpfs /run \
     --tmpfs /run/lock \
-    --entrypoint /lib/systemd/systemd \
-    -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
     -v /dev/snd:/dev/snd \
     -v /dev/shm:/dev/shm \
     -v /etc/asound.conf:/etc/asound.conf \
@@ -401,8 +399,6 @@ docker run -d --name gpt-home \
     --net=host \
     --tmpfs /run \
     --tmpfs /run/lock \
-    --entrypoint /lib/systemd/systemd \
-    -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
     -v /dev/snd:/dev/snd \
     -v /dev/shm:/dev/shm \
     -v /etc/asound.conf:/etc/asound.conf \
@@ -419,14 +415,10 @@ docker run -d --name gpt-home \
     Mounts a tmpfs at /run/lock for lock files.
 --privileged:
     Grants extended privileges to the container
-    Necessary for running systemd and accessing host devices.
+    Necessary for running accessing host audio devices.
 --net=host:
     Uses the host network stack directly.
     May be necessary for avahi-daemon services.
---entrypoint /lib/systemd/systemd:
-    Ensures the container is booted with systemd as init system (PID 1).
--v /sys/fs/cgroup:/sys/fs/cgroup:ro:
-    Mounts the host's cgroup filesystem as read-only (for systemd).
 -v /dev/snd:/dev/snd:
     Provides access to the host's sound devices.
 -v /dev/shm:/dev/shm:
@@ -592,9 +584,7 @@ if [[ "$1" != "--no-build" ]]; then
         --net=host \
         --tmpfs /run \
         --tmpfs /run/lock \
-        --entrypoint /lib/systemd/systemd \
         -v ~/gpt-home:/app \
-        -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
         -v /dev/snd:/dev/snd \
         -v /dev/shm:/dev/shm \
         -v /etc/asound.conf:/etc/asound.conf \
