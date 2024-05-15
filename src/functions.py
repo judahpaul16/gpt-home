@@ -125,7 +125,7 @@ def initLCD():
         display.show()
         return display
     except Exception as e:
-        logger.debug(f"Failed to initialize display, skipping...\nError: {e}\n{traceback.format_exc()}")
+        logger.debug(f"Failed to initialize display, skipping...\n Reason: {e}\n{traceback.format_exc()}")
         return None
 
 async def initialize_system():
