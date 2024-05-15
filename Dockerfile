@@ -6,7 +6,10 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install dependencies
 RUN apt-get update && apt-get install -y \
     ca-certificates software-properties-common wget tar 
-    
+
+# Install ARMhf base libraries
+RUN dpkg --add-architecture armhf
+
 # Install necessary packages
 RUN /bin/bash -c "yes | add-apt-repository universe && \
     dpkg --add-architecture armhf && apt-get update && \
@@ -18,7 +21,7 @@ RUN /bin/bash -c "yes | add-apt-repository universe && \
         portaudio19-dev alsa-utils libasound2-dev i2c-tools \
         python3 python3-pip python3-dev python3-smbus python3-venv \
         jackd2 libogg0 libflac-dev flac libespeak1 cmake openssl expect \
-        nodejs && rm -rf /var/lib/apt/lists/*"
+        nodejs libc6:armhf libdbus-1-3:armhf libasound2:armhf && rm -rf /var/lib/apt/lists/*"
 
 # Download and setup spotifyd binary from latest GitHub release
 RUN wget https://github.com/Spotifyd/spotifyd/releases/latest/download/spotifyd-linux-armhf-full.tar.gz && \
