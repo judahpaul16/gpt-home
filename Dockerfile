@@ -23,7 +23,7 @@ RUN /bin/bash -c "yes | add-apt-repository universe && \
 # Setup JACK server
 RUN { \
     echo 'if pgrep -x jackd > /dev/null; then'; \
-    echo '  echo "JACK server already running. Terminating...'; \
+    echo '  echo "JACK server already running. Terminating..."'; \
     echo '  kill -9 $(pgrep -x jackd)'; \
     echo 'fi;'; \
     echo 'export JACK_NO_AUDIO_RESERVATION=1'; \

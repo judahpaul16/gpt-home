@@ -413,7 +413,7 @@ docker run -d --name gpt-home \
     Mounts a tmpfs at /run/lock for lock files.
 --privileged:
     Grants extended privileges to the container
-    Necessary for running accessing host audio devices.
+    Necessary for accessing host audio devices.
 --net=host:
     Uses the host network stack directly.
     May be necessary for avahi-daemon services.
