@@ -66,10 +66,11 @@ RUN mkdir -p /var/log/supervisor && \
     echo 'logfile_maxbytes=0'; \
     echo ''; \
     echo '[program:avahi]'; \
-    echo 'command=/usr/local/bin/start_avahi.sh'; \
+    echo 'command=/bin/bash /usr/local/bin/start_avahi.sh'; \
     echo 'stdout_logfile=/dev/fd/1'; \
     echo 'stdout_logfile_maxbytes=0'; \
     echo 'redirect_stderr=true'; \
+    echo 'environment=HOME="/root",USER="root"'; \
     echo ''; \
     echo '[program:spotifyd]'; \
     echo 'command=/usr/local/bin/spotifyd --no-daemon'; \
