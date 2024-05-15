@@ -1,189 +1,94 @@
 #!/bin/bash
 
-# Function to check if service is running and stop it
-check_and_stop_service() {
-    service=$1
+# Set Permissions
+sudo chown -R $(whoami):$(whoami) .
+sudo chmod -R 755 .
 
-    if sudo systemctl is-active --quiet $service; then
-        echo "Stopping $service..."
-        sudo systemctl stop $service
+# Function to install system dependencies
+function install() {
+    local package=$1
+    echo "Ensuring package '$package' is installed..."
+
+    # Detect the package management system
+    if command -v apt-get >/dev/null; then
+        if ! dpkg -s "$package" >/dev/null 2>&1; then
+            sudo yes | add-apt-repository universe >/dev/null 2>&1 || true
+            sudo apt update || true
+            if [ "$package" == "docker" ]; then
+                sudo apt-get install -y docker.io
+            else
+                sudo apt-get install -y "$package"
+            fi
+        fi
+    elif command -v yum >/dev/null; then
+        if ! rpm -q "$package" >/dev/null 2>&1; then
+            sudo yum install -y epel-release >/dev/null 2>&1 || true
+            sudo yum makecache --timer || true
+            sudo yum install -y "$package"
+        fi
+    elif command -v dnf >/dev/null; then
+        if ! dnf list installed "$package" >/dev/null 2>&1; then
+            sudo dnf install -y epel-release >/dev/null 2>&1 || true
+            sudo dnf makecache --timer || true
+            sudo dnf install -y "$package"
+        fi
+    elif command -v zypper >/dev/null; then
+        if ! zypper se -i "$package" >/dev/null 2>&1; then
+            sudo zypper refresh || true
+            sudo zypper install -y "$package"
+        fi
+    elif command -v pacman >/dev/null; then
+        if ! pacman -Q "$package" >/dev/null 2>&1; then
+            sudo pacman -Sy
+            sudo pacman -S --noconfirm "$package"
+        fi
     else
-        echo "$service is not running."
+        echo "Package manager not supported."
+        return 1
     fi
 }
 
-# Function to check and install a package if it's not installed
-check_and_install() {
-    package=$1
-    install_cmd=$2
+install chrony
+install nginx
+install containerd
+install docker
+install docker-buildx-plugin
+install alsa-utils
 
-    if ! dpkg -l | grep -q $package; then
-        echo "Installing $package..."
-        eval $install_cmd
-    else
-        echo "$package is already installed."
-    fi
-}
-
-# Function to update the system time
-update_system_time() {
-    echo "Updating system time..."
-    check_and_install "ntpdate" "sudo apt-get install -y ntpdate"
-    sudo ntpdate -u ntp.ubuntu.com
-}
-
-# Check if service is running and stop it
-check_and_stop_service "spotifyd"
-check_and_stop_service "gpt-home"
-check_and_stop_service "gpt-web"
-
-# Set permissions
-sudo chown -R $(whoami):$(whoami) $HOME
-sudo chmod -R 755 $HOME
-
-# Remove existing local repo if it exists
-[ -d "gpt-home" ] && rm -rf gpt-home
-
-# Clone gpt-home repo and navigate into its directory
-git clone https://github.com/judahpaul16/gpt-home.git
-cd gpt-home
-
-# Update system time
-update_system_time
-
-# Update package list
-yes | sudo add-apt-repository universe
-sudo apt-get update
-
-# Check and install missing dependencies
-# Ensure python3.11
-if ! command -v pyenv >/dev/null 2>&1 || ! dpkg -l | grep -q "python3.11"; then
-    cd ~
-    sudo rm -rf ~/.pyenv
-    curl https://pyenv.run | bash
-    echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
-    echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
-    echo 'eval "$(pyenv init -)"' >> ~/.bashrc
-    source ~/.bashrc
-    pyenv install 3.11
-    pyenv global 3.11
-    pyenv shell 3.11
-    pyenv rehash
-    cd gpt-home
-    echo "python3.11 is installed."
-else
-    echo "python3.11 is already installed."
-fi
-check_and_install "python3-venv" "sudo apt-get install -y python3-venv"
-check_and_install "python3-dev" "sudo apt-get install -y python3-dev"
-check_and_install "portaudio19-dev" "sudo apt-get install -y portaudio19-dev"
-check_and_install "alsa-utils" "sudo apt-get install -y alsa-utils"
-check_and_install "libjpeg-dev" "sudo apt-get install -y libjpeg-dev"
-check_and_install "build-essential" "sudo apt-get install -y build-essential"
-check_and_install "libasound2-dev" "sudo apt-get install -y libasound2-dev"
-check_and_install "i2c-tools" "sudo apt-get install -y i2c-tools"
-check_and_install "python3-smbus" "sudo apt-get install -y python3-smbus"
-check_and_install "jackd2" "sudo apt-get install -y jackd2"
-check_and_install "libogg0" "sudo apt-get install -y libogg0"
-check_and_install "libflac12:armhf" "sudo dpkg -i contrib/libflac12_armhf.deb && sudo apt-get -f install -y && sudo apt-get install -y flac"
-check_and_install "flac" "sudo apt-get install -y flac"
-check_and_install "libespeak1" "sudo apt-get install -y libespeak1"
-check_and_install "cmake" "sudo apt-get install -y cmake"
-check_and_install "openssl" "sudo apt-get install -y openssl"
-check_and_install "git" "sudo apt-get install -y git"
-check_and_install "nginx" "sudo apt-get install -y nginx"
-check_and_install "expect" "sudo apt-get install -y expect"
-check_and_install "avahi-daemon" "sudo apt-get install -y avahi-daemon avahi-utils"
-check_and_install "nodejs" "curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - && sudo apt-get install -y nodejs"
-
-# Install cargo and rust
-if ! command -v cargo &> /dev/null; then
-    echo "Installing cargo and rust..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-
-    # Source the environment for cargo and rust
-    if [ -f "$HOME/.cargo/env" ]; then
-        source $HOME/.cargo/env
-    else
-        echo "Error: Unable to source Rust environment. Installation may have failed or path is incorrect."
-    fi
-else
-    echo "cargo is already installed."
-fi
-
-# Ensure directory exists for the configuration
-mkdir -p $HOME/.config/spotifyd
-
-# Install spotifyd using Rust's Cargo
-if ! command -v spotifyd &> /dev/null; then
-    echo "Installing spotifyd..."
-    cargo install spotifyd
-    sudo mv $HOME/.cargo/bin/spotifyd /usr/local/bin/
-else
-    echo "spotifyd is already installed."
-fi
-
-# Create Spotifyd configuration (this is just a basic config; adjust accordingly)
-cat <<EOF > $HOME/.config/spotifyd/spotifyd.conf
-[global]
-backend = "alsa" # Or pulseaudio if you use it
-device_name = "GPT Home" # Name your device shows in Spotify Connect
-bitrate = 320 # Choose bitrate from 96/160/320 kbps
-cache_path = "/home/$(whoami)/.spotifyd/cache"
-discovery = false
+# Create ALSA config (asound.conf, adjust as needed)
+sudo cat > /etc/asound.conf <<EOF
+pcm.!default { type plug; slave.pcm "dmix0"; }
+ctl.!default { type hw; card 0; }
+pcm.dmix0 { type dmix; ipc_key 1024; ipc_perm 0666; slave { pcm "hw:0,0"; channels 2; period_time 0; period_size 1024; buffer_size 4096; rate 48000; } bindings { 0 0; 1 1; } }
+pcm.!hdmi { type plug; slave.pcm "dmix1"; }
+ctl.!hdmi { type hw; card 1; }
+pcm.dmix1 { type dmix; ipc_key 1025; ipc_perm 0666; slave { pcm "hw:1,0"; channels 2; period_time 0; period_size 1024; buffer_size 4096; rate 48000; } bindings { 0 0; 1 1; } }
 EOF
 
-# Function to setup a systemd service
-setup_service() {
-    # Parameters
-    local SERVICE_NAME=$1
-    local EXEC_START=$2
-    local DEPENDS=$3
-    local ENV=$4
-    local HOSTNAME=$5
-    local TYPE=$6
-    local LMEMLOCK=$7
-    local RESTART=$8
+# Install Docker Buildx plugin
+DOCKER_BUILDX_PATH="$HOME/.docker/cli-plugins/docker-buildx"
+mkdir -p "$(dirname "$DOCKER_BUILDX_PATH")"
+curl -L "https://github.com/docker/buildx/releases/download/v0.10.4/buildx-v0.10.4.linux-arm64" -o "$DOCKER_BUILDX_PATH"
+chmod +x "$DOCKER_BUILDX_PATH"
 
-    # Stop the service if it's already running
-    sudo systemctl stop "$SERVICE_NAME" &>/dev/null
-
-    echo "Creating and enabling $SERVICE_NAME..."
-    # Create systemd service file
-    cat <<EOF | sudo tee "/etc/systemd/system/$SERVICE_NAME" >/dev/null
-[Unit]
-Description=$SERVICE_NAME
-$DEPENDS
-StartLimitIntervalSec=10
-StartLimitBurst=10
-
-[Service]
-User=$(whoami)
-WorkingDirectory=/home/$(whoami)/gpt-home
-$EXEC_START
-$ENV
-$HOSTNAME
-$RESTART
-$TYPE
-$LMEMLOCK
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    # Reload systemd to recognize the new service, then enable and restart it
-    sudo systemctl daemon-reload
-    sudo systemctl enable "$SERVICE_NAME"
-    sudo systemctl restart "$SERVICE_NAME"
-
-    # Wait for 5 seconds and then show the service status
-    echo ""
-    sleep 5
-    sudo systemctl status "$SERVICE_NAME" --no-pager
-    echo ""
-}
+# Add current user to docker group
+sudo usermod -aG docker $USER
+# Check if the user is in the docker group
+if ! groups $USER | grep -q "\bdocker\b"; then
+    echo "User is not in the docker group. Please log out and log back in, then re-run this script."
+    exit 1
+fi
 
 # Setup UFW Firewall
+echo "Setting up UFW Firewall..."
+if which firewalld >/dev/null; then
+    sudo systemctl stop firewalld
+    sudo systemctl disable firewalld
+    sudo yum remove firewalld -y 2>/dev/null || sudo apt-get remove firewalld -y 2>/dev/null || sudo zypper remove firewalld -y 2>/dev/null
+fi
+if ! which ufw >/dev/null; then
+    sudo yum install ufw -y 2>/dev/null || sudo apt-get install ufw -y 2>/dev/null || sudo zypper install ufw -y 2>/dev/null
+fi
 sudo ufw allow ssh
 sudo ufw allow 80,443/tcp
 sudo ufw allow 5353/udp
@@ -191,12 +96,12 @@ echo "y" | sudo ufw enable
 
 # Setup NGINX for reverse proxy
 echo "Setting up NGINX..."
+sudo mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
 sudo tee /etc/nginx/sites-available/gpt-home <<EOF
 server {
     listen 80;
-
     location / {
-        proxy_pass http://localhost:8000/;
+        proxy_pass http://127.0.0.1:8000/;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -204,74 +109,77 @@ server {
 }
 EOF
 
-# Remove existing symlink if it exists
+# Remove gpt-home site symlink if it exists
 [ -L "/etc/nginx/sites-enabled/gpt-home" ] && sudo unlink /etc/nginx/sites-enabled/gpt-home
-
-# Symlink the site configuration
-sudo ln -s /etc/nginx/sites-available/gpt-home /etc/nginx/sites-enabled
-
-# Test the NGINX configuration
-sudo nginx -t
 
 # Remove the default site if it exists
 [ -L "/etc/nginx/sites-enabled/default" ] && sudo unlink /etc/nginx/sites-enabled/default
 
-# Reload NGINX to apply changes
-sudo systemctl reload nginx
+# Create a symlink to the gpt-home site and reload NGINX
+sudo ln -s /etc/nginx/sites-available/gpt-home /etc/nginx/sites-enabled
+sudo systemctl enable nginx
+sudo nginx -t && sudo systemctl restart nginx
 
-## Setup main app
-# Create and activate a virtual environment, then install dependencies
-python3 -m venv env
-source env/bin/activate
-pip install --upgrade pip setuptools
-pip install --use-pep517 -r requirements.txt
+sudo systemctl status nginx
 
-## Setup Web Interface
-# Navigate to gpt-web and install dependencies
-cd gpt-web
-npm install
+if [[ "$1" != "--no-build" ]]; then
+    [ -d ~/gpt-home ] && rm -rf ~/gpt-home
+    git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
+    cd ~/gpt-home
+    echo "Checking if the container 'gpt-home' is already running..."
+    if [ $(docker ps -q -f name=gpt-home) ]; then
+        echo "Stopping running container 'gpt-home'..."
+        docker stop gpt-home
+    fi
 
-# Configure Avahi for gpt-home.local
-sudo sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf
-sudo systemctl restart avahi-daemon
+    echo "Checking for existing container 'gpt-home'..."
+    if [ $(docker ps -aq -f status=exited -f name=gpt-home) ]; then
+        echo "Removing existing container 'gpt-home'..."
+        docker rm -f gpt-home
+    fi
 
-## Setup Services
-# Setup spotifyd service
-setup_service \
-    "spotifyd.service" \
-    "ExecStart=/usr/local/bin/spotifyd --no-daemon" \
-    "Wants=sound.target
-    After=sound.target
-    Wants=network-online.target
-    After=network-online.target" \
-    "" \
-    "" \
-    "" \
-    "" \
-    "Restart=always
-    RestartSec=12"
+    echo "Pruning Docker system..."
+    docker system prune -f
 
-# Setup gpt-home service
-setup_service \
-    "gpt-home.service" \
-    "ExecStart=/bin/bash -c 'source /home/$(whoami)/gpt-home/env/bin/activate && python /home/$(whoami)/gpt-home/app.py'" \
-    "" \
-    "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" \
-    "Environment=\"HOSTNAME=$HOSTNAME\"" \
-    "Type=simple" \
-    "LimitMEMLOCK=infinity" \
-    "Restart=always"
+    # Check if the buildx builder exists, if not create and use it
+    if ! docker buildx ls | grep -q mybuilder; then
+        docker buildx create --name mybuilder --use
+        docker buildx inspect --bootstrap
+    fi
 
-# Setup FastAPI service for web interface backend
-setup_service \
-    "gpt-web.service" \
-    "ExecStart=/bin/bash -c 'source /home/$(whoami)/gpt-home/env/bin/activate && uvicorn gpt-web.backend:app --host 0.0.0.0 --port 8000'" \
-    "" \
-    "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" \
-    "Environment=\"HOSTNAME=$HOSTNAME\"" \
-    "Type=simple" \
-    "" \
-    "Restart=always"
+    # Building Docker image 'gpt-home' for ARMhf architecture
+    echo "Building Docker image 'gpt-home' for ARMhf..."
+    timeout 3600 docker buildx build --platform linux/arm64 -t gpt-home . --load
 
-# Mask systemd-networkd-wait-online.service to prevent boot delays
-sudo systemctl mask systemd-networkd-wait-online.service
+    if [ $? -ne 0 ]; then
+        echo "Docker build failed. Exiting..."
+        exit 1
+    fi
+
+    echo "Container 'gpt-home' is now ready to run."
+
+    echo "Running container 'gpt-home' from image 'gpt-home'..."
+    docker run -d --name gpt-home \
+        --privileged \
+        --net=host \
+        --tmpfs /run \
+        --tmpfs /run/lock \
+        -v ~/gpt-home:/app \
+        -v /dev/snd:/dev/snd \
+        -v /dev/shm:/dev/shm \
+        -v /etc/asound.conf:/etc/asound.conf \
+        -v /usr/share/alsa:/usr/share/alsa \
+        -v /var/run/dbus:/var/run/dbus \
+        -e OPENAI_API_KEY=$OPENAI_API_KEY \
+        gpt-home
+
+    echo "Container 'gpt-home' is now running."
+fi
+
+# Show status of the container
+docker ps -a | grep gpt-home
+
+sleep 10
+
+# Show status of all programs managed by Supervisor
+docker exec -it gpt-home supervisorctl status

@@ -4,9 +4,8 @@ from dotenv.main import set_key
 import speech_recognition as sr
 from asyncio import create_task
 from dotenv import load_dotenv
-from board import SCL, SDA
+from pathlib import Path
 from phue import Bridge
-import adafruit_ssd1306
 import subprocess
 import traceback
 import datetime
@@ -26,8 +25,11 @@ import time
 import os
 import re
 
+SOURCE_DIR = Path(__file__).parent
+log_file_path = SOURCE_DIR / "events.log"
+
 # Load .env file
-load_dotenv(dotenv_path='gpt-web/.env')
+load_dotenv(dotenv_path='frontend/.env')
 
 # Add a new 'SUCCESS' logging level
 logging.SUCCESS = 25  # Between INFO and WARNING
@@ -39,8 +41,17 @@ def success(self, message, *args, **kws):
 
 logging.Logger.success = success
 
-logging.basicConfig(filename='events.log', level=logging.DEBUG)
+logging.basicConfig(filename=log_file_path, level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+try:
+    from board import SCL, SDA
+except Exception:
+    logger.debug("Board not detected. Skipping... \n    Reason: {e}\n{traceback.format_exc()}")
+try:
+    import adafruit_ssd1306
+except Exception as e:
+    logger.debug(f"Failed to import adafruit_ssd1306. Skipping...\n    Reason: {e}\n{traceback.format_exc()}")
 
 # Initialize the speech recognition engine
 r = sr.Recognizer()
@@ -113,7 +124,8 @@ def initLCD():
         # Show the updated display with the text.
         display.show()
         return display
-    except ValueError:
+    except Exception as e:
+        logger.debug(f"Failed to initialize display, skipping...\n Reason: {e}\n{traceback.format_exc()}")
         return None
 
 async def initialize_system():
@@ -130,7 +142,7 @@ async def initialize_system():
     return display
 
 def load_settings():
-    settings_path = "settings.json"
+    settings_path = SOURCE_DIR / "settings.json"
     with open(settings_path, "r") as f:
         settings = json.load(f)
         return settings
@@ -351,7 +363,7 @@ async def open_weather_action(text: str):
                             # tomorrow
                             tomorrow_forecast = list(filter(lambda x: x.get('date') == tomorrow.strftime('%A'), forecast))[0]
                             speech_responses = []
-                            speech_responses.append(f"Tomorrow, it will be {tomorrow_forecast.get('temp')}°F and {tomorrow_forecast.get('weather')} in {city}.")
+                            speech_responses.append(f"Tomorrow, it will be {tomorrow_forecast.get('temp')}\u00B0F and {tomorrow_forecast.get('weather')} in {city}.")
                             for day in forecast:
                                 if day.get('date') != tomorrow.strftime('%A'):
                                     speech_responses.append(f"On {day.get('date')}, it will be {round(float(day.get('temp')))} degrees and {day.get('weather').lower()} in {city}.")
@@ -482,7 +494,7 @@ async def query_openai(text, display, retries=3):
                 logger.error(f"Error on try {i+1}: {e}")
             if i == retries - 1:  # If this was the last retry
                 error_message = f"Something went wrong after {retries} retries: {e}"
-                handle_error(error_message, None, display)
+                await handle_error(error_message, None, display)
         await asyncio.sleep(0.5)  # Wait before retrying
 
 async def action_router(text: str, display):

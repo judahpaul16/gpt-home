@@ -5,6 +5,7 @@
 ![Python Version](https://img.shields.io/badge/Python-v3.11-blue?style=flat-square&logo=python)
 ![Node.js Version](https://img.shields.io/badge/Node.js-v18.17.1-green?style=flat-square&logo=node.js)
 [![Release](https://img.shields.io/github/v/release/judahpaul16/gpt-home?style=flat-square)](https://github.com/judahpaul16/gpt-home/tags)
+[![Docker Pulls](https://img.shields.io/docker/pulls/judahpaul/gpt-home?style=flat-square)](https://hub.docker.com/r/judahpaul/gpt-home)
 
 ChatGPT at home! Basically a better Google Nest Hub or Amazon Alexa home assistant. Built on the Raspberry Pi using the OpenAI API.
 
@@ -12,33 +13,88 @@ ChatGPT at home! Basically a better Google Nest Hub or Amazon Alexa home assista
 
 This guide will explain how to build your own. It's pretty straight forward. You can also use this as a reference for building other projects on the Raspberry Pi.
 
-* *In my testing, I am running Ubuntu Server 23.04 on a Raspberry Pi 4B. You may need to make certain modifications to accommodate other operating systems (e.g., the package manager `apt` used in the setup script is debian specific). Theoretically, the app should run on any linux system, but I can only vouch for the versions listed in the [compatibility table](#-compatibility).*
+* *Theoretically, the app should run on any linux system thanks to docker, but I can only vouch for the versions listed in the [compatibility table](#-compatibility). You should be able use any plug-and-play USB/3.5mm speaker or microphone as long as it's supported by [ALSA](https://www.alsa-project.org) or [PortAudio](http://www.portaudio.com/docs/v19-doxydocs/index.html).*
 
-* *You can theoretically use any USB/3.5mm speaker or microphone.*
+<table align="center">
+
+<tr>
+<td>
+  
+<table>
+<th colspan="2" style="text-align: center;">📦 Integrations</th>
+<tr>
+<td>
+      
+✅ OpenAI  
+✅ Spotify  
+✅ Philips Hue  
+✅ OpenWeatherMap  
+
+</td>
+<td>
+
+🔲 Open-Meteo  
+🔲 Alarms  
+🔲 Reminders  
+🔲 LiteLLM  
+
+</td>
+</tr>
+</table>
+
+</td>
+<td>
+    
+<table>
+<th colspan="2" style="text-align: center;">🔧 Use Cases
+<tr>
+<td>
+      
+🌈 Weather  
+🌡️ Temperature  
+🌅 Sunrise/Sunset  
+📅 Calendar  
+
+</td>
+<td>
+
+📚 General Knowledge  
+🎵 Music  
+💡 Lights  
+😆 Fun & Games
+
+</td>
+</tr>
+</table>
+
+</td>
+</tr>
+
+</table>
+
 
 ## 🚀 TL;DR
 ```bash
-cd ~
-echo "export OPENAI_API_KEY=\"your_openai_api_key\"" >> ~/.bashrc
-source ~/.bashrc
-wget -O setup.sh https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh
-sudo chown -R $(whoami):$(whoami) .
-sudo chmod -R 755 .
-sudo chmod +x setup.sh
-./setup.sh
+curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh | \
+    bash -s -- --no-build
+docker ps -aq -f name=gpt-home | xargs -r docker rm -f
+docker pull judahpaul/gpt-home
+docker run -d --name gpt-home \
+    --privileged \
+    --net=host \
+    --tmpfs /run \
+    --tmpfs /run/lock \
+    -v /dev/snd:/dev/snd \
+    -v /dev/shm:/dev/shm \
+    -v /etc/asound.conf:/etc/asound.conf \
+    -v /usr/share/alsa:/usr/share/alsa \
+    -v /var/run/dbus:/var/run/dbus \
+    -e OPENAI_API_KEY=your_key_here \
+    judahpaul/gpt-home
 ```
 
-## 🔌 Integrations
-- [x] OpenAI
-- [x] Spotify
-- [x] Philips Hue
-- [x] OpenWeatherMap
-- [ ] Open-Meteo
-- [ ] Calendar
-- [ ] Alarms & Reminders
-
-## ⚠️ Schematics / Wiring Diagram
-### Caution: Battery Connection
+## 🔌 Schematics
+### ⚠️ Caution: Battery Connection
 **IMPORTANT**: The image on the left is for illustration purposes. ***Do not connect the battery directly to the Raspberry Pi. Use a UPS or power supply with a battery like this [one](https://a.co/d/1rMMCPR).*** Connecting the battery directly to the Raspberry Pi can cause damage to the board from voltage fluctuations.
 
 Before connecting the battery, ensure that the polarity is correct to avoid damage to your Raspberry Pi or other components. Disconnect power sources before making changes.
@@ -55,8 +111,13 @@ Before connecting the battery, ensure that the polarity is correct to avoid dama
 ---
 
 ## 🛠 My Parts List
+This is the list of parts I used to build my first GPT Home. You can use this as a reference for building your own. I've also included optional parts that you can add to enhance your setup. ***To be clear you can use any system that runs Linux.***
 
-### Core Components
+<details>
+<summary>👈 View My Parts List</summary>
+<p>
+
+**Core Components**  
 - **Raspberry Pi 4B**: [Link](https://a.co/d/aH6YCXY) - $50-$70
 - **Mini Speaker**: [Link](https://a.co/d/9bN8LZ2) - $18
 - **128 GB MicroSD card**: [Link](https://a.co/d/0SxSg7O) - $13
@@ -64,7 +125,7 @@ Before connecting the battery, ensure that the polarity is correct to avoid dama
 
 ---
 
-### Optional Components
+**Optional Components**  
 - **128x32 OLED Display**: [Link](https://a.co/d/4Scrfjq) - $13-$14
 - **Standoff Spacer Column M3x40mm**: [Link](https://a.co/d/ees6oEA) - $14
 - **M1.4 M1.7 M2 M2.5 M3 Screw Kit**: [Link](https://a.co/d/4XJwiBY) - $15
@@ -81,382 +142,407 @@ Before connecting the battery, ensure that the polarity is correct to avoid dama
 
 ---
 
+</p>
+</details>
+
 ## 📶 Configuring Wi-Fi via wpa_supplicant
 
-To configure Wi-Fi on your Raspberry Pi, you'll need to edit the `wpa_supplicant.conf` file and ensure the wireless interface is enabled at boot.
+To configure Wi-Fi on your Raspberry Pi, you'll need to edit the `wpa_supplicant.conf` file and ensure the wireless interface is enabled at boot. This method supports configuring multiple Wi-Fi networks and is suitable for headless setups.
+*You could also use the [`raspi-config`](https://www.raspberrypi.com/documentation/computers/configuration.html) or the [`nmcli`](https://ubuntu.com/core/docs/networkmanager/configure-wifi-connections) utility to configure Wi-Fi; or simply use an Ethernet connection if you prefer.*
 
-1. Install `net-tools` to get the `ifconfig` command:
-   ```bash
-   sudo apt install net-tools
-   ```
+<details>
+<summary>👈 View Instructions</summary>
+<p>
 
-2. To enable the wireless interface (`wlan0` in most cases) at boot, add the following command to `/etc/rc.local` before the `exit 0` line:  
-    *Create the file if it doesn't exist*
-    ```bash
-    sudo vim /etc/rc.local
-    ```
-    Add the following contents:
-    ```bash
-    #!/bin/bash
-    sudo ifconfig wlan0 up &
-    sudo wpa_supplicant -i wlan0 -c /etc/wpa_supplicant/wpa_supplicant.conf -B &
-    sudo dhclient wlan0 &
-    exit 0
-    ```
-    Ensure the file has executable permissions and is enabled as a service:
-    ```bash
-    sudo chmod +x /etc/rc.local
-    sudo systemctl enable rc-local.service
-    sudo systemctl start rc-local.service
-    ```
+**Step 1: Create the Bash Script**  
 
-3. Open the configuration file in a text editor:
-    ```bash
-    sudo vim /etc/wpa_supplicant/wpa_supplicant.conf
-    ```
+```bash
+sudo nano /usr/local/bin/start_wifi.sh
+```
 
-4. Add the following lines at the end of the file:  
-*You can define multiple `network` blocks for multiple Wi-Fi networks*
-    ```bash
-    network={
-        ssid="Your_Wi-Fi_Name"
-        psk="Your_Wi-Fi_Password"
-        key_mgmt=WPA-PSK
-    }
-    ```
-    Replace `Your_Wi-Fi_Name` and `Your_Wi-Fi_Password` with your actual Wi-Fi credentials.
+Add the following content to the script:
 
-4. Ensure `wpa_supplicant` service starts at boot:
-    ```bash
-    sudo systemctl enable wpa_supplicant.service
-    ```
+```bash
+#!/bin/bash
 
-5. Start `wpa_supplicant` service:
-    ```bash
-    sudo systemctl start wpa_supplicant.service
-    ```
+# Set the interface and SSID details
+INTERFACE="wlan0"
+SSID="your_wifi_ssid"
+PASSWORD="your_wifi_password"
 
-Your Raspberry Pi should now connect to the Wi-Fi network automatically on boot. If you face issues, refer to the [official Raspberry Pi documentation on wireless connectivity](https://www.raspberrypi.com/documentation/computers/configuration.html#setting-up-a-wireless-lan-via-the-command-line).
+# Make sure no previous configuration interferes
+sudo killall wpa_supplicant
+sudo dhcpcd -x $INTERFACE
+
+# Ensure the wireless interface is up
+ip link set $INTERFACE up
+
+# Create a wpa_supplicant configuration file
+WPA_CONF="/etc/wpa_supplicant/wpa_supplicant.conf"
+wpa_passphrase $SSID $PASSWORD > $WPA_CONF
+
+# Start wpa_supplicant
+wpa_supplicant -B -i $INTERFACE -c $WPA_CONF
+
+# Obtain an IP address
+dhcpcd $INTERFACE
+```
+
+Make sure to replace `your_wifi_ssid` and `your_wifi_password` with your actual WiFi network's SSID and password.
+
+**Step 2: Make the Script Executable**  
+
+```bash
+sudo chmod +x /usr/local/bin/start_wifi.sh
+```
+
+**Step 3: Execute the Script at Boot**  
+
+To run this script at boot time, you can add it to your `rc.local` file, which is executed by the init system at the end of each multiuser runlevel.
+
+Edit the `rc.local` file:
+
+```bash
+sudo nano /etc/rc.local
+```
+
+Add the following line before the `exit 0` at the end of the file:
+
+```bash
+/usr/local/bin/start_wifi.sh &
+```
+
+Execute the script to start the Wi-Fi connection:
+
+```bash
+sudo /usr/local/bin/start_wifi.sh
+```
+
+Your Raspberry Pi should now connect to the Wi-Fi network automatically on boot.
+
+If you want to connect to hidden networks or multiple networks, edit the `wpa_supplicant.conf` file located at `/etc/wpa_supplicant/wpa_supplicant.conf` and add the following configuration:
+
+```bash
+network={
+    priority=1 # Higher priority networks are attempted first
+    ssid="Your_Wi-Fi_Name"
+    psk="Your_Wi-Fi_Password"
+    key_mgmt=WPA-PSK
+    scan_ssid=1 # Hidden network
+
+    priority=2
+    ssid="Enterprise_Wi-Fi_Name"
+    key_mgmt=WPA-EAP
+    eap=PEAP # or TTLS, TLS, FAST, LEAP
+    identity="Your_Username"
+    password="Your_Password" 
+    phase1="peaplabel=0" # or "peapver=0" for PEAPv0
+    phase2="auth=MSCHAPV2" # or "auth=MSCHAP" for MSCHAPv1
+}
+```
+
+Restart the `wpa_supplicant` service to apply the changes:
+
+```bash
+sudo systemctl restart wpa_supplicant
+```
+
+See the [wpa_supplicant example file](https://w1.fi/cgit/hostap/plain/wpa_supplicant/wpa_supplicant.conf) for more information on the configuration options.
+
+</p>
+</details>
 
 ## 🛠 System Dependencies
 
-Before running this project on your Raspberry Pi, you'll need to install some system-level dependencies in addition to the Python packages.
+Before running this project on your system, ensure your system clock is synchronized, your package lists are updated, and NGINX and Docker are installed. The setup script will take care of this for you but you can also do this manually.
 
-1. Synchoronize your system clock:
+<details>
+<summary>👈 View Instructions</summary>
+<p>
+
+**Synchronize your system clock:**  
+*Install `chrony` for time synchronization:*
+
+```bash
+sudo apt install -y chrony       # For Debian/Ubuntu
+sudo yum install -y chrony       # For RHEL/CentOS/Alma
+sudo dnf install -y chrony       # # For RHEL/CentOS/Alma 9^
+sudo zypper install -y chrony    # For openSUSE
+sudo pacman -S chrony            # For Arch Linux
+```
+
+Activate and synchronize time immediately with `chrony`:
+
+```bash
+sudo chronyc makestep
+```
+
+**Update your package list:**  
+*Regular updates to your package list ensure access to the latest software and security patches.*
+
+```bash
+sudo apt update                   # For Debian/Ubuntu
+sudo yum makecache                # For RHEL/CentOS/Alma
+sudo dnf makecache                # For RHEL/CentOS/Alma 9^
+sudo zypper refresh               # For openSUSE
+sudo pacman -Sy                   # For Arch Linux
+```
+
+**Enable additional repositories:**  
+*For systems that utilize EPEL and other special repositories, you may need to enable them to access a wider range of available packages.*
+
+For Debian/Ubuntu:
+
+```bash
+sudo add-apt-repository universe
+sudo apt update
+```
+
+For RHEL/CentOS/Alma and Fedora:
+
+```bash
+sudo yum install -y epel-release   # For RHEL/CentOS/Alma
+sudo dnf install -y epel-release   # For RHEL/CentOS/Alma 9^
+sudo yum makecache --timer            # For RHEL/CentOS/Alma
+sudo dnf makecache --timer            # For RHEL/CentOS/Alma 9^
+```
+
+**Install Development Tools:**  
+*Development tools are essential for building packages and compiling software. Ensure you have the necessary tools installed.*
+
+For Debian/Ubuntu:
+
+```bash
+sudo apt install -y build-essential
+```
+
+For RHEL/CentOS/Alma and Fedora:
+
+```bash
+sudo yum groupinstall -y "Development Tools"   # For RHEL/CentOS/Alma 
+sudo dnf groupinstall -y "Development Tools"   # For RHEL/CentOS/Alma 9^
+```
+
+**Install System Dependencies**  
+
+1. **Docker**: Required for containerization.  
     ```bash
-    sudo timedatectl set-ntp on
+    sudo apt-get install -y docker.io  # For Debian/Ubuntu
+    sudo yum install -y docker         # For RHEL/CentOS/Alma
+    sudo dnf install -y docker         # For RHEL/CentOS/Alma 9^
+    sudo zypper install -y docker      # For openSUSE
+    sudo pacman -S docker              # For Arch Linux
+    ```
+    then `sudo systemctl enable --now docker`
+
+2. **NGINX**: Required for reverse proxy for the web interface.  
+    ```bash
+    sudo apt-get install -y nginx   # For Debian/Ubuntu
+    sudo yum install -y nginx       # For RHEL/CentOS/Alma
+    sudo dnf install -y nginx       # For RHEL/CentOS/Alma 9^
+    sudo zypper install -y nginx    # For openSUSE
+    sudo pacman -S nginx            # For Arch Linux
     ```
 
-2. Update your package list:
-    ```bash
-    sudo apt update
-    ```
-
-2. Make sure the Universe repository is enabled:
-    ```bash
-    sudo add-apt-repository universe
-    sudo apt update
-    ```
-
-### Installing Dependencies  
-If you want to use the [setup.sh](#-example-setup-script) script, you can skip this section. Otherwise, you can install the dependencies manually.
-
-1. **OpenAI API Key**: Required for OpenAI's GPT API.  
-    Setup: Set up as an environment variable.  
-
-2. **Python 3.11.x**: Required for running the Python code.  
-   Installation: `sudo apt-get install -y python3.11 python3-dev`
-
-3. **PortAudio**: Required for `pyttsx3` (text-to-speech).  
-   Installation: `sudo apt-get install -y portaudio19-dev`
-
-4. **ALSA Utilities**: Required for audio configuration.  
-   Installation: `sudo apt-get install -y alsa-utils`
-
-5. **JPEG Library**: Required for Pillow.  
-   Installation: `sudo apt-get install -y libjpeg-dev`
-
-6. **Build Essentials**: Required for building packages.  
-   Installation: `sudo apt-get install -y build-essential`
-
-7. **vcgencmd**: Comes pre-installed on Raspberry Pi OS. Used for fetching CPU temperature.
-
-8. **Speech Recognition Libraries**: Required for `speech_recognition`.  
-   Installation: `sudo apt-get install -y libasound2-dev`
-
-9. **I2C Support**: Required for `adafruit_ssd1306` (OLED display).  
-   Enable via `raspi-config` or install packages:  
-   ```bash
-   sudo apt-get install -y i2c-tools
-   sudo apt-get install -y python3-smbus
-   ```
-
-10. **eSpeak Library**: Required for text-to-speech (`pyttsx3`).  
-   Installation: `sudo apt-get install -y libespeak1`
-
-11. **JACK Audio Connection Kit**: Required for handling audio.  
-   Installation: `sudo apt-get install -y jackd2`  
-   Select `Yes` when prompted to enable realtime privileges.
-
-12. **FLAC Libraries**: Required for handling FLAC audio formats.  
-   Installation: `sudo apt-get install -y flac libflac12:armhf`
-
-13. **Git**: Required for cloning the repository.  
-    Installation: `sudo apt-get install -y git`
-
-14. **Node.js and npm**: Required for the web interface.  
-    Installation: [Follow NodeSource Installation Guide](https://github.com/nodesource/distributions#installation-instructions)
-
-15. **NGINX**: Required for reverse proxy for the web interface.
-    Installation: `sudo apt-get install -y nginx`
-
-16. **Rust and Cargo**: Required for installing `spotifyd`.  
-    Installation: [Follow Rust Installation Guide](https://www.rust-lang.org/tools/install)
-
-17. **Spotifyd**: Required for Spotify Connect.
-
-18. **Virtual Environment**: Recommended for Python package management.  
-   Installation: `sudo apt-get install -y python3-venv`
+</p>
+</details>
 
 ---
 
-## 🐚 Example setup script:
-This script will install all the dependencies and completely set up the project for you. The first time you run it, it will take a while to install all the dependencies. After that, it will be much faster and you can just run it to reinstall the project if you make any changes to the code or want the latest version of the project.
+## 🐳 Building the Docker Container
+Before you run the setup script to build the container you should first export your `OPENAI_API_KEY` to an environment variable. The setup script will use this to initialize the container with your OpenAI API key.
 
-You will need to initialize an environment variable with your OpenAI API Key.  
-
-- *Note: Executing `export` directly in the terminal does not persist after reboot.*  
+***Note: Executing `export` directly in the terminal does not persist after reboot.***
 ```bash
 export OPENAI_API_KEY="your_openai_api_key_here"
 ```
 
-Alternatively, you set up the variable in .bashrc file. (recommended)  
-- *Put this at the end of your `~/.bashrc` file*
+Alternatively, you can put this at the end of your `~/.bashrc` file. (recommended) 
 ```bash
 # export your OpenAI API Key in here to initialize it at boot
 export OPENAI_API_KEY="your_openai_api_key_here"
 
 # Optional: Add these aliases to your .bashrc file for easier management
-alias gpt-start="sudo systemctl start gpt-home"
-alias gpt-restart="sudo systemctl restart gpt-home"
-alias gpt-stop="sudo systemctl stop gpt-home"
-alias gpt-disable="sudo systemctl disable gpt-home"
-alias gpt-status="sudo systemctl status gpt-home"
-alias gpt-enable="sudo systemctl enable gpt-home"
-alias gpt-log="tail -n 100 -f /home/$(whoami)/gpt-home/events.log"
+alias gpt-start="docker exec -it gpt-home supervisorctl start app"
+alias gpt-restart="docker exec -it gpt-home supervisorctl restart app"
+alias gpt-stop="docker exec -it gpt-home supervisorctl stop app"
+alias gpt-status="docker exec -it gpt-home supervisorctl status app"
+alias gpt-log="docker exec -it gpt-home tail -n 100 -f /app/src/events.log"
 
-alias web-start="sudo systemctl start gpt-web"
-alias web-restart="sudo systemctl restart gpt-web && sudo systemctl restart nginx"
-alias web-stop="sudo systemctl stop gpt-web"
-alias web-disable="sudo systemctl disable gpt-web"
-alias web-status="sudo systemctl status gpt-web"
-alias web-enable="sudo systemctl enable gpt-web"
-alias web-log="tail -n 100 -f /var/log/nginx/access.log"
-alias web-error="tail -n 100 -f /var/log/nginx/error.log"
+alias wi-start="docker exec -it gpt-home supervisorctl start web-interface"
+alias wi-restart="docker exec -it gpt-home supervisorctl restart web-interface && sudo systemctl restart nginx"
+alias wi-stop="docker exec -it gpt-home supervisorctl stop web-interface"
+alias wi-status="docker exec -it gpt-home supervisorctl status web-interface"
+alias wi-build="docker exec -it gpt-home bash -c 'cd /app/src/frontend && npm run build'"
+alias wi-log="tail -n 100 -f /var/log/nginx/access.log"
+alias wi-error="tail -n 100 -f /var/log/nginx/error.log"
 
-alias spotifyd-start="sudo systemctl start spotifyd"
-alias spotifyd-restart="sudo systemctl restart spotifyd"
-alias spotifyd-stop="sudo systemctl stop spotifyd"
-alias spotifyd-disable="sudo systemctl disable spotifyd"
-alias spotifyd-status="sudo systemctl status spotifyd"
-alias spotifyd-enable="sudo systemctl enable spotifyd"
-alias spotifyd-log="journalctl -eu spotifyd"
+alias spotifyd-start="docker exec -it gpt-home supervisorctl start spotifyd"
+alias spotifyd-restart="docker exec -it gpt-home supervisorctl restart spotifyd"
+alias spotifyd-stop="docker exec -it gpt-home supervisorctl stop spotifyd"
+alias spotifyd-status="docker exec -it gpt-home supervisorctl status spotifyd"
+alias spotifyd-log="docker exec -it gpt-home tail -n 100 -f /var/log/spotifyd.log"
 ```
 Run `source ~/.bashrc` to apply the changes to your current terminal session.
 
-## setup.sh
-Create a script in your home folder with `vim ~/setup.sh` and paste in the following:
+The setup script will take quite a while to run ***(900.0s+ to build and setup dependencies on my quad-core Raspberry Pi 4B w/ 1G RAM)***. It will install all the dependencies and build the Docker container. However, you can skip the build process by passing the `--no-build` flag to the script; it will only install the dependencies and set up the firewall and NGINX. You can then pull the container from Docker Hub and run it.
 
-<details><summary>👈 View script</summary>
+```bash
+curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh | \
+    bash -s -- --no-build
+docker ps -aq -f name=gpt-home | xargs -r docker rm -f
+docker pull judahpaul/gpt-home
+docker run -d --name gpt-home \
+    --privileged \
+    --net=host \
+    --tmpfs /run \
+    --tmpfs /run/lock \
+    -v /dev/snd:/dev/snd \
+    -v /dev/shm:/dev/shm \
+    -v /etc/asound.conf:/etc/asound.conf \
+    -v /usr/share/alsa:/usr/share/alsa \
+    -v /var/run/dbus:/var/run/dbus \
+    -e OPENAI_API_KEY=your_key_here \
+    judahpaul/gpt-home
+```
+**Explanation of Docker Run Flags**
+```yaml
+--tmpfs /run:
+    Mounts a tmpfs at /run for transient runtime data.
+--tmpfs /run/lock:
+    Mounts a tmpfs at /run/lock for lock files.
+--privileged:
+    Grants extended privileges to the container
+    Necessary for accessing host audio devices.
+--net=host:
+    Uses the host network stack directly.
+    May be necessary for avahi-daemon services.
+-v /dev/snd:/dev/snd:
+    Provides access to the host's sound devices.
+-v /dev/shm:/dev/shm:
+    Provides access to shared memory.
+-v /etc/asound.conf:/etc/asound.conf:ro:
+    Maps the ALSA configuration file as read-only.
+-v /usr/share/alsa:/usr/share/alsa:ro:
+    Maps the ALSA shared data as read-only.
+-v /var/run/dbus:/var/run/dbus:
+    Provides access to the D-Bus system for inter-process communication.
+```
+
+**Alternatively, for development purposes, running `setup.sh` without the `--no-build` flag mounts the project directory to the container by adding `-v ~/gpt-home:/app` to the `docker run` command. This allows you to make changes to the project files on your Raspberry Pi and see the changes reflected in the container without rebuilding the image. This is useful for testing changes to the codebase. Run directly with:**
+
+```bash
+curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh | \
+    bash -s
+```
+
+You can also run the container interactively if you need to debug or test changes to the codebase with the `-it` (interactive terminal), `--entrypoint /bin/bash`, and `--rm` (remove on process exit) flags. This will drop you into a shell session inside the container. Alternatively, if the conatiner is already running:
+
+```bash
+docker exec -it gpt-home bash
+```
+
+This will start the container and drop you into a shell session inside the container.
+
+### 🐚 setup.sh
+If you prefer to run the setup script manually, you can do so. Create a script in your ***home*** folder with `vim ~/setup.sh` or `nano ~/setup.sh` and paste in the following:
+
+<details>
+<summary>👈 View Script</summary>
 <p>
 
 ```bash
 #!/bin/bash
 
-# Function to check if service is running and stop it
-check_and_stop_service() {
-    service=$1
+# Set Permissions
+sudo chown -R $(whoami):$(whoami) .
+sudo chmod -R 755 .
 
-    if sudo systemctl is-active --quiet $service; then
-        echo "Stopping $service..."
-        sudo systemctl stop $service
+# Function to install system dependencies
+function install() {
+    local package=$1
+    echo "Ensuring package '$package' is installed..."
+
+    # Detect the package management system
+    if command -v apt-get >/dev/null; then
+        if ! dpkg -s "$package" >/dev/null 2>&1; then
+            sudo yes | add-apt-repository universe >/dev/null 2>&1 || true
+            sudo apt update || true
+            if [ "$package" == "docker" ]; then
+                sudo apt-get install -y docker.io
+            else
+                sudo apt-get install -y "$package"
+            fi
+        fi
+    elif command -v yum >/dev/null; then
+        if ! rpm -q "$package" >/dev/null 2>&1; then
+            sudo yum install -y epel-release >/dev/null 2>&1 || true
+            sudo yum makecache --timer || true
+            sudo yum install -y "$package"
+        fi
+    elif command -v dnf >/dev/null; then
+        if ! dnf list installed "$package" >/dev/null 2>&1; then
+            sudo dnf install -y epel-release >/dev/null 2>&1 || true
+            sudo dnf makecache --timer || true
+            sudo dnf install -y "$package"
+        fi
+    elif command -v zypper >/dev/null; then
+        if ! zypper se -i "$package" >/dev/null 2>&1; then
+            sudo zypper refresh || true
+            sudo zypper install -y "$package"
+        fi
+    elif command -v pacman >/dev/null; then
+        if ! pacman -Q "$package" >/dev/null 2>&1; then
+            sudo pacman -Sy
+            sudo pacman -S --noconfirm "$package"
+        fi
     else
-        echo "$service is not running."
+        echo "Package manager not supported."
+        return 1
     fi
 }
 
-# Function to check and install a package if it's not installed
-check_and_install() {
-    package=$1
-    install_cmd=$2
+install chrony
+install nginx
+install containerd
+install docker
+install docker-buildx-plugin
+install alsa-utils
 
-    if ! dpkg -l | grep -q $package; then
-        echo "Installing $package..."
-        eval $install_cmd
-    else
-        echo "$package is already installed."
-    fi
-}
-
-# Function to update the system time
-update_system_time() {
-    echo "Updating system time..."
-    check_and_install "ntpdate" "sudo apt-get install -y ntpdate"
-    sudo ntpdate -u ntp.ubuntu.com
-}
-
-# Check if service is running and stop it
-check_and_stop_service "spotifyd"
-check_and_stop_service "gpt-home"
-check_and_stop_service "gpt-web"
-
-# Set permissions
-sudo chown -R $(whoami):$(whoami) $HOME
-sudo chmod -R 755 $HOME
-
-# Remove existing local repo if it exists
-[ -d "gpt-home" ] && rm -rf gpt-home
-
-# Clone gpt-home repo and navigate into its directory
-git clone https://github.com/judahpaul16/gpt-home.git
-cd gpt-home
-
-# Update system time
-update_system_time
-
-# Update package list
-yes | sudo add-apt-repository universe
-sudo apt-get update
-
-# Check and install missing dependencies
-# Ensure python3.11
-if ! command -v pyenv >/dev/null 2>&1 || ! dpkg -l | grep -q "python3.11"; then
-    cd ~
-    sudo rm -rf ~/.pyenv
-    curl https://pyenv.run | bash
-    echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
-    echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
-    echo 'eval "$(pyenv init -)"' >> ~/.bashrc
-    source ~/.bashrc
-    pyenv install 3.11
-    pyenv global 3.11
-    pyenv shell 3.11
-    pyenv rehash
-    cd gpt-home
-    echo "python3.11 is installed."
-else
-    echo "python3.11 is already installed."
-fi
-check_and_install "python3-venv" "sudo apt-get install -y python3-venv"
-check_and_install "python3-dev" "sudo apt-get install -y python3-dev"
-check_and_install "portaudio19-dev" "sudo apt-get install -y portaudio19-dev"
-check_and_install "alsa-utils" "sudo apt-get install -y alsa-utils"
-check_and_install "libjpeg-dev" "sudo apt-get install -y libjpeg-dev"
-check_and_install "build-essential" "sudo apt-get install -y build-essential"
-check_and_install "libasound2-dev" "sudo apt-get install -y libasound2-dev"
-check_and_install "i2c-tools" "sudo apt-get install -y i2c-tools"
-check_and_install "python3-smbus" "sudo apt-get install -y python3-smbus"
-check_and_install "jackd2" "sudo apt-get install -y jackd2"
-check_and_install "libogg0" "sudo apt-get install -y libogg0"
-check_and_install "libflac12:armhf" "sudo dpkg -i contrib/libflac12_armhf.deb && sudo apt-get -f install -y && sudo apt-get install -y flac"
-check_and_install "flac" "sudo apt-get install -y flac"
-check_and_install "libespeak1" "sudo apt-get install -y libespeak1"
-check_and_install "cmake" "sudo apt-get install -y cmake"
-check_and_install "openssl" "sudo apt-get install -y openssl"
-check_and_install "git" "sudo apt-get install -y git"
-check_and_install "nginx" "sudo apt-get install -y nginx"
-check_and_install "expect" "sudo apt-get install -y expect"
-check_and_install "avahi-daemon" "sudo apt-get install -y avahi-daemon avahi-utils"
-check_and_install "nodejs" "curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - && sudo apt-get install -y nodejs"
-
-# Install cargo and rust
-if ! command -v cargo &> /dev/null; then
-    echo "Installing cargo and rust..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-
-    # Source the environment for cargo and rust
-    if [ -f "$HOME/.cargo/env" ]; then
-        source $HOME/.cargo/env
-    else
-        echo "Error: Unable to source Rust environment. Installation may have failed or path is incorrect."
-    fi
-else
-    echo "cargo is already installed."
-fi
-
-# Ensure directory exists for the configuration
-mkdir -p $HOME/.config/spotifyd
-
-# Install spotifyd using Rust's Cargo
-if ! command -v spotifyd &> /dev/null; then
-    echo "Installing spotifyd..."
-    cargo install spotifyd
-    sudo mv $HOME/.cargo/bin/spotifyd /usr/local/bin/
-else
-    echo "spotifyd is already installed."
-fi
-
-# Create Spotifyd configuration (this is just a basic config; adjust accordingly)
-cat <<EOF > $HOME/.config/spotifyd/spotifyd.conf
-[global]
-backend = "alsa" # Or pulseaudio if you use it
-device_name = "GPT Home" # Name your device shows in Spotify Connect
-bitrate = 320 # Choose bitrate from 96/160/320 kbps
-cache_path = "/home/$(whoami)/.spotifyd/cache"
-discovery = false
+# Create ALSA config (asound.conf, adjust as needed)
+sudo cat > /etc/asound.conf <<EOF
+pcm.!default { type plug; slave.pcm "dmix0"; }
+ctl.!default { type hw; card 0; }
+pcm.dmix0 { type dmix; ipc_key 1024; ipc_perm 0666; slave { pcm "hw:0,0"; channels 2; period_time 0; period_size 1024; buffer_size 4096; rate 48000; } bindings { 0 0; 1 1; } }
+pcm.!hdmi { type plug; slave.pcm "dmix1"; }
+ctl.!hdmi { type hw; card 1; }
+pcm.dmix1 { type dmix; ipc_key 1025; ipc_perm 0666; slave { pcm "hw:1,0"; channels 2; period_time 0; period_size 1024; buffer_size 4096; rate 48000; } bindings { 0 0; 1 1; } }
 EOF
 
-# Function to setup a systemd service
-setup_service() {
-    # Parameters
-    local SERVICE_NAME=$1
-    local EXEC_START=$2
-    local DEPENDS=$3
-    local ENV=$4
-    local HOSTNAME=$5
-    local TYPE=$6
-    local LMEMLOCK=$7
-    local RESTART=$8
+# Install Docker Buildx plugin
+DOCKER_BUILDX_PATH="$HOME/.docker/cli-plugins/docker-buildx"
+mkdir -p "$(dirname "$DOCKER_BUILDX_PATH")"
+curl -L "https://github.com/docker/buildx/releases/download/v0.10.4/buildx-v0.10.4.linux-arm64" -o "$DOCKER_BUILDX_PATH"
+chmod +x "$DOCKER_BUILDX_PATH"
 
-    # Stop the service if it's already running
-    sudo systemctl stop "$SERVICE_NAME" &>/dev/null
-
-    echo "Creating and enabling $SERVICE_NAME..."
-    # Create systemd service file
-    cat <<EOF | sudo tee "/etc/systemd/system/$SERVICE_NAME" >/dev/null
-[Unit]
-Description=$SERVICE_NAME
-$DEPENDS
-StartLimitIntervalSec=10
-StartLimitBurst=10
-
-[Service]
-User=$(whoami)
-WorkingDirectory=/home/$(whoami)/gpt-home
-$EXEC_START
-$ENV
-$HOSTNAME
-$RESTART
-$TYPE
-$LMEMLOCK
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    # Reload systemd to recognize the new service, then enable and restart it
-    sudo systemctl daemon-reload
-    sudo systemctl enable "$SERVICE_NAME"
-    sudo systemctl restart "$SERVICE_NAME"
-
-    # Wait for 5 seconds and then show the service status
-    echo ""
-    sleep 5
-    sudo systemctl status "$SERVICE_NAME" --no-pager
-    echo ""
-}
+# Add current user to docker group
+sudo usermod -aG docker $USER
+# Check if the user is in the docker group
+if ! groups $USER | grep -q "\bdocker\b"; then
+    echo "User is not in the docker group. Please log out and log back in, then re-run this script."
+    exit 1
+fi
 
 # Setup UFW Firewall
+echo "Setting up UFW Firewall..."
+if which firewalld >/dev/null; then
+    sudo systemctl stop firewalld
+    sudo systemctl disable firewalld
+    sudo yum remove firewalld -y 2>/dev/null || sudo apt-get remove firewalld -y 2>/dev/null || sudo zypper remove firewalld -y 2>/dev/null
+fi
+if ! which ufw >/dev/null; then
+    sudo yum install ufw -y 2>/dev/null || sudo apt-get install ufw -y 2>/dev/null || sudo zypper install ufw -y 2>/dev/null
+fi
 sudo ufw allow ssh
 sudo ufw allow 80,443/tcp
 sudo ufw allow 5353/udp
@@ -464,12 +550,12 @@ echo "y" | sudo ufw enable
 
 # Setup NGINX for reverse proxy
 echo "Setting up NGINX..."
+sudo mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
 sudo tee /etc/nginx/sites-available/gpt-home <<EOF
 server {
     listen 80;
-
     location / {
-        proxy_pass http://localhost:8000/;
+        proxy_pass http://127.0.0.1:8000/;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -477,77 +563,80 @@ server {
 }
 EOF
 
-# Remove existing symlink if it exists
+# Remove gpt-home site symlink if it exists
 [ -L "/etc/nginx/sites-enabled/gpt-home" ] && sudo unlink /etc/nginx/sites-enabled/gpt-home
-
-# Symlink the site configuration
-sudo ln -s /etc/nginx/sites-available/gpt-home /etc/nginx/sites-enabled
-
-# Test the NGINX configuration
-sudo nginx -t
 
 # Remove the default site if it exists
 [ -L "/etc/nginx/sites-enabled/default" ] && sudo unlink /etc/nginx/sites-enabled/default
 
-# Reload NGINX to apply changes
-sudo systemctl reload nginx
+# Create a symlink to the gpt-home site and reload NGINX
+sudo ln -s /etc/nginx/sites-available/gpt-home /etc/nginx/sites-enabled
+sudo systemctl enable nginx
+sudo nginx -t && sudo systemctl restart nginx
 
-## Setup main app
-# Create and activate a virtual environment, then install dependencies
-python3 -m venv env
-source env/bin/activate
-pip install --upgrade pip setuptools
-pip install --use-pep517 -r requirements.txt
+sudo systemctl status nginx
 
-## Setup Web Interface
-# Navigate to gpt-web and install dependencies
-cd gpt-web
-npm install
+if [[ "$1" != "--no-build" ]]; then
+    [ -d ~/gpt-home ] && rm -rf ~/gpt-home
+    git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
+    cd ~/gpt-home
+    echo "Checking if the container 'gpt-home' is already running..."
+    if [ $(docker ps -q -f name=gpt-home) ]; then
+        echo "Stopping running container 'gpt-home'..."
+        docker stop gpt-home
+    fi
 
-# Configure Avahi for gpt-home.local
-sudo sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf
-sudo systemctl restart avahi-daemon
+    echo "Checking for existing container 'gpt-home'..."
+    if [ $(docker ps -aq -f status=exited -f name=gpt-home) ]; then
+        echo "Removing existing container 'gpt-home'..."
+        docker rm -f gpt-home
+    fi
 
-## Setup Services
-# Setup spotifyd service
-setup_service \
-    "spotifyd.service" \
-    "ExecStart=/usr/local/bin/spotifyd --no-daemon" \
-    "Wants=sound.target
-    After=sound.target
-    Wants=network-online.target
-    After=network-online.target" \
-    "" \
-    "" \
-    "" \
-    "" \
-    "Restart=always
-    RestartSec=12"
+    echo "Pruning Docker system..."
+    docker system prune -f
 
-# Setup gpt-home service
-setup_service \
-    "gpt-home.service" \
-    "ExecStart=/bin/bash -c 'source /home/$(whoami)/gpt-home/env/bin/activate && python /home/$(whoami)/gpt-home/app.py'" \
-    "" \
-    "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" \
-    "Environment=\"HOSTNAME=$HOSTNAME\"" \
-    "Type=simple" \
-    "LimitMEMLOCK=infinity" \
-    "Restart=always"
+    # Check if the buildx builder exists, if not create and use it
+    if ! docker buildx ls | grep -q mybuilder; then
+        docker buildx create --name mybuilder --use
+        docker buildx inspect --bootstrap
+    fi
 
-# Setup FastAPI service for web interface backend
-setup_service \
-    "gpt-web.service" \
-    "ExecStart=/bin/bash -c 'source /home/$(whoami)/gpt-home/env/bin/activate && uvicorn gpt-web.backend:app --host 0.0.0.0 --port 8000'" \
-    "" \
-    "Environment=\"OPENAI_API_KEY=$OPENAI_API_KEY\"" \
-    "Environment=\"HOSTNAME=$HOSTNAME\"" \
-    "Type=simple" \
-    "" \
-    "Restart=always"
+    # Building Docker image 'gpt-home' for ARMhf architecture
+    echo "Building Docker image 'gpt-home' for ARMhf..."
+    timeout 3600 docker buildx build --platform linux/arm64 -t gpt-home . --load
 
-# Mask systemd-networkd-wait-online.service to prevent boot delays
-sudo systemctl mask systemd-networkd-wait-online.service
+    if [ $? -ne 0 ]; then
+        echo "Docker build failed. Exiting..."
+        exit 1
+    fi
+
+    echo "Container 'gpt-home' is now ready to run."
+
+    echo "Running container 'gpt-home' from image 'gpt-home'..."
+    docker run -d --name gpt-home \
+        --privileged \
+        --net=host \
+        --tmpfs /run \
+        --tmpfs /run/lock \
+        -v ~/gpt-home:/app \
+        -v /dev/snd:/dev/snd \
+        -v /dev/shm:/dev/shm \
+        -v /etc/asound.conf:/etc/asound.conf \
+        -v /usr/share/alsa:/usr/share/alsa \
+        -v /var/run/dbus:/var/run/dbus \
+        -e OPENAI_API_KEY=$OPENAI_API_KEY \
+        gpt-home
+
+    echo "Container 'gpt-home' is now running."
+fi
+
+# Show status of the container
+docker ps -a | grep gpt-home
+
+sleep 10
+
+# Show status of all programs managed by Supervisor
+docker exec -it gpt-home supervisorctl status
 ```
 
 </p>
@@ -555,7 +644,6 @@ sudo systemctl mask systemd-networkd-wait-online.service
 
 Be sure to make the script executable to run it
 ```bash
-cd ~
 chmod +x setup.sh
 ./setup.sh
 ```
@@ -564,67 +652,66 @@ chmod +x setup.sh
 
 ## ✅ Compatibility
 
-<p align="center">
+<table align="center">
+<tr valign="top">
+    <!-- Raspberry Pi -->
+    <td>
     <table>
-    <tr valign="top">
-        <!-- Raspberry Pi -->
-        <td>
-        <table>
-            <tr><th colspan="2">Raspberry Pi</th></tr>
-            <tr><td>3B</td><td>✅</td></tr>
-            <tr><td>3B+</td><td>✅</td></tr>
-            <tr><td>4B</td><td>✅</td></tr>
-            <tr><td>Zero 2 W</td><td>❔</td></tr>
-            <tr><td>Orange Pi 3B</td><td>✅</td></tr>
-        </table>
-        </td>
-        <!-- Python -->
-        <td>
-        <table>
-            <tr><th colspan="2">Python</th></tr>
-            <tr><td>3.7</td><td>❌</td></tr>
-            <tr><td>3.8</td><td>✅</td></tr>
-            <tr><td>3.9</td><td>✅</td></tr>
-            <tr><td>3.10</td><td>✅</td></tr>
-            <tr><td>3.11</td><td>✅</td></tr>
-            <tr><td>3.12</td><td>❌</td></tr>
-        </table>
-        </td>
-        <!-- Operating Systems -->
-        <td>
-        <table>
-            <tr><th colspan="2">Operating System</th></tr>
-            <tr><td>Ubuntu 22.04</td><td>❔</td></tr>
-            <tr><td>Ubuntu 23.04</td><td>✅</td></tr>
-            <tr><td>Ubuntu 24.04</td><td>❔</td></tr>
-            <tr><td>Raspbian Buster</td><td>❔</td></tr>
-            <tr><td>Raspbian Bullseye</td><td>❔</td></tr>
-            <tr><td>CentOS 7</td><td>❔</td></tr>
-            <tr><td>CentOS 8</td><td>❔</td></tr>
-            <tr><td>CentOS 9</td><td>❔</td></tr>
-        </table>
-        </td>
-        <!-- Node.js -->
-        <td>
-        <table>
-            <tr><th colspan="2">Node.js</th></tr>
-            <tr><td>17.x</td><td>❔</td></tr>
-            <tr><td>18.x</td><td>✅</td></tr>
-            <tr><td>19.x</td><td>❔</td></tr>
-            <tr><td>20.x</td><td>❔</td></tr>
-            <tr><td>21.x</td><td>❔</td></tr>
-            <tr><td>22.x</td><td>❔</td></tr>
-        </table>
-        </td>
-    </tr>
+        <tr><th colspan="2">Raspberry Pi</th></tr>
+        <tr><td>3B</td><td>✅</td></tr>
+        <tr><td>3B+</td><td>✅</td></tr>
+        <tr><td>4B</td><td>✅</td></tr>
+        <tr><td>5</td><td>❔</td></tr>
+        <tr><td>Zero 2 W</td><td>❔</td></tr>
+        <tr><td>Orange Pi 3B</td><td>✅</td></tr>
+        <tr><td colspan=2><a href="https://learn.adafruit.com/circuitpython-on-orangepi-linux/circuitpython-orangepi">*Blinka only supports<br>the Orange Pi PC and<br>R1 if you're using i2c*</td></tr>
     </table>
-</p>
+    </td>
+    <!-- Python -->
+    <td>
+    <table>
+        <tr><th colspan="2">Python</th></tr>
+        <tr><td>3.7</td><td>❌</td></tr>
+        <tr><td>3.8</td><td>✅</td></tr>
+        <tr><td>3.9</td><td>✅</td></tr>
+        <tr><td>3.10</td><td>✅</td></tr>
+        <tr><td>3.11</td><td>✅</td></tr>
+        <tr><td>3.12</td><td>❌</td></tr>
+    </table>
+    </td>
+    <!-- Operating Systems -->
+    <td>
+    <table>
+        <tr><th colspan="2">Operating System</th></tr>
+        <tr><td>Ubuntu 22.04</td><td>✅</td></tr>
+        <tr><td>Ubuntu 23.04</td><td>✅</td></tr>
+        <tr><td>Ubuntu 24.04</td><td>✅</td></tr>
+        <tr><td>Debian Buster</td><td>✅</td></tr>
+        <tr><td>Debian Bullseye</td><td>✅</td></tr>
+        <tr><td>Alma Linux 8</td><td>✅</td></tr>
+        <tr><td>Alma Linux 9</td><td>✅</td></tr>
+    </table>
+    </td>
+    <!-- Node.js -->
+    <td>
+    <table>
+        <tr><th colspan="2">Node.js</th></tr>
+        <tr><td>17.x</td><td>❔</td></tr>
+        <tr><td>18.x</td><td>✅</td></tr>
+        <tr><td>19.x</td><td>❔</td></tr>
+        <tr><td>20.x</td><td>❔</td></tr>
+        <tr><td>21.x</td><td>❔</td></tr>
+        <tr><td>22.x</td><td>❔</td></tr>
+    </table>
+    </td>
+</tr>
+</table>
 
 ---
 
 ## 📚 Useful Documentation
 
-<table>
+<table align="center">
 <tr>
 <td>
 
@@ -647,6 +734,7 @@ chmod +x setup.sh
 - [ALSA Docs](https://www.alsa-project.org/wiki/Documentation)
 - [PortAudio Docs](http://www.portaudio.com/docs/v19-doxydocs/index.html)
 - [SpeechRecognition Docs](https://pypi.org/project/SpeechRecognition/)
+- [Docker Docs](https://docs.docker.com/)
 
 </td>
 <td>
