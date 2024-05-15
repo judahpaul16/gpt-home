@@ -20,9 +20,10 @@ RUN /bin/bash -c "yes | add-apt-repository universe && \
         jackd2 libogg0 libflac-dev flac libespeak1 cmake openssl expect \
         nodejs && rm -rf /var/lib/apt/lists/*"
 
-# Copy Spotifyd binary
-COPY contrib/spotifyd /usr/local/bin
-RUN chmod +x /usr/local/bin/spotifyd
+# Download and setup spotifyd binary from latest GitHub release
+RUN wget https://github.com/Spotifyd/spotifyd/releases/latest/download/spotifyd-linux-armhf-full.tar.gz && \
+    tar xzf spotifyd-linux-armhf-full.tar.gz -C /usr/local/bin && \
+    rm spotifyd-linux-armhf-full.tar.gz
 
 # Create Spotifyd configuration (this is just a basic config; adjust accordingly)
 RUN mkdir -p /root/.config/spotifyd && { \
