@@ -20,17 +20,6 @@ RUN /bin/bash -c "yes | add-apt-repository universe && \
         jackd2 libogg0 libflac-dev flac libespeak1 cmake openssl expect \
         nodejs && rm -rf /var/lib/apt/lists/*"
 
-# Setup JACK server
-RUN { \
-    echo 'if pgrep -x jackd > /dev/null; then'; \
-    echo '  echo "JACK server already running. Terminating..."'; \
-    echo '  kill -9 $(pgrep -x jackd)'; \
-    echo 'fi;'; \
-    echo 'export JACK_NO_AUDIO_RESERVATION=1'; \
-    echo '/usr/bin/jackd -r -d alsa -d hw:0 -r 44100 -p 1024 -n 3'; \
-} > /usr/local/bin/start_jack.sh && \
-    chmod +x /usr/local/bin/start_jack.sh
-
 # Download and setup spotifyd binary from latest GitHub release
 RUN wget https://github.com/Spotifyd/spotifyd/releases/latest/download/spotifyd-linux-armhf-full.tar.gz && \
     tar xzf spotifyd-linux-armhf-full.tar.gz -C /usr/local/bin && \
@@ -65,6 +54,8 @@ RUN mkdir -p /var/run/dbus && dbus-daemon --system
 # Set up Avahi
 RUN sed -i 's/#allow-interfaces=eth0/allow-interfaces=eth0/' /etc/avahi/avahi-daemon.conf
 RUN sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf
+RUN echo 'service dbus start && /usr/sbin/avahi-daemon --no-rlimits' > /usr/local/bin/start_avahi.sh && \
+    chmod +x /usr/local/bin/start_avahi.sh
 
 # Manage services with Supervisor
 RUN mkdir -p /var/log/supervisor && \
@@ -75,13 +66,7 @@ RUN mkdir -p /var/log/supervisor && \
     echo 'logfile_maxbytes=0'; \
     echo ''; \
     echo '[program:avahi]'; \
-    echo 'command=service dbus start && /usr/sbin/avahi-daemon --no-rlimits'; \
-    echo 'stdout_logfile=/dev/fd/1'; \
-    echo 'stdout_logfile_maxbytes=0'; \
-    echo 'redirect_stderr=true'; \
-    echo ''; \
-    echo '[program:jackd]'; \
-    echo 'command=/usr/local/bin/start_jack.sh'; \
+    echo 'command=/usr/local/bin/start_avahi.sh'; \
     echo 'stdout_logfile=/dev/fd/1'; \
     echo 'stdout_logfile_maxbytes=0'; \
     echo 'redirect_stderr=true'; \
