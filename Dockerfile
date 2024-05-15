@@ -75,7 +75,7 @@ RUN mkdir -p /var/log/supervisor && \
     echo 'logfile_maxbytes=0'; \
     echo ''; \
     echo '[program:avahi]'; \
-    echo 'command=/usr/sbin/avahi-daemon --no-rlimits'; \
+    echo 'command=service dbus start && /usr/sbin/avahi-daemon --no-rlimits'; \
     echo 'stdout_logfile=/dev/fd/1'; \
     echo 'stdout_logfile_maxbytes=0'; \
     echo 'redirect_stderr=true'; \
