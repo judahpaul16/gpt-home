@@ -327,7 +327,7 @@ sudo dnf groupinstall -y "Development Tools"   # For RHEL/CentOS/Alma 9^
 
 1. **Docker**: Required for containerization.  
     ```bash
-    sudo apt-get install -y docker  # For Debian/Ubuntu
+    sudo apt-get install -y docker.io  # For Debian/Ubuntu
     sudo yum install -y docker         # For RHEL/CentOS/Alma
     sudo dnf install -y docker         # For RHEL/CentOS/Alma 9^
     sudo zypper install -y docker      # For openSUSE
@@ -429,12 +429,20 @@ docker run -d --name gpt-home \
     Provides access to the D-Bus system for inter-process communication.
 ```
 
-**Alternatively, for development purposes, running `setup.sh` without the `--no-build` flag mounts the project directory to the container by adding `-v ~/gpt-home:/app` to the `docker run` command. This allows you to make changes to the project files on your Raspberry Pi and see the changes reflected in the container.**
+**Alternatively, for development purposes, running `setup.sh` without the `--no-build` flag mounts the project directory to the container by adding `-v ~/gpt-home:/app` to the `docker run` command. This allows you to make changes to the project files on your Raspberry Pi and see the changes reflected in the container without rebuilding the image. This is useful for testing changes to the codebase. Run directly with:**
 
 ```bash
 curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh | \
     bash -s
 ```
+
+You can also run the container interactively if you need to debug or test changes to the codebase with the `-it` (interactive terminal), `--entrypoint /bin/bash`, and `--rm` (remove on process exit) flags. This will drop you into a shell session inside the container. Alternatively, if the conatiner is already running:
+
+```bash
+docker exec -it gpt-home bash
+```
+
+This will start the container and drop you into a shell session inside the container.
 
 ### 🐚 setup.sh
 If you prefer to run the setup script manually, you can do so. Create a script in your ***home*** folder with `vim ~/setup.sh` or `nano ~/setup.sh` and paste in the following:
