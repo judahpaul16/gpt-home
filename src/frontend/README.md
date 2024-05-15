@@ -5,6 +5,10 @@ Configuration and management interface for the GPT Home project.<br>
 
 ## Available Scripts
 
+Change directory to the frontend folder `cd ~/gpt-home/src/frontend` and install the required dependencies by running:
+
+### `npm install`
+
 In the project directory, you can run:
 
 ### `npm start`
@@ -40,14 +44,14 @@ Instead, it will copy all the configuration files and the transitive dependencie
 
 You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
 
-## Screenshots
-![Integrations](../screenshots/integrations.png)
-![Event Logs](../screenshots/event_logs.png)
-![Settings](../screenshots/settings.png)
-![About](../screenshots/about.png)
+## 📸 Screenshots
+![Integrations](https://github.com/judahpaul16/gpt-home/blob/main/screenshots/integrations.png?raw=true)
+![Event Logs](https://github.com/judahpaul16/gpt-home/blob/main/screenshots/event_logs.png?raw=true)
+![Settings](https://github.com/judahpaul16/gpt-home/blob/main/screenshots/settings.png?raw=true)
+![About](https://github.com/judahpaul16/gpt-home/blob/main/screenshots/about.png?raw=true)
 
 
-## React Documentation
+## 📚 React Documentation
 
 You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
 
