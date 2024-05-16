@@ -182,4 +182,4 @@ docker ps -a | grep gpt-home
 sleep 10
 
 # Show status of all programs managed by Supervisor
-docker exec -it gpt-home supervisorctl status
+docker exec -i gpt-home supervisorctl status
