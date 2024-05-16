@@ -16,7 +16,7 @@ RUN /bin/bash -c "yes | add-apt-repository universe && \
     apt-get install -y --no-install-recommends supervisor \
         avahi-daemon avahi-utils libnss-mdns dbus iputils-ping \
         build-essential curl git libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
-        libsqlite3-dev llvm libncursesw5-dev xz-utils tk-dev \
+        libsqlite3-dev llvm libncursesw5-dev xz-utils tk-dev libraspberrypi-bin \
         libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev libjpeg-dev \
         portaudio19-dev alsa-utils libasound2-dev i2c-tools \
         python3 python3-pip python3-dev python3-smbus python3-venv \
@@ -82,7 +82,7 @@ RUN mkdir -p /var/log/supervisor && \
     echo 'redirect_stderr=true'; \
     echo ''; \
     echo '[program:app]'; \
-    echo 'command=bash -c "source /env/bin/activate && python /app/src/app.py 2>/dev/null"'; \
+    echo 'command=bash -c "source /env/bin/activate && cd src && python /app/src/app.py 2>/dev/null"'; \
     echo 'stdout_logfile=/dev/null'; \
     echo 'stdout_logfile_maxbytes=0'; \
     echo 'redirect_stderr=true'; \
