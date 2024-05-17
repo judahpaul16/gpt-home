@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Mask systemd-networkd-wait-online.service to prevent boot delays
+sudo systemctl mask systemd-networkd-wait-online.service
+
 # Set Permissions
 sudo chown -R $(whoami):$(whoami) .
 sudo chmod -R 755 .
@@ -54,6 +57,8 @@ install containerd
 install docker
 install docker-buildx-plugin
 install alsa-utils
+sudo systemctl enable docker
+sudo systemctl start docker
 
 # Create ALSA config (asound.conf, adjust as needed)
 sudo cat > /etc/asound.conf <<EOF
@@ -159,7 +164,7 @@ if [[ "$1" != "--no-build" ]]; then
     echo "Container 'gpt-home' is now ready to run."
 
     echo "Running container 'gpt-home' from image 'gpt-home'..."
-    docker run -d --name gpt-home \
+    docker run --restart unless-stopped -d --name gpt-home \
         --privileged \
         --net=host \
         --tmpfs /run \

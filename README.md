@@ -79,7 +79,7 @@ curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setu
     bash -s -- --no-build
 docker ps -aq -f name=gpt-home | xargs -r docker rm -f
 docker pull judahpaul/gpt-home
-docker run -d --name gpt-home \
+docker run --restart unless-stopped -d --name gpt-home \
     --privileged \
     --net=host \
     --tmpfs /run \
@@ -175,17 +175,17 @@ sudo killall wpa_supplicant
 sudo dhcpcd -x $INTERFACE
 
 # Ensure the wireless interface is up
-ip link set $INTERFACE up
+sudo ip link set $INTERFACE up
 
 # Create a wpa_supplicant configuration file
 WPA_CONF="/etc/wpa_supplicant/wpa_supplicant.conf"
-wpa_passphrase $SSID $PASSWORD > $WPA_CONF
+wpa_passphrase "$SSID" "$PASSWORD" | sudo tee $WPA_CONF > /dev/null
 
 # Start wpa_supplicant
-wpa_supplicant -B -i $INTERFACE -c $WPA_CONF
+sudo wpa_supplicant -B -i $INTERFACE -c $WPA_CONF
 
 # Obtain an IP address
-dhcpcd $INTERFACE
+sudo dhcpcd $INTERFACE
 ```
 
 Make sure to replace `your_wifi_ssid` and `your_wifi_password` with your actual WiFi network's SSID and password.
@@ -196,26 +196,33 @@ Make sure to replace `your_wifi_ssid` and `your_wifi_password` with your actual 
 sudo chmod +x /usr/local/bin/start_wifi.sh
 ```
 
-**Step 3: Execute the Script at Boot**  
-
-To run this script at boot time, you can add it to your `rc.local` file, which is executed by the init system at the end of each multiuser runlevel.
-
-Edit the `rc.local` file:
+**Step 3: Create a Systemd Service File**
 
 ```bash
-sudo nano /etc/rc.local
+sudo nano /etc/systemd/system/start_wifi.service
 ```
 
-Add the following line before the `exit 0` at the end of the file:
+Add the following content to the service file:
 
-```bash
-/usr/local/bin/start_wifi.sh &
+```ini
+[Unit]
+Description=Start WiFi at boot
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/start_wifi.sh
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
 ```
 
-Execute the script to start the Wi-Fi connection:
+**Step 4: Reload Systemd and Enable the Service**
 
 ```bash
-sudo /usr/local/bin/start_wifi.sh
+sudo systemctl daemon-reload
+sudo systemctl enable start_wifi.service
+sudo systemctl start start_wifi.service
 ```
 
 Your Raspberry Pi should now connect to the Wi-Fi network automatically on boot.
@@ -392,7 +399,7 @@ curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setu
     bash -s -- --no-build
 docker ps -aq -f name=gpt-home | xargs -r docker rm -f
 docker pull judahpaul/gpt-home
-docker run -d --name gpt-home \
+docker run --restart unless-stopped -d --name gpt-home \
     --privileged \
     --net=host \
     --tmpfs /run \
@@ -453,6 +460,9 @@ If you prefer to run the setup script manually, you can do so. Create a script i
 
 ```bash
 #!/bin/bash
+
+# Mask systemd-networkd-wait-online.service to prevent boot delays
+sudo systemctl mask systemd-networkd-wait-online.service
 
 # Set Permissions
 sudo chown -R $(whoami):$(whoami) .
@@ -613,7 +623,7 @@ if [[ "$1" != "--no-build" ]]; then
     echo "Container 'gpt-home' is now ready to run."
 
     echo "Running container 'gpt-home' from image 'gpt-home'..."
-    docker run -d --name gpt-home \
+    docker run --restart unless-stopped -d --name gpt-home \
         --privileged \
         --net=host \
         --tmpfs /run \
@@ -662,7 +672,7 @@ chmod +x setup.sh
         <tr><td>3B+</td><td>✅</td></tr>
         <tr><td>4B</td><td>✅</td></tr>
         <tr><td>5</td><td>❔</td></tr>
-        <tr><td>Zero 2 W</td><td>❔</td></tr>
+        <tr><td>Zero 2 W</td><td>✅</td></tr>
         <tr><td>Orange Pi 3B</td><td>✅</td></tr>
         <tr><td colspan=2><a href="https://learn.adafruit.com/circuitpython-on-orangepi-linux/circuitpython-orangepi">*Blinka only supports<br>the Orange Pi PC and<br>R1 if you're using i2c*</td></tr>
     </table>
