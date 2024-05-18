@@ -132,29 +132,29 @@ if [[ "$1" != "--no-build" ]]; then
     git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
     cd ~/gpt-home
     echo "Checking if the container 'gpt-home' is already running..."
-    if [ $(docker ps -q -f name=gpt-home) ]; then
+    if [ $(sudo docker ps -q -f name=gpt-home) ]; then
         echo "Stopping running container 'gpt-home'..."
-        docker stop gpt-home
+        sudo docker stop gpt-home
     fi
 
     echo "Checking for existing container 'gpt-home'..."
-    if [ $(docker ps -aq -f status=exited -f name=gpt-home) ]; then
+    if [ $(sudo docker ps -aq -f status=exited -f name=gpt-home) ]; then
         echo "Removing existing container 'gpt-home'..."
-        docker rm -f gpt-home
+        sudo docker rm -f gpt-home
     fi
 
     echo "Pruning Docker system..."
-    docker system prune -f
+    sudo docker system prune -f
 
     # Check if the buildx builder exists, if not create and use it
-    if ! docker buildx ls | grep -q mybuilder; then
-        docker buildx create --name mybuilder --use
-        docker buildx inspect --bootstrap
+    if ! sudo docker buildx ls | grep -q mybuilder; then
+        sudo docker buildx create --name mybuilder --use
+        sudo docker buildx inspect --bootstrap
     fi
 
     # Building Docker image 'gpt-home' for ARMhf architecture
     echo "Building Docker image 'gpt-home' for ARMhf..."
-    timeout 3600 docker buildx build --platform linux/arm64 -t gpt-home . --load
+    sudo timeout 3600 docker buildx build --platform linux/arm64 -t gpt-home . --load
 
     if [ $? -ne 0 ]; then
         echo "Docker build failed. Exiting..."
@@ -164,7 +164,7 @@ if [[ "$1" != "--no-build" ]]; then
     echo "Container 'gpt-home' is now ready to run."
 
     echo "Running container 'gpt-home' from image 'gpt-home'..."
-    docker run --restart unless-stopped -d --name gpt-home \
+    sudo docker run --restart unless-stopped -d --name gpt-home \
         --privileged \
         --net=host \
         --tmpfs /run \
@@ -182,9 +182,9 @@ if [[ "$1" != "--no-build" ]]; then
 fi
 
 # Show status of the container
-docker ps -a | grep gpt-home
+sudo docker ps -a | grep gpt-home
 
 sleep 10
 
 # Show status of all programs managed by Supervisor
-docker exec -i gpt-home supervisorctl status
+sudo docker exec -i gpt-home supervisorctl status

@@ -77,9 +77,9 @@ This guide will explain how to build your own. It's pretty straight forward. You
 ```bash
 curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh | \
     bash -s -- --no-build
-docker ps -aq -f name=gpt-home | xargs -r docker rm -f
-docker pull judahpaul/gpt-home
-docker run --restart unless-stopped -d --name gpt-home \
+sudo docker ps -aq -f name=gpt-home | xargs -r docker rm -f
+sudo docker pull judahpaul/gpt-home
+sudo docker run --restart unless-stopped -d --name gpt-home \
     --privileged \
     --net=host \
     --tmpfs /run \
@@ -370,25 +370,25 @@ Alternatively, you can put this at the end of your `~/.bashrc` file. (recommende
 export OPENAI_API_KEY="your_openai_api_key_here"
 
 # Optional: Add these aliases to your .bashrc file for easier management
-alias gpt-start="docker exec -it gpt-home supervisorctl start app"
-alias gpt-restart="docker exec -it gpt-home supervisorctl restart app"
-alias gpt-stop="docker exec -it gpt-home supervisorctl stop app"
-alias gpt-status="docker exec -it gpt-home supervisorctl status app"
-alias gpt-log="docker exec -it gpt-home tail -n 100 -f /app/src/events.log"
+alias gpt-start="sudo docker exec -it gpt-home supervisorctl start app"
+alias gpt-restart="sudo docker exec -it gpt-home supervisorctl restart app"
+alias gpt-stop="sudo docker exec -it gpt-home supervisorctl stop app"
+alias gpt-status="sudo docker exec -it gpt-home supervisorctl status app"
+alias gpt-log="sudo docker exec -it gpt-home tail -n 100 -f /app/src/events.log"
 
-alias wi-start="docker exec -it gpt-home supervisorctl start web-interface"
-alias wi-restart="docker exec -it gpt-home supervisorctl restart web-interface && sudo systemctl restart nginx"
-alias wi-stop="docker exec -it gpt-home supervisorctl stop web-interface"
-alias wi-status="docker exec -it gpt-home supervisorctl status web-interface"
-alias wi-build="docker exec -it gpt-home bash -c 'cd /app/src/frontend && npm run build'"
+alias wi-start="sudo docker exec -it gpt-home supervisorctl start web-interface"
+alias wi-restart="sudo docker exec -it gpt-home supervisorctl restart web-interface && sudo systemctl restart nginx"
+alias wi-stop="sudo docker exec -it gpt-home supervisorctl stop web-interface"
+alias wi-status="sudo docker exec -it gpt-home supervisorctl status web-interface"
+alias wi-build="sudo docker exec -it gpt-home bash -c 'cd /app/src/frontend && npm run build'"
 alias wi-log="tail -n 100 -f /var/log/nginx/access.log"
 alias wi-error="tail -n 100 -f /var/log/nginx/error.log"
 
-alias spotifyd-start="docker exec -it gpt-home supervisorctl start spotifyd"
-alias spotifyd-restart="docker exec -it gpt-home supervisorctl restart spotifyd"
-alias spotifyd-stop="docker exec -it gpt-home supervisorctl stop spotifyd"
-alias spotifyd-status="docker exec -it gpt-home supervisorctl status spotifyd"
-alias spotifyd-log="docker exec -it gpt-home tail -n 100 -f /var/log/spotifyd.log"
+alias spotifyd-start="sudo docker exec -it gpt-home supervisorctl start spotifyd"
+alias spotifyd-restart="sudo docker exec -it gpt-home supervisorctl restart spotifyd"
+alias spotifyd-stop="sudo docker exec -it gpt-home supervisorctl stop spotifyd"
+alias spotifyd-status="sudo docker exec -it gpt-home supervisorctl status spotifyd"
+alias spotifyd-log="sudo docker exec -it gpt-home tail -n 100 -f /var/log/spotifyd.log"
 ```
 Run `source ~/.bashrc` to apply the changes to your current terminal session.
 
@@ -397,9 +397,9 @@ The setup script will take quite a while to run ***(900.0s+ to build and setup d
 ```bash
 curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh | \
     bash -s -- --no-build
-docker ps -aq -f name=gpt-home | xargs -r docker rm -f
-docker pull judahpaul/gpt-home
-docker run --restart unless-stopped -d --name gpt-home \
+sudo docker ps -aq -f name=gpt-home | xargs -r docker rm -f
+sudo docker pull judahpaul/gpt-home
+sudo docker run --restart unless-stopped -d --name gpt-home \
     --privileged \
     --net=host \
     --tmpfs /run \
@@ -446,7 +446,7 @@ curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setu
 You can also run the container interactively if you need to debug or test changes to the codebase with the `-it` (interactive terminal), `--entrypoint /bin/bash`, and `--rm` (remove on process exit) flags. This will drop you into a shell session inside the container. Alternatively, if the conatiner is already running:
 
 ```bash
-docker exec -it gpt-home bash
+sudo docker exec -it gpt-home bash
 ```
 
 This will start the container and drop you into a shell session inside the container.
@@ -518,6 +518,8 @@ install containerd
 install docker
 install docker-buildx-plugin
 install alsa-utils
+sudo systemctl enable docker
+sudo systemctl start docker
 
 # Create ALSA config (asound.conf, adjust as needed)
 sudo cat > /etc/asound.conf <<EOF
@@ -591,29 +593,29 @@ if [[ "$1" != "--no-build" ]]; then
     git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
     cd ~/gpt-home
     echo "Checking if the container 'gpt-home' is already running..."
-    if [ $(docker ps -q -f name=gpt-home) ]; then
+    if [ $(sudo docker ps -q -f name=gpt-home) ]; then
         echo "Stopping running container 'gpt-home'..."
-        docker stop gpt-home
+        sudo docker stop gpt-home
     fi
 
     echo "Checking for existing container 'gpt-home'..."
-    if [ $(docker ps -aq -f status=exited -f name=gpt-home) ]; then
+    if [ $(sudo docker ps -aq -f status=exited -f name=gpt-home) ]; then
         echo "Removing existing container 'gpt-home'..."
-        docker rm -f gpt-home
+        sudo docker rm -f gpt-home
     fi
 
     echo "Pruning Docker system..."
-    docker system prune -f
+    sudo docker system prune -f
 
     # Check if the buildx builder exists, if not create and use it
-    if ! docker buildx ls | grep -q mybuilder; then
-        docker buildx create --name mybuilder --use
-        docker buildx inspect --bootstrap
+    if ! sudo docker buildx ls | grep -q mybuilder; then
+        sudo docker buildx create --name mybuilder --use
+        sudo docker buildx inspect --bootstrap
     fi
 
     # Building Docker image 'gpt-home' for ARMhf architecture
     echo "Building Docker image 'gpt-home' for ARMhf..."
-    timeout 3600 docker buildx build --platform linux/arm64 -t gpt-home . --load
+    sudo timeout 3600 docker buildx build --platform linux/arm64 -t gpt-home . --load
 
     if [ $? -ne 0 ]; then
         echo "Docker build failed. Exiting..."
@@ -623,7 +625,7 @@ if [[ "$1" != "--no-build" ]]; then
     echo "Container 'gpt-home' is now ready to run."
 
     echo "Running container 'gpt-home' from image 'gpt-home'..."
-    docker run --restart unless-stopped -d --name gpt-home \
+    sudo docker run --restart unless-stopped -d --name gpt-home \
         --privileged \
         --net=host \
         --tmpfs /run \
@@ -641,12 +643,12 @@ if [[ "$1" != "--no-build" ]]; then
 fi
 
 # Show status of the container
-docker ps -a | grep gpt-home
+sudo docker ps -a | grep gpt-home
 
 sleep 10
 
 # Show status of all programs managed by Supervisor
-docker exec -i gpt-home supervisorctl status
+sudo docker exec -i gpt-home supervisorctl status
 ```
 
 </p>
