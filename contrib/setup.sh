@@ -179,12 +179,32 @@ if [[ "$1" != "--no-build" ]]; then
         gpt-home
 
     echo "Container 'gpt-home' is now running."
+
+    # Show status of the container
+    sudo docker ps -a | grep gpt-home
+
+    sleep 10
+
+    # Show status of all programs managed by Supervisor
+    sudo docker exec -i gpt-home supervisorctl status
 fi
 
-# Show status of the container
-sudo docker ps -a | grep gpt-home
-
-sleep 10
-
-# Show status of all programs managed by Supervisor
-sudo docker exec -i gpt-home supervisorctl status
+if [[ "$1" == "--no-build" ]]; then
+    sudo docker ps -aq -f name=gpt-home | xargs -r docker rm -f
+    sudo docker pull judahpaul/gpt-home
+    sudo docker run --restart unless-stopped -d --name gpt-home \
+        --privileged \
+        --net=host \
+        --tmpfs /run \
+        --tmpfs /run/lock \
+        -v /dev/snd:/dev/snd \
+        -v /dev/shm:/dev/shm \
+        -v /etc/asound.conf:/etc/asound.conf \
+        -v /usr/share/alsa:/usr/share/alsa \
+        -v /var/run/dbus:/var/run/dbus \
+        -e OPENAI_API_KEY=$OPENAI_API_KEY \
+        judahpaul/gpt-home
+    sudo docker ps -a | grep gpt-home
+    sleep 10
+    sudo docker exec -i gpt-home supervisorctl status
+fi

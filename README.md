@@ -75,22 +75,10 @@ This guide will explain how to build your own. It's pretty straight forward. You
 
 ## 🚀 TL;DR
 ```bash
+echo "export OPENAI_API_KEY='your_openai_api_key_here'" >> ~/.bashrc
+source ~/.bashrc
 curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh | \
     bash -s -- --no-build
-sudo docker ps -aq -f name=gpt-home | xargs -r docker rm -f
-sudo docker pull judahpaul/gpt-home
-sudo docker run --restart unless-stopped -d --name gpt-home \
-    --privileged \
-    --net=host \
-    --tmpfs /run \
-    --tmpfs /run/lock \
-    -v /dev/snd:/dev/snd \
-    -v /dev/shm:/dev/shm \
-    -v /etc/asound.conf:/etc/asound.conf \
-    -v /usr/share/alsa:/usr/share/alsa \
-    -v /var/run/dbus:/var/run/dbus \
-    -e OPENAI_API_KEY=your_key_here \
-    judahpaul/gpt-home
 ```
 
 ## 🔌 Schematics
@@ -392,26 +380,28 @@ alias spotifyd-log="sudo docker exec -it gpt-home tail -n 100 -f /var/log/spotif
 ```
 Run `source ~/.bashrc` to apply the changes to your current terminal session.
 
-The setup script will take quite a while to run ***(900.0s+ to build and setup dependencies on my quad-core Raspberry Pi 4B w/ 1G RAM)***. It will install all the dependencies and build the Docker container. However, you can skip the build process by passing the `--no-build` flag to the script; it will only install the dependencies and set up the firewall and NGINX. You can then pull the container from Docker Hub and run it.
+The setup script will take quite a while to run ***(900.0s+ to build and setup dependencies on my quad-core Raspberry Pi 4B w/ 1G RAM)***. It will install all the dependencies and build the Docker container. However, you can skip the build process by passing the `--no-build` flag to the script; it will install the dependencies, set up the firewall and NGINX, and pull the container from Docker Hub and run it.
 
 ```bash
 curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh | \
     bash -s -- --no-build
-sudo docker ps -aq -f name=gpt-home | xargs -r docker rm -f
-sudo docker pull judahpaul/gpt-home
-sudo docker run --restart unless-stopped -d --name gpt-home \
-    --privileged \
-    --net=host \
-    --tmpfs /run \
-    --tmpfs /run/lock \
-    -v /dev/snd:/dev/snd \
-    -v /dev/shm:/dev/shm \
-    -v /etc/asound.conf:/etc/asound.conf \
-    -v /usr/share/alsa:/usr/share/alsa \
-    -v /var/run/dbus:/var/run/dbus \
-    -e OPENAI_API_KEY=your_key_here \
-    judahpaul/gpt-home
 ```
+
+**Alternatively, for development purposes, running `setup.sh` without the `--no-build` flag mounts the project directory to the container by adding `-v ~/gpt-home:/app` to the `docker run` command. This allows you to make changes to the project files on your Raspberry Pi and see the changes reflected in the container without rebuilding the image. This is useful for testing changes to the codebase. Run directly with:**
+
+```bash
+curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh | \
+    bash -s
+```
+
+You can also run the container interactively if you need to debug or test changes to the codebase with the `-it` (interactive terminal), `--entrypoint /bin/bash`, and `--rm` (remove on process exit) flags. This will drop you into a shell session inside the container. Alternatively, if the conatiner is already running:
+
+```bash
+sudo docker exec -it gpt-home bash
+```
+
+This will start the container and drop you into a shell session inside the container.
+
 **Explanation of Docker Run Flags**
 ```yaml
 --tmpfs /run:
@@ -435,21 +425,6 @@ sudo docker run --restart unless-stopped -d --name gpt-home \
 -v /var/run/dbus:/var/run/dbus:
     Provides access to the D-Bus system for inter-process communication.
 ```
-
-**Alternatively, for development purposes, running `setup.sh` without the `--no-build` flag mounts the project directory to the container by adding `-v ~/gpt-home:/app` to the `docker run` command. This allows you to make changes to the project files on your Raspberry Pi and see the changes reflected in the container without rebuilding the image. This is useful for testing changes to the codebase. Run directly with:**
-
-```bash
-curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh | \
-    bash -s
-```
-
-You can also run the container interactively if you need to debug or test changes to the codebase with the `-it` (interactive terminal), `--entrypoint /bin/bash`, and `--rm` (remove on process exit) flags. This will drop you into a shell session inside the container. Alternatively, if the conatiner is already running:
-
-```bash
-sudo docker exec -it gpt-home bash
-```
-
-This will start the container and drop you into a shell session inside the container.
 
 ### 🐚 setup.sh
 If you prefer to run the setup script manually, you can do so. Create a script in your ***home*** folder with `vim ~/setup.sh` or `nano ~/setup.sh` and paste in the following:
@@ -640,15 +615,35 @@ if [[ "$1" != "--no-build" ]]; then
         gpt-home
 
     echo "Container 'gpt-home' is now running."
+
+    # Show status of the container
+    sudo docker ps -a | grep gpt-home
+
+    sleep 10
+
+    # Show status of all programs managed by Supervisor
+    sudo docker exec -i gpt-home supervisorctl status
 fi
 
-# Show status of the container
-sudo docker ps -a | grep gpt-home
-
-sleep 10
-
-# Show status of all programs managed by Supervisor
-sudo docker exec -i gpt-home supervisorctl status
+if [[ "$1" == "--no-build" ]]; then
+    sudo docker ps -aq -f name=gpt-home | xargs -r docker rm -f
+    sudo docker pull judahpaul/gpt-home
+    sudo docker run --restart unless-stopped -d --name gpt-home \
+        --privileged \
+        --net=host \
+        --tmpfs /run \
+        --tmpfs /run/lock \
+        -v /dev/snd:/dev/snd \
+        -v /dev/shm:/dev/shm \
+        -v /etc/asound.conf:/etc/asound.conf \
+        -v /usr/share/alsa:/usr/share/alsa \
+        -v /var/run/dbus:/var/run/dbus \
+        -e OPENAI_API_KEY=$OPENAI_API_KEY \
+        judahpaul/gpt-home
+    sudo docker ps -a | grep gpt-home
+    sleep 10
+    sudo docker exec -i gpt-home supervisorctl status
+fi
 ```
 
 </p>
