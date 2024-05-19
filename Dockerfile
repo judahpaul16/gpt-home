@@ -13,7 +13,7 @@ RUN dpkg --add-architecture armhf
 # Install necessary packages
 RUN /bin/bash -c "yes | add-apt-repository universe && \
     dpkg --add-architecture armhf && apt-get update && \
-    apt-get install -y --no-install-recommends supervisor cron nano \
+    apt-get install -y --no-install-recommends supervisor nano neovim \
         avahi-daemon avahi-utils libnss-mdns dbus iputils-ping \
         build-essential curl git libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
         libsqlite3-dev llvm libncursesw5-dev xz-utils tk-dev libraspberrypi-bin \
@@ -96,13 +96,6 @@ RUN mkdir -p /var/log/supervisor && \
     echo 'stdout_logfile_maxbytes=0'; \
     echo 'redirect_stderr=true'; \
 } > /etc/supervisor/conf.d/supervisord.conf 
-
-# Start cron service
-RUN service cron start && service cron status
-RUN USER_ID=$(id -u) && \
-    mkdir -p /run/user/$USER_ID && \
-    echo "export XDG_RUNTIME_DIR=/run/user/$USER_ID" >> /root/.bashrc && \
-    . /root/.bashrc
 
 # Expose the Uvicorn port
 EXPOSE 8000

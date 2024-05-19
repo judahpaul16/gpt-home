@@ -39,7 +39,6 @@ pydantic_core==2.6.3
 pyftdi==0.55.0
 pyparsing==3.1.1
 pyserial==3.5
-python-crontab==3.0.0
 python-dotenv==1.0.0
 pyttsx3==2.90
 pyusb==1.2.1
