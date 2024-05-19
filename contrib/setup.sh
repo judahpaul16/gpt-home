@@ -196,7 +196,7 @@ if [[ "$1" != "--no-build" ]]; then
 
     # Building Docker image 'gpt-home' for ARMhf architecture
     echo "Building Docker image 'gpt-home' for ARMhf..."
-    timeout 3600 docker buildx build --platform linux/arm64 -t gpt-home . --load
+    timeout 3600 docker buildx build --platform linux/arm64 -t gpt-home --load .
 
     if [ $? -ne 0 ]; then
         echo "Docker build failed. Exiting..."
