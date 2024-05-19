@@ -44,11 +44,8 @@ Instead, it will copy all the configuration files and the transitive dependencie
 
 You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
 
-## 📸 Screenshots
-![Integrations](https://github.com/judahpaul16/gpt-home/blob/main/screenshots/integrations.png?raw=true)
-![Event Logs](https://github.com/judahpaul16/gpt-home/blob/main/screenshots/event_logs.png?raw=true)
-![Settings](https://github.com/judahpaul16/gpt-home/blob/main/screenshots/settings.png?raw=true)
-![About](https://github.com/judahpaul16/gpt-home/blob/main/screenshots/about.png?raw=true)
+## 📸 Preview
+![Integrations](../../screenshots/preview.gif)
 
 
 ## 📚 React Documentation
