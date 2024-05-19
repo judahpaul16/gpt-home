@@ -488,6 +488,8 @@ echo "               _|_||_|_                     \\"
 echo "      ____    |___||___|                     \\"
 echo -e "${NC}"
 
+# Add user to the Docker group
+sudo groupadd docker 2>/dev/null
 sudo usermod -aG docker $USER
 
 # Check if script is running with 'docker' group
