@@ -122,7 +122,7 @@ EOF
 
 # Install Docker Buildx plugin
 mkdir -p $HOME/.docker/cli-plugins
-curl -Lo $HOME/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.10.5/buildx-v0.10.5.linux-arm64
+curl -Lo $HOME/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.14.0/buildx-v0.14.0.linux-arm64
 sudo chmod +x $HOME/.docker/cli-plugins/docker-buildx
 docker buildx version
 
@@ -196,7 +196,7 @@ if [[ "$1" != "--no-build" ]]; then
 
     # Building Docker image 'gpt-home' for ARMhf architecture
     echo "Building Docker image 'gpt-home' for ARMhf..."
-    sudo timeout 3600 docker buildx build --platform linux/arm64 -t gpt-home . --load
+    timeout 3600 docker buildx build --platform linux/arm64 -t gpt-home . --load
 
     if [ $? -ne 0 ]; then
         echo "Docker build failed. Exiting..."

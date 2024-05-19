@@ -436,11 +436,53 @@ If you prefer to run the setup script manually, you can do so. Create a script i
 ```bash
 #!/bin/bash
 
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[0;37m'
+NC='\033[0m' # No Color
+
+echo -e "${GREEN}"
+echo "  ____ ____ _____   _   _                      "
+echo " / ___|  _ \\_   _| | | | | ___  _ __ ___   ___ "
+echo "| |  _| |_) || |   | |_| |/ _ \\| '_ \` _ \\ / _ \\"
+echo "| |_| |  __/ | |   |  _  | (_) | | | | | |  __/"
+echo " \\____|_|    |_|   |_| |_|\\___/|_| |_| |_|\\___|"
+echo -e "${NC}"
+
+echo -e "${CYAN}"
+echo "         ______________"
+echo "        | how may I    |"
+echo "        | assist you   |"
+echo "        | today?       |"
+echo "        |______________|"
+echo "                 \\                       |"
+echo "                  \\                      |"
+echo "                   \\                     |"
+echo "   _______                   ________    |"
+echo "  |ooooooo|      ____       | __  __ |   |"
+echo "  |[]+++[]|     [____]      |/  \\/  \\|   |"
+echo "  |+ ___ +|     ]()()[      |\\__/\\__/|   |"
+echo "  |:|   |:|   ___\\__/___    |[][][][]|   |"
+echo "  |:|___|:|  |__|    |__|   |++++++++|   |"
+echo "  |[]===[]|   |_|/  \\|_|    | ______ |   |"
+echo "_ ||||||||| _ | | __ | | __ ||______|| __|"
+echo "  |_______|   |_|[::]|_|    |________|   \\"
+echo "              \\_|_||_|_/                  \\"
+echo "                |_||_|                     \\"
+echo "               _|_||_|_                     \\"
+echo "      ____    |___||___|                     \\"
+echo -e "${NC}"
+
 sudo usermod -aG docker $USER
 
 # Check if script is running with 'docker' group
-if [ -z "$DOCKER_GROUP_ADDED" ]; then
-    export DOCKER_GROUP_ADDED=1
+if ! groups $USER | grep -q "\bdocker\b"; then
+    echo "Re-executing script to apply Docker group membership..."
     exec sg docker "$0 $*"
 fi
 
@@ -516,7 +558,7 @@ EOF
 
 # Install Docker Buildx plugin
 mkdir -p $HOME/.docker/cli-plugins
-curl -Lo $HOME/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.10.5/buildx-v0.10.5.linux-arm64
+curl -Lo $HOME/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.14.0/buildx-v0.14.0.linux-arm64
 sudo chmod +x $HOME/.docker/cli-plugins/docker-buildx
 docker buildx version
 
@@ -590,7 +632,7 @@ if [[ "$1" != "--no-build" ]]; then
 
     # Building Docker image 'gpt-home' for ARMhf architecture
     echo "Building Docker image 'gpt-home' for ARMhf..."
-    sudo timeout 3600 docker buildx build --platform linux/arm64 -t gpt-home . --load
+    timeout 3600 docker buildx build --platform linux/arm64 -t gpt-home . --load
 
     if [ $? -ne 0 ]; then
         echo "Docker build failed. Exiting..."
