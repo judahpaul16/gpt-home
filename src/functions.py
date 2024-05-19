@@ -298,18 +298,28 @@ async def spotify_action(text: str):
             raise Exception(f"Something went wrong: {e}")
     raise Exception("No client id or client secret found. Please provide the necessary credentials for Spotify in the web interface.")
 
-# Open Weather Helper Functions
-async def coords_from_city(city, api_key):
+async def coords_from_city(city, api_key=None):
     async with aiohttp.ClientSession() as session:
-        response = await session.get(f"http://api.openweathermap.org/geo/1.0/direct?q={city}&appid={api_key}")
+        if api_key:
+            response = await session.get(f"http://api.openweathermap.org/geo/1.0/direct?q={city}&appid={api_key}")
+            if response.status == 200:
+                json_response = await response.json()
+                coords = {
+                    "lat": json_response[0].get('lat'),
+                    "lon": json_response[0].get('lon')
+                }
+                return coords
+        
+        # Fallback to Open-Meteo if no API key or OpenWeather fails
+        response = await session.get(f"https://nominatim.openstreetmap.org/search?q={city}&format=json")
         if response.status == 200:
             json_response = await response.json()
             coords = {
-                "lat": json_response[0].get('lat'),
-                "lon": json_response[0].get('lon')
+                "lat": float(json_response[0].get('lat')),
+                "lon": float(json_response[0].get('lon'))
             }
             return coords
-    
+
 async def city_from_ip():
     async with aiohttp.ClientSession() as session:
         response = await session.get(f"https://ipinfo.io/json")
@@ -321,18 +331,19 @@ async def city_from_ip():
 async def open_weather_action(text: str):
     try:
         api_key = os.getenv('OPEN_WEATHER_API_KEY')
-        if api_key:
-            async with aiohttp.ClientSession() as session:
-                if re.search(r'(weather|temperature).*\sin\s', text, re.IGNORECASE):
-                    city_match = re.search(r'in\s([\w\s]+)', text, re.IGNORECASE)
-                    if city_match:
-                        city = city_match.group(1).strip()
+        async with aiohttp.ClientSession() as session:
+            if re.search(r'(weather|temperature).*\sin\s', text, re.IGNORECASE):
+                city_match = re.search(r'in\s([\w\s]+)', text, re.IGNORECASE)
+                if city_match:
+                    city = city_match.group(1).strip()
 
-                    # Current weather
-                    if not re.search(r'(forecast|future)', text, re.IGNORECASE):
-                        coords = await coords_from_city(city, api_key)
-                        if coords is None:
-                            return f"No weather data available for {city}. Please check the city name and try again."
+                # Current weather
+                if not re.search(r'(forecast|future)', text, re.IGNORECASE):
+                    coords = await coords_from_city(city, api_key)
+                    if coords is None:
+                        return f"No weather data available for {city}. Please check the city name and try again."
+                    
+                    if api_key:
                         response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&units=imperial")
                         if response.status == 200:
                             json_response = await response.json()
@@ -340,15 +351,25 @@ async def open_weather_action(text: str):
                             weather = json_response.get('current').get('weather')[0].get('main')
                             temp = json_response.get('current').get('temp')
                             return f"It is currently {round(float(temp))} degrees and {weather.lower()} in {city}."
-                        else:
-                            raise Exception(f"Received a {response.status} status code. {response.content.decode()}")
-
-                    # Weather forecast
+                    
+                    # Fallback to Open-Meteo
+                    response = await session.get(f"https://api.open-meteo.com/v1/forecast?latitude={coords.get('lat')}&longitude={coords.get('lon')}&current_weather=true&temperature_unit=fahrenheit")
+                    if response.status == 200:
+                        json_response = await response.json()
+                        weather = json_response.get('current_weather').get('weathercode')
+                        temp = json_response.get('current_weather').get('temperature')
+                        return f"It is currently {round(float(temp))} degrees with weather code {weather} in {city}."
                     else:
-                        coords = await coords_from_city(city, api_key)
-                        tomorrow = datetime.now() + timedelta(days=1)
-                        if coords is None:
-                            return f"No weather data available for {city}. Please check the city name and try again."
+                        raise Exception(f"Received a {response.status} status code from both OpenWeather and Open-Meteo. {response.content.decode()}")
+
+                # Weather forecast
+                else:
+                    coords = await coords_from_city(city, api_key)
+                    tomorrow = datetime.now() + timedelta(days=1)
+                    if coords is None:
+                        return f"No weather data available for {city}. Please check the city name and try again."
+                    
+                    if api_key:
                         response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&units=imperial")
                         if response.status == 200:
                             json_response = await response.json()
@@ -368,14 +389,36 @@ async def open_weather_action(text: str):
                                 if day.get('date') != tomorrow.strftime('%A'):
                                     speech_responses.append(f"On {day.get('date')}, it will be {round(float(day.get('temp')))} degrees and {day.get('weather').lower()} in {city}.")
                             return ' '.join(speech_responses)
-                else:
-                    # General weather based on IP address location
-                    city = await city_from_ip()
-                    coords = await coords_from_city(city, api_key)
-                    if city is None:
-                        return f"Could not determine your city based on your IP address. Please provide a city name."
-                    if coords is None:
-                        return f"No weather data available for {city}."
+                    
+                    # Fallback to Open-Meteo
+                    response = await session.get(f"https://api.open-meteo.com/v1/forecast?latitude={coords.get('lat')}&longitude={coords.get('lon')}&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit")
+                    if response.status == 200:
+                        json_response = await response.json()
+                        forecast = []
+                        for day in json_response.get('daily'):
+                            forecast.append({
+                                'temp_max': day.get('temperature_2m_max'),
+                                'temp_min': day.get('temperature_2m_min'),
+                                'date': day.get('time')
+                            })
+                        tomorrow_forecast = list(filter(lambda x: x.get('date') == tomorrow.strftime('%Y-%m-%d'), forecast))[0]
+                        speech_responses = []
+                        speech_responses.append(f"Tomorrow, it will be between {tomorrow_forecast.get('temp_min')}\u00B0F and {tomorrow_forecast.get('temp_max')}\u00B0F in {city}.")
+                        for day in forecast:
+                            if day.get('date') != tomorrow.strftime('%Y-%m-%d'):
+                                speech_responses.append(f"On {day.get('date')}, it will be between {day.get('temp_min')}\u00B0F and {day.get('temp_max')}\u00B0F in {city}.")
+                        return ' '.join(speech_responses)
+
+            else:
+                # General weather based on IP address location
+                city = await city_from_ip()
+                coords = await coords_from_city(city, api_key)
+                if city is None:
+                    return f"Could not determine your city based on your IP address. Please provide a city name."
+                if coords is None:
+                    return f"No weather data available for {city}."
+                
+                if api_key:
                     response = await session.get(f"http://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&units=imperial")
                     if response.status == 200:
                         json_response = await response.json()
@@ -383,12 +426,18 @@ async def open_weather_action(text: str):
                         weather = json_response.get('current').get('weather')[0].get('main')
                         temp = json_response.get('current').get('temp')
                         return f"It is currently {round(float(temp))} degrees and {weather.lower()} in your location."
-                    else:
-                        content = await response.content.read()
-                        raise Exception(f"Received a {response.status} status code. {content.decode()}")
-                    
-            raise Exception("I'm sorry, I don't know how to handle that request.")
-
+                
+                # Fallback to Open-Meteo
+                response = await session.get(f"https://api.open-meteo.com/v1/forecast?latitude={coords.get('lat')}&longitude={coords.get('lon')}&current_weather=true&temperature_unit=fahrenheit")
+                if response.status == 200:
+                    json_response = await response.json()
+                    weather = json_response.get('current_weather').get('weathercode')
+                    temp = json_response.get('current_weather').get('temperature')
+                    return f"It is currently {round(float(temp))} degrees with weather code {weather} in your location."
+                else:
+                    content = await response.content.read()
+                    raise Exception(f"Received a {response.status} status code from both OpenWeather and Open-Meteo. {content.decode()}")
+                
         raise Exception("No Open Weather API key found. Please enter your API key for Open Weather in the web interface or try reconnecting the service.")
 
     except Exception as e:

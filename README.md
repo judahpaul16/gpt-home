@@ -33,7 +33,7 @@ This guide will explain how to build your own. It's pretty straight forward. You
 </td>
 <td>
 
-🔲 Open-Meteo  
+✅ Open-Meteo  
 🔲 Alarms  
 🔲 Reminders  
 🔲 LiteLLM  
@@ -358,25 +358,25 @@ Alternatively, you can put this at the end of your `~/.bashrc` file. (recommende
 export OPENAI_API_KEY="your_openai_api_key_here"
 
 # Optional: Add these aliases to your .bashrc file for easier management
-alias gpt-start="sudo docker exec -it gpt-home supervisorctl start app"
-alias gpt-restart="sudo docker exec -it gpt-home supervisorctl restart app"
-alias gpt-stop="sudo docker exec -it gpt-home supervisorctl stop app"
-alias gpt-status="sudo docker exec -it gpt-home supervisorctl status app"
-alias gpt-log="sudo docker exec -it gpt-home tail -n 100 -f /app/src/events.log"
+alias gpt-start="docker exec -it gpt-home supervisorctl start app"
+alias gpt-restart="docker exec -it gpt-home supervisorctl restart app"
+alias gpt-stop="docker exec -it gpt-home supervisorctl stop app"
+alias gpt-status="docker exec -it gpt-home supervisorctl status app"
+alias gpt-log="docker exec -it gpt-home tail -n 100 -f /app/src/events.log"
 
-alias wi-start="sudo docker exec -it gpt-home supervisorctl start web-interface"
-alias wi-restart="sudo docker exec -it gpt-home supervisorctl restart web-interface && sudo systemctl restart nginx"
-alias wi-stop="sudo docker exec -it gpt-home supervisorctl stop web-interface"
-alias wi-status="sudo docker exec -it gpt-home supervisorctl status web-interface"
-alias wi-build="sudo docker exec -it gpt-home bash -c 'cd /app/src/frontend && npm run build'"
+alias wi-start="docker exec -it gpt-home supervisorctl start web-interface"
+alias wi-restart="docker exec -it gpt-home supervisorctl restart web-interface && sudo systemctl restart nginx"
+alias wi-stop="docker exec -it gpt-home supervisorctl stop web-interface"
+alias wi-status="docker exec -it gpt-home supervisorctl status web-interface"
+alias wi-build="docker exec -it gpt-home bash -c 'cd /app/src/frontend && npm run build'"
 alias wi-log="tail -n 100 -f /var/log/nginx/access.log"
 alias wi-error="tail -n 100 -f /var/log/nginx/error.log"
 
-alias spotifyd-start="sudo docker exec -it gpt-home supervisorctl start spotifyd"
-alias spotifyd-restart="sudo docker exec -it gpt-home supervisorctl restart spotifyd"
-alias spotifyd-stop="sudo docker exec -it gpt-home supervisorctl stop spotifyd"
-alias spotifyd-status="sudo docker exec -it gpt-home supervisorctl status spotifyd"
-alias spotifyd-log="sudo docker exec -it gpt-home tail -n 100 -f /var/log/spotifyd.log"
+alias spotifyd-start="docker exec -it gpt-home supervisorctl start spotifyd"
+alias spotifyd-restart="docker exec -it gpt-home supervisorctl restart spotifyd"
+alias spotifyd-stop="docker exec -it gpt-home supervisorctl stop spotifyd"
+alias spotifyd-status="docker exec -it gpt-home supervisorctl status spotifyd"
+alias spotifyd-log="docker exec -it gpt-home tail -n 100 -f /var/log/spotifyd.log"
 ```
 Run `source ~/.bashrc` to apply the changes to your current terminal session.
 
@@ -397,7 +397,7 @@ curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setu
 You can also run the container interactively if you need to debug or test changes to the codebase with the `-it` (interactive terminal), `--entrypoint /bin/bash`, and `--rm` (remove on process exit) flags. This will drop you into a shell session inside the container. Alternatively, if the conatiner is already running:
 
 ```bash
-sudo docker exec -it gpt-home bash
+docker exec -it gpt-home bash
 ```
 
 This will start the container and drop you into a shell session inside the container.
@@ -435,6 +435,56 @@ If you prefer to run the setup script manually, you can do so. Create a script i
 
 ```bash
 #!/bin/bash
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[0;37m'
+NC='\033[0m' # No Color
+
+echo -e "${GREEN}"
+echo "  ____ ____ _____   _   _                      "
+echo " / ___|  _ \\_   _| | | | | ___  _ __ ___   ___ "
+echo "| |  _| |_) || |   | |_| |/ _ \\| '_ \` _ \\ / _ \\"
+echo "| |_| |  __/ | |   |  _  | (_) | | | | | |  __/"
+echo " \\____|_|    |_|   |_| |_|\\___/|_| |_| |_|\\___|"
+echo -e "${NC}"
+
+echo -e "${CYAN}"
+echo "         ______________"
+echo "        | how may I    |"
+echo "        | assist you   |"
+echo "        | today?       |"
+echo "        |______________|"
+echo "                 \\                       |"
+echo "                  \\                      |"
+echo "                   \\                     |"
+echo "   _______                   ________    |"
+echo "  |ooooooo|      ____       | __  __ |   |"
+echo "  |[]+++[]|     [____]      |/  \\/  \\|   |"
+echo "  |+ ___ +|     ]()()[      |\\__/\\__/|   |"
+echo "  |:|   |:|   ___\\__/___    |[][][][]|   |"
+echo "  |:|___|:|  |__|    |__|   |++++++++|   |"
+echo "  |[]===[]|   |_|/  \\|_|    | ______ |   |"
+echo "_ ||||||||| _ | | __ | | __ ||______|| __|"
+echo "  |_______|   |_|[::]|_|    |________|   \\"
+echo "              \\_|_||_|_/                  \\"
+echo "                |_||_|                     \\"
+echo "               _|_||_|_                     \\"
+echo "      ____    |___||___|                     \\"
+echo -e "${NC}"
+
+sudo usermod -aG docker $USER
+
+# Check if script is running with 'docker' group
+if ! groups $USER | grep -q "\bdocker\b"; then
+    echo "Re-executing script to apply Docker group membership..."
+    exec sg docker "$0 $*"
+fi
 
 # Mask systemd-networkd-wait-online.service to prevent boot delays
 sudo systemctl mask systemd-networkd-wait-online.service
@@ -507,18 +557,10 @@ pcm.dmix1 { type dmix; ipc_key 1025; ipc_perm 0666; slave { pcm "hw:1,0"; channe
 EOF
 
 # Install Docker Buildx plugin
-DOCKER_BUILDX_PATH="$HOME/.docker/cli-plugins/docker-buildx"
-mkdir -p "$(dirname "$DOCKER_BUILDX_PATH")"
-curl -L "https://github.com/docker/buildx/releases/download/v0.10.4/buildx-v0.10.4.linux-arm64" -o "$DOCKER_BUILDX_PATH"
-chmod +x "$DOCKER_BUILDX_PATH"
-
-# Add current user to docker group
-sudo usermod -aG docker $USER
-# Check if the user is in the docker group
-if ! groups $USER | grep -q "\bdocker\b"; then
-    echo "User is not in the docker group. Please log out and log back in, then re-run this script."
-    exit 1
-fi
+mkdir -p $HOME/.docker/cli-plugins
+curl -Lo $HOME/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.14.0/buildx-v0.14.0.linux-arm64
+sudo chmod +x $HOME/.docker/cli-plugins/docker-buildx
+docker buildx version
 
 # Setup UFW Firewall
 echo "Setting up UFW Firewall..."
@@ -568,29 +610,29 @@ if [[ "$1" != "--no-build" ]]; then
     git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
     cd ~/gpt-home
     echo "Checking if the container 'gpt-home' is already running..."
-    if [ $(sudo docker ps -q -f name=gpt-home) ]; then
+    if [ $(docker ps -q -f name=gpt-home) ]; then
         echo "Stopping running container 'gpt-home'..."
-        sudo docker stop gpt-home
+        docker stop gpt-home
     fi
 
     echo "Checking for existing container 'gpt-home'..."
-    if [ $(sudo docker ps -aq -f status=exited -f name=gpt-home) ]; then
+    if [ $(docker ps -aq -f status=exited -f name=gpt-home) ]; then
         echo "Removing existing container 'gpt-home'..."
-        sudo docker rm -f gpt-home
+        docker rm -f gpt-home
     fi
 
     echo "Pruning Docker system..."
-    sudo docker system prune -f
+    docker system prune -f
 
     # Check if the buildx builder exists, if not create and use it
-    if ! sudo docker buildx ls | grep -q mybuilder; then
-        sudo docker buildx create --name mybuilder --use
-        sudo docker buildx inspect --bootstrap
+    if ! docker buildx ls | grep -q mybuilder; then
+        docker buildx create --name mybuilder --use
+        docker buildx inspect --bootstrap
     fi
 
     # Building Docker image 'gpt-home' for ARMhf architecture
     echo "Building Docker image 'gpt-home' for ARMhf..."
-    sudo timeout 3600 docker buildx build --platform linux/arm64 -t gpt-home . --load
+    timeout 3600 docker buildx build --platform linux/arm64 -t gpt-home --load .
 
     if [ $? -ne 0 ]; then
         echo "Docker build failed. Exiting..."
@@ -600,7 +642,7 @@ if [[ "$1" != "--no-build" ]]; then
     echo "Container 'gpt-home' is now ready to run."
 
     echo "Running container 'gpt-home' from image 'gpt-home'..."
-    sudo docker run --restart unless-stopped -d --name gpt-home \
+    docker run --restart unless-stopped -d --name gpt-home \
         --privileged \
         --net=host \
         --tmpfs /run \
@@ -617,18 +659,18 @@ if [[ "$1" != "--no-build" ]]; then
     echo "Container 'gpt-home' is now running."
 
     # Show status of the container
-    sudo docker ps -a | grep gpt-home
+    docker ps -a | grep gpt-home
 
     sleep 10
 
     # Show status of all programs managed by Supervisor
-    sudo docker exec -i gpt-home supervisorctl status
+    docker exec -i gpt-home supervisorctl status
 fi
 
 if [[ "$1" == "--no-build" ]]; then
-    sudo docker ps -aq -f name=gpt-home | xargs -r docker rm -f
-    sudo docker pull judahpaul/gpt-home
-    sudo docker run --restart unless-stopped -d --name gpt-home \
+    docker ps -aq -f name=gpt-home | xargs -r docker rm -f
+    docker pull judahpaul/gpt-home
+    docker run --restart unless-stopped -d --name gpt-home \
         --privileged \
         --net=host \
         --tmpfs /run \
@@ -640,9 +682,9 @@ if [[ "$1" == "--no-build" ]]; then
         -v /var/run/dbus:/var/run/dbus \
         -e OPENAI_API_KEY=$OPENAI_API_KEY \
         judahpaul/gpt-home
-    sudo docker ps -a | grep gpt-home
+    docker ps -a | grep gpt-home
     sleep 10
-    sudo docker exec -i gpt-home supervisorctl status
+    docker exec -i gpt-home supervisorctl status
 fi
 ```
 
