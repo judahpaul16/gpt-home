@@ -607,7 +607,7 @@ async def alarm_reminder_action(text):
     if set_match:
         time_expression = set_match.group(1)
         minute, hour, dom, month, dow = parse_time_expression(time_expression)
-        command = "paplay /usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga"  # Built-in system alarm sound
+        command = "aplay /usr/share/sounds/alarm.wav"
         comment = "Alarm"
         return set_alarm(command, minute, hour, dom, month, dow, comment)
     elif delete_match:

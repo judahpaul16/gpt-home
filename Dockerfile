@@ -46,6 +46,9 @@ RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
 WORKDIR /app
 COPY . /app
 
+# Copy alarm sound to /usr/share/sounds
+RUN mkdir -p /usr/share/sounds && cp /app/contrib/alarm.wav /usr/share/sounds
+
 # Create virtual environment and install dependencies
 RUN python3 -m venv /env && \
     /env/bin/pip install --no-cache-dir --use-pep517 -r src/requirements.txt
