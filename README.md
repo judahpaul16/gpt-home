@@ -29,14 +29,15 @@ This guide will explain how to build your own. It's pretty straight forward. You
 ✅ Spotify  
 ✅ Philips Hue  
 ✅ OpenWeatherMap  
+✅ Open-Meteo  
 
 </td>
 <td>
 
-✅ Open-Meteo  
 ✅ Alarms  
 ✅ Reminders  
 🔲 LiteLLM  
+🔲 Calendar (CalDAV)  
 
 </td>
 </tr>
@@ -51,9 +52,9 @@ This guide will explain how to build your own. It's pretty straight forward. You
 <td>
       
 ☁️ Weather  
-🌡️ Temperature  
 🌅 Sunrise/Sunset  
-📅 Calendar  
+⏰ Alarms  
+⌚ Reminders
 
 </td>
 <td>
