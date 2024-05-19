@@ -1,5 +1,13 @@
 #!/bin/bash
 
+sudo usermod -aG docker $USER
+
+# Check if script is running with 'docker' group
+if [ -z "$DOCKER_GROUP_ADDED" ]; then
+    export DOCKER_GROUP_ADDED=1
+    exec sg docker "$0 $*"
+fi
+
 # Mask systemd-networkd-wait-online.service to prevent boot delays
 sudo systemctl mask systemd-networkd-wait-online.service
 
@@ -74,15 +82,7 @@ EOF
 mkdir -p $HOME/.docker/cli-plugins
 curl -Lo $HOME/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.10.5/buildx-v0.10.5.linux-arm64
 sudo chmod +x $HOME/.docker/cli-plugins/docker-buildx
-sudo docker buildx version
-
-# Add current user to docker group
-sudo usermod -aG docker $USER
-# Check if the user is in the docker group
-if ! groups $USER | grep -q "\bdocker\b"; then
-    echo "User is not in the docker group. Please log out and log back in, then re-run this script."
-    exit 1
-fi
+docker buildx version
 
 # Setup UFW Firewall
 echo "Setting up UFW Firewall..."
@@ -132,24 +132,24 @@ if [[ "$1" != "--no-build" ]]; then
     git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
     cd ~/gpt-home
     echo "Checking if the container 'gpt-home' is already running..."
-    if [ $(sudo docker ps -q -f name=gpt-home) ]; then
+    if [ $(docker ps -q -f name=gpt-home) ]; then
         echo "Stopping running container 'gpt-home'..."
-        sudo docker stop gpt-home
+        docker stop gpt-home
     fi
 
     echo "Checking for existing container 'gpt-home'..."
-    if [ $(sudo docker ps -aq -f status=exited -f name=gpt-home) ]; then
+    if [ $(docker ps -aq -f status=exited -f name=gpt-home) ]; then
         echo "Removing existing container 'gpt-home'..."
-        sudo docker rm -f gpt-home
+        docker rm -f gpt-home
     fi
 
     echo "Pruning Docker system..."
-    sudo docker system prune -f
+    docker system prune -f
 
     # Check if the buildx builder exists, if not create and use it
-    if ! sudo docker buildx ls | grep -q mybuilder; then
-        sudo docker buildx create --name mybuilder --use
-        sudo docker buildx inspect --bootstrap
+    if ! docker buildx ls | grep -q mybuilder; then
+        docker buildx create --name mybuilder --use
+        docker buildx inspect --bootstrap
     fi
 
     # Building Docker image 'gpt-home' for ARMhf architecture
@@ -164,7 +164,7 @@ if [[ "$1" != "--no-build" ]]; then
     echo "Container 'gpt-home' is now ready to run."
 
     echo "Running container 'gpt-home' from image 'gpt-home'..."
-    sudo docker run --restart unless-stopped -d --name gpt-home \
+    docker run --restart unless-stopped -d --name gpt-home \
         --privileged \
         --net=host \
         --tmpfs /run \
@@ -181,18 +181,18 @@ if [[ "$1" != "--no-build" ]]; then
     echo "Container 'gpt-home' is now running."
 
     # Show status of the container
-    sudo docker ps -a | grep gpt-home
+    docker ps -a | grep gpt-home
 
     sleep 10
 
     # Show status of all programs managed by Supervisor
-    sudo docker exec -i gpt-home supervisorctl status
+    docker exec -i gpt-home supervisorctl status
 fi
 
 if [[ "$1" == "--no-build" ]]; then
-    sudo docker ps -aq -f name=gpt-home | xargs -r docker rm -f
-    sudo docker pull judahpaul/gpt-home
-    sudo docker run --restart unless-stopped -d --name gpt-home \
+    docker ps -aq -f name=gpt-home | xargs -r docker rm -f
+    docker pull judahpaul/gpt-home
+    docker run --restart unless-stopped -d --name gpt-home \
         --privileged \
         --net=host \
         --tmpfs /run \
@@ -204,7 +204,7 @@ if [[ "$1" == "--no-build" ]]; then
         -v /var/run/dbus:/var/run/dbus \
         -e OPENAI_API_KEY=$OPENAI_API_KEY \
         judahpaul/gpt-home
-    sudo docker ps -a | grep gpt-home
+    docker ps -a | grep gpt-home
     sleep 10
-    sudo docker exec -i gpt-home supervisorctl status
+    docker exec -i gpt-home supervisorctl status
 fi
