@@ -1,9 +1,6 @@
 #!/bin/bash
 
 latest_release=$(curl -s https://api.github.com/repos/judahpaul16/gpt-home/releases/latest | grep 'tag_name' | cut -d\" -f4)
-echo "GPT Home $latest_release"
-echo "Created by Judah Paul"
-echo "More info @ https://github.com/judahpaul16/gpt-home/"
 
 # Colors
 RED='\033[0;31m'
@@ -14,6 +11,13 @@ MAGENTA='\033[0;35m'
 CYAN='\033[0;36m'
 WHITE='\033[0;37m'
 NC='\033[0m' # No Color
+
+echo ""
+echo -e "${MAGENTA}"
+echo "GPT Home $latest_release"
+echo "Created by Judah Paul"
+echo "More info @ https://github.com/judahpaul16/gpt-home/"
+echo -e "${NC}"
 
 echo -e "${GREEN}"
 echo "  ____ ____ _____   _   _                      "
