@@ -581,7 +581,7 @@ def parse_time_expression(time_expression):
     if re.match(r'\d+:\d+', time_expression):  # HH:MM format
         hour, minute = map(int, time_expression.split(':'))
         return minute, hour, '*', '*', '*'
-    elif re.match(r'\d+\s*minutes', time_expression):  # N minutes from now
+    elif re.match(r'\d+\s*minutes?', time_expression):  # N minutes from now
         minute = int(re.search(r'\d+', time_expression).group())
         return f'*/{minute}', '*', '*', '*', '*'
     else:

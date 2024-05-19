@@ -414,6 +414,13 @@ This will start the container and drop you into a shell session inside the conta
 --net=host:
     Uses the host network stack directly.
     May be necessary for avahi-daemon services.
+-v /usr/bin/crontab:/usr/bin/crontab:
+-v /etc/cron.d:/etc/cron.d:
+-v /var/spool/cron:/var/spool/cron:
+-v /etc/cron.daily:/etc/cron.daily:
+-v /etc/cron.weekly:/etc/cron.weekly:
+-v /etc/cron.monthly:/etc/cron.monthly:
+    Provides access to the host's crontab binary.
 -v /dev/snd:/dev/snd:
     Provides access to the host's sound devices.
 -v /dev/shm:/dev/shm:
@@ -650,6 +657,12 @@ if [[ "$1" != "--no-build" ]]; then
         -v ~/gpt-home:/app \
         -v /dev/snd:/dev/snd \
         -v /dev/shm:/dev/shm \
+        -v /usr/bin/crontab:/usr/bin/crontab \
+        -v /etc/cron.d:/etc/cron.d \
+        -v /var/spool/cron:/var/spool/cron \
+        -v /etc/cron.daily:/etc/cron.daily \
+        -v /etc/cron.weekly:/etc/cron.weekly \
+        -v /etc/cron.monthly:/etc/cron.monthly \
         -v /etc/asound.conf:/etc/asound.conf \
         -v /usr/share/alsa:/usr/share/alsa \
         -v /var/run/dbus:/var/run/dbus \
@@ -677,6 +690,12 @@ if [[ "$1" == "--no-build" ]]; then
         --tmpfs /run/lock \
         -v /dev/snd:/dev/snd \
         -v /dev/shm:/dev/shm \
+        -v /usr/bin/crontab:/usr/bin/crontab \
+        -v /etc/cron.d:/etc/cron.d \
+        -v /var/spool/cron:/var/spool/cron \
+        -v /etc/cron.daily:/etc/cron.daily \
+        -v /etc/cron.weekly:/etc/cron.weekly \
+        -v /etc/cron.monthly:/etc/cron.monthly \
         -v /etc/asound.conf:/etc/asound.conf \
         -v /usr/share/alsa:/usr/share/alsa \
         -v /var/run/dbus:/var/run/dbus \
