@@ -1,10 +1,52 @@
 #!/bin/bash
 
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[0;37m'
+NC='\033[0m' # No Color
+
+echo -e "${GREEN}"
+echo "  ____ ____ _____   _   _                      "
+echo " / ___|  _ \\_   _| | | | | ___  _ __ ___   ___ "
+echo "| |  _| |_) || |   | |_| |/ _ \\| '_ \` _ \\ / _ \\"
+echo "| |_| |  __/ | |   |  _  | (_) | | | | | |  __/"
+echo " \\____|_|    |_|   |_| |_|\\___/|_| |_| |_|\\___|"
+echo -e "${NC}"
+
+echo -e "${CYAN}"
+echo "         ______________"
+echo "        | how may I    |"
+echo "        | assist you   |"
+echo "        | today?       |"
+echo "        |______________|"
+echo "                 \\                       |"
+echo "                  \\                      |"
+echo "                   \\                     |"
+echo "   _______                   ________    |"
+echo "  |ooooooo|      ____       | __  __ |   |"
+echo "  |[]+++[]|     [____]      |/  \\/  \\|   |"
+echo "  |+ ___ +|     ]()()[      |\\__/\\__/|   |"
+echo "  |:|   |:|   ___\\__/___    |[][][][]|   |"
+echo "  |:|___|:|  |__|    |__|   |++++++++|   |"
+echo "  |[]===[]|   |_|/  \\|_|    | ______ |   |"
+echo "_ ||||||||| _ | | __ | | __ ||______|| __|"
+echo "  |_______|   |_|[::]|_|    |________|   \\"
+echo "              \\_|_||_|_/                  \\"
+echo "                |_||_|                     \\"
+echo "               _|_||_|_                     \\"
+echo "      ____    |___||___|                     \\"
+echo -e "${NC}"
+
 sudo usermod -aG docker $USER
 
 # Check if script is running with 'docker' group
-if [ -z "$DOCKER_GROUP_ADDED" ]; then
-    export DOCKER_GROUP_ADDED=1
+if ! groups $USER | grep -q "\bdocker\b"; then
+    echo "Re-executing script to apply Docker group membership..."
     exec sg docker "$0 $*"
 fi
 
