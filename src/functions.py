@@ -9,7 +9,6 @@ from pathlib import Path
 from phue import Bridge
 import subprocess
 import traceback
-import datetime
 import textwrap
 import requests
 import logging
