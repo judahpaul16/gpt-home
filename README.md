@@ -33,7 +33,7 @@ This guide will explain how to build your own. It's pretty straight forward. You
 </td>
 <td>
 
-🔲 Open-Meteo  
+✅ Open-Meteo  
 🔲 Alarms  
 🔲 Reminders  
 🔲 LiteLLM  
@@ -507,10 +507,10 @@ pcm.dmix1 { type dmix; ipc_key 1025; ipc_perm 0666; slave { pcm "hw:1,0"; channe
 EOF
 
 # Install Docker Buildx plugin
-DOCKER_BUILDX_PATH="$HOME/.docker/cli-plugins/docker-buildx"
-mkdir -p "$(dirname "$DOCKER_BUILDX_PATH")"
-curl -L "https://github.com/docker/buildx/releases/download/v0.10.4/buildx-v0.10.4.linux-arm64" -o "$DOCKER_BUILDX_PATH"
-chmod +x "$DOCKER_BUILDX_PATH"
+mkdir -p $HOME/.docker/cli-plugins
+curl -Lo $HOME/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.10.5/buildx-v0.10.5.linux-arm64
+sudo chmod +x $HOME/.docker/cli-plugins/docker-buildx
+sudo docker buildx version
 
 # Add current user to docker group
 sudo usermod -aG docker $USER
