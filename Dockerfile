@@ -13,7 +13,7 @@ RUN dpkg --add-architecture armhf
 # Install necessary packages
 RUN /bin/bash -c "yes | add-apt-repository universe && \
     dpkg --add-architecture armhf && apt-get update && \
-    apt-get install -y --no-install-recommends supervisor \
+    apt-get install -y --no-install-recommends supervisor nano neovim \
         avahi-daemon avahi-utils libnss-mdns dbus iputils-ping \
         build-essential curl git libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
         libsqlite3-dev llvm libncursesw5-dev xz-utils tk-dev libraspberrypi-bin \
@@ -45,6 +45,9 @@ RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
 # Prepare application directory
 WORKDIR /app
 COPY . /app
+
+# Copy alarm sound to /usr/share/sounds
+RUN mkdir -p /usr/share/sounds && cp /app/contrib/alarm.wav /usr/share/sounds
 
 # Create virtual environment and install dependencies
 RUN python3 -m venv /env && \
@@ -92,7 +95,7 @@ RUN mkdir -p /var/log/supervisor && \
     echo 'stdout_logfile=/dev/fd/1'; \
     echo 'stdout_logfile_maxbytes=0'; \
     echo 'redirect_stderr=true'; \
-} > /etc/supervisor/conf.d/supervisord.conf
+} > /etc/supervisor/conf.d/supervisord.conf 
 
 # Expose the Uvicorn port
 EXPOSE 8000

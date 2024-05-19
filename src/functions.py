@@ -4,11 +4,11 @@ from dotenv.main import set_key
 import speech_recognition as sr
 from asyncio import create_task
 from dotenv import load_dotenv
+from threading import Timer
 from pathlib import Path
 from phue import Bridge
 import subprocess
 import traceback
-import datetime
 import textwrap
 import requests
 import logging
@@ -546,7 +546,108 @@ async def query_openai(text, display, retries=3):
                 await handle_error(error_message, None, display)
         await asyncio.sleep(0.5)  # Wait before retrying
 
+alarms = {}
+
+def set_alarm(command, minute, hour, day_of_month, month, day_of_week, comment):
+    now = datetime.now()
+    alarm_time = now.replace(minute=minute, hour=hour, day=day_of_month, month=month, second=0, microsecond=0)
+    
+    if alarm_time < now:
+        alarm_time += timedelta(days=1)
+    
+    delay = (alarm_time - now).total_seconds()
+    timer = Timer(delay, lambda: subprocess.Popen(command, shell=True))
+    timer.start()
+    alarms[comment] = timer
+    return "Alarm set successfully."
+
+def delete_alarm(comment):
+    if comment in alarms:
+        alarms[comment].cancel()
+        del alarms[comment]
+        return "Alarm deleted successfully."
+    else:
+        return "No such alarm to delete."
+
+def snooze_alarm(comment, snooze_minutes):
+    if comment in alarms:
+        alarms[comment].cancel()
+        del alarms[comment]
+        
+        now = datetime.now()
+        snooze_time = now + timedelta(minutes=snooze_minutes)
+        delay = (snooze_time - now).total_seconds()
+        command = "aplay /usr/share/sounds/alarm.wav"
+        timer = Timer(delay, lambda: subprocess.Popen(command, shell=True))
+        timer.start()
+        alarms[comment] = timer
+        return "Alarm snoozed successfully."
+    else:
+        return "No such alarm to snooze."
+
+def parse_time_expression(time_expression):
+    if re.match(r'\d+:\d+', time_expression):  # HH:MM format
+        hour, minute = map(int, time_expression.split(':'))
+        return minute, hour, '*', '*', '*'
+    elif re.match(r'\d+\s*minutes?', time_expression):  # N minutes from now
+        minutes = int(re.search(r'\d+', time_expression).group())
+        now = datetime.now() + timedelta(minutes=minutes)
+        return now.minute, now.hour, now.day, now.month, '*'
+    else:
+        raise ValueError("Invalid time expression")
+
+def set_reminder(command, minute, hour, day_of_month, month, day_of_week, comment):
+    now = datetime.now()
+    reminder_time = now.replace(minute=minute, hour=hour, day=day_of_month, month=month, second=0, microsecond=0)
+    
+    if reminder_time < now:
+        reminder_time += timedelta(days=1)
+    
+    delay = (reminder_time - now).total_seconds()
+    Timer(delay, lambda: subprocess.Popen(command, shell=True)).start()
+    return "Reminder set successfully."
+
+async def alarm_reminder_action(text):
+    set_match = re.search(r'\b(?:set|create|schedule)\s+(?:an\s+)?alarm\b.*?\b(?:for|in)\s*(\d{1,2}:\d{2}|\d+\s*(?:minutes?|mins?|hours?|hrs?))\b', text, re.IGNORECASE)
+    delete_match = re.search(r'\b(?:delete|remove|cancel)\s+(?:an\s+)?alarm\b.*?\b(?:called|named)\s*(\w+)', text, re.IGNORECASE)
+    snooze_match = re.search(r'\b(?:snooze|delay|postpone)\s+(?:an\s+)?alarm\b.*?\b(?:for|by)\s*(\d+\s*(?:minutes?|mins?))\b', text, re.IGNORECASE)
+    remind_match = re.search(r'\b(?:remind)\s+(?:me)\s+(?:to|in)\s*(\d+\s*(?:minutes?|mins?|hours?|hrs?))\s+to\s*(.+)', text, re.IGNORECASE)
+
+    if set_match:
+        time_expression = set_match.group(1)
+        minute, hour, dom, month, dow = parse_time_expression(time_expression)
+        command = "aplay /usr/share/sounds/alarm.wav"
+        comment = "Alarm"
+        return set_alarm(command, minute, hour, dom, month, dow, comment)
+    elif delete_match:
+        comment = delete_match.group(1)
+        return delete_alarm(comment)
+    elif snooze_match:
+        snooze_time = snooze_match.group(1)
+        snooze_minutes = int(re.search(r'\d+', snooze_time).group())
+        comment = "Alarm"
+        return snooze_alarm(comment, snooze_minutes)
+    elif remind_match:
+        time_expression = remind_match.group(1)
+        reminder_text = remind_match.group(2)
+        minute, hour, dom, month, dow = parse_time_expression(time_expression)
+        command = f"""
+bash -c 'source /env/bin/activate && python -c "import pyttsx3; 
+engine = pyttsx3.init(); 
+engine.setProperty(\\"rate\\", 145); 
+engine.say(\\"Reminder: {reminder_text}\\"); 
+engine.runAndWait()"'
+        """
+        comment = "Reminder"
+        return set_reminder(command, minute, hour, dom, month, dow, comment)
+    else:
+        return "Invalid command."
+
 async def action_router(text: str, display):
+    # Alarm and Reminder actions
+    if re.search(r'\b(set|create|cancel|delete|remove|snooze|dismiss|stop|remind|alarm|timer)\b', text, re.IGNORECASE):
+        return await alarm_reminder_action(text)
+    
     # For Spotify actions
     if re.search(r'\b(play|resume|next song|go back|pause|stop|shuffle|repeat|volume)(\s.*)?(\bon\b\sSpotify)?\b', text, re.IGNORECASE):
         return await spotify_action(text)
