@@ -99,6 +99,10 @@ RUN mkdir -p /var/log/supervisor && \
 
 # Start cron service
 RUN service cron start && service cron status
+RUN USER_ID=$(id -u) && \
+    mkdir -p /run/user/$USER_ID && \
+    echo "export XDG_RUNTIME_DIR=/run/user/$USER_ID" >> /root/.bashrc && \
+    . /root/.bashrc
 
 # Expose the Uvicorn port
 EXPOSE 8000
