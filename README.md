@@ -34,8 +34,8 @@ This guide will explain how to build your own. It's pretty straight forward. You
 <td>
 
 ✅ Open-Meteo  
-🔲 Alarms  
-🔲 Reminders  
+✅ Alarms  
+✅ Reminders  
 🔲 LiteLLM  
 
 </td>
@@ -50,7 +50,7 @@ This guide will explain how to build your own. It's pretty straight forward. You
 <tr>
 <td>
       
-🌈 Weather  
+☁️ Weather  
 🌡️ Temperature  
 🌅 Sunrise/Sunset  
 📅 Calendar  
@@ -764,14 +764,15 @@ chmod +x setup.sh
 <tr>
 <td>
 
-- [OpenAI API Docs](https://platform.openai.com/docs/introduction)
 - [Raspberry Pi Docs](https://www.raspberrypi.com/documentation)
-- [Node.js Docs](https://nodejs.org/en/docs/)
-- [npm Docs](https://docs.npmjs.com/)
-- [NGINX Docs](https://nginx.org/en/docs/)
-- [React Docs](https://reactjs.org/docs/getting-started.html)
+- [Docker Docs](https://docs.docker.com/)
+- [Docker Buildx Docs](https://docs.docker.com/buildx/working-with-buildx/)
 - [FastAPI Docs](https://fastapi.tiangolo.com/)
 - [Ubuntu Server Docs](https://ubuntu.com/server/docs)
+- [NGINX Docs](https://nginx.org/en/docs/)
+- [React Docs](https://reactjs.org/docs/getting-started.html)
+- [Node.js Docs](https://nodejs.org/en/docs/)
+- [npm Docs](https://docs.npmjs.com/)
 
 </td>
 <td>
@@ -783,7 +784,8 @@ chmod +x setup.sh
 - [ALSA Docs](https://www.alsa-project.org/wiki/Documentation)
 - [PortAudio Docs](http://www.portaudio.com/docs/v19-doxydocs/index.html)
 - [SpeechRecognition Docs](https://pypi.org/project/SpeechRecognition/)
-- [Docker Docs](https://docs.docker.com/)
+- [OpenAI API Docs](https://platform.openai.com/docs/introduction)
+- [LiteLLM Docs](https://docs.litellm.ai/docs/)
 
 </td>
 <td>
@@ -795,6 +797,7 @@ chmod +x setup.sh
 - [Phillips Hue Python API Docs](https://github.com/studioimaginaire/phue)
 - [OpenWeatherMap API Docs](https://openweathermap.org/api/one-call-3)
 - [Open-Meteo API Docs](https://open-meteo.com/en/docs)
+- [Python Crontab Docs](https://pypi.org/project/python-crontab/)
 - [Fritzing Schematics](https://fritzing.org/)
 
 </td>
