@@ -95,7 +95,10 @@ RUN mkdir -p /var/log/supervisor && \
     echo 'stdout_logfile=/dev/fd/1'; \
     echo 'stdout_logfile_maxbytes=0'; \
     echo 'redirect_stderr=true'; \
-} > /etc/supervisor/conf.d/supervisord.conf
+} > /etc/supervisor/conf.d/supervisord.conf 
+
+# Start cron service
+RUN service cron start && service cron status
 
 # Expose the Uvicorn port
 EXPOSE 8000
