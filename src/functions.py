@@ -631,7 +631,13 @@ async def alarm_reminder_action(text):
         time_expression = remind_match.group(1)
         reminder_text = remind_match.group(2)
         minute, hour, dom, month, dow = parse_time_expression(time_expression)
-        command = f'source /env/bin/activate && python -c "import pyttsx3; engine = pyttsx3.init(); engine.setProperty(\"rate\", 145); engine.say(\"Reminder: {reminder_text}\"); engine.runAndWait()"'
+        command = f"""
+bash -c 'source /env/bin/activate && python -c "import pyttsx3; 
+engine = pyttsx3.init(); 
+engine.setProperty(\\"rate\\", 145); 
+engine.say(\\"Reminder: {reminder_text}\\"); 
+engine.runAndWait()"'
+        """
         comment = "Reminder"
         return set_reminder(command, minute, hour, dom, month, dow, comment)
     else:
