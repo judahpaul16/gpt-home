@@ -550,11 +550,7 @@ async def query_openai(text, display, retries=3):
 def set_alarm(command, minute, hour, day_of_month, month, day_of_week, comment):
     cron = CronTab(user=True)  # Use the current user's crontab
     job = cron.new(command=command, comment=comment)
-    job.minute.on(minute)
-    job.hour.on(hour)
-    job.dom.on(day_of_month)
-    job.month.on(month)
-    job.dow.on(day_of_week)
+    job.setall(f"{minute} {hour} {day_of_month} {month} {day_of_week}")
     cron.write()
     return "Alarm set successfully."
 
@@ -590,11 +586,7 @@ def parse_time_expression(time_expression):
 def set_reminder(command, minute, hour, day_of_month, month, day_of_week, comment):
     cron = CronTab(user=True)  # Use the current user's crontab
     job = cron.new(command=command, comment=comment)
-    job.minute.on(minute)
-    job.hour.on(hour)
-    job.dom.on(day_of_month)
-    job.month.on(month)
-    job.dow.on(day_of_week)
+    job.setall(f"{minute} {hour} {day_of_month} {month} {day_of_week}")
     cron.write()
     return "Reminder set successfully."
 
