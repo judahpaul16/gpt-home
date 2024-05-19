@@ -611,7 +611,7 @@ async def alarm_reminder_action(text):
     set_match = re.search(r'\b(?:set|create|schedule)\s+(?:an\s+)?alarm\b.*?\b(?:for|in)\s*(\d{1,2}:\d{2}|\d+\s*(?:minutes?|mins?|hours?|hrs?))\b', text, re.IGNORECASE)
     delete_match = re.search(r'\b(?:delete|remove|cancel)\s+(?:an\s+)?alarm\b.*?\b(?:called|named)\s*(\w+)', text, re.IGNORECASE)
     snooze_match = re.search(r'\b(?:snooze|delay|postpone)\s+(?:an\s+)?alarm\b.*?\b(?:for|by)\s*(\d+\s*(?:minutes?|mins?))\b', text, re.IGNORECASE)
-    remind_match = re.search(r'\b(?:set|create|schedule)\s+(?:a\s+)?reminder\b.*?\b(?:to|for)\s*(.*?)\b\s*(?:at|in)\s*(\d{1,2}:\d{2}|\d+\s*(?:minutes?|mins?|hours?|hrs?))', text, re.IGNORECASE)
+    remind_match = re.search(r'\b(?:remind)\s+(?:me)\s+(?:to|in)\s*(\d+\s*(?:minutes?|mins?|hours?|hrs?))\s+to\s*(.+)', text, re.IGNORECASE)
 
     if set_match:
         time_expression = set_match.group(1)
@@ -628,8 +628,8 @@ async def alarm_reminder_action(text):
         comment = "Alarm"
         return snooze_alarm(comment, snooze_minutes)
     elif remind_match:
-        reminder_text = remind_match.group(1)
-        time_expression = remind_match.group(2)
+        time_expression = remind_match.group(1)
+        reminder_text = remind_match.group(2)
         minute, hour, dom, month, dow = parse_time_expression(time_expression)
         command = f"bash -c 'source /env/bin/activate && python -c \"import pyttsx3; engine = pyttsx3.init(); engine.say(\\\"{reminder_text}\\\"); engine.runAndWait()\"'"
         comment = "Reminder"
