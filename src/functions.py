@@ -599,10 +599,10 @@ def set_reminder(command, minute, hour, day_of_month, month, day_of_week, commen
     return "Reminder set successfully."
 
 async def alarm_reminder_action(text):
-    set_match = re.search(r'\bset alarm\b.*\bfor\b\s*(\d+:\d+|\d+\s*minutes)\b', text, re.IGNORECASE)
-    delete_match = re.search(r'\bdelete alarm\b.*\bcalled\b\s*(\w+)', text, re.IGNORECASE)
-    snooze_match = re.search(r'\bsnooze alarm\b.*\bfor\b\s*(\d+\s*minutes)\b', text, re.IGNORECASE)
-    remind_match = re.search(r'\bset reminder\b.*\bto\b\s*(.*)\b\s*at\s*(\d+:\d+|\d+\s*minutes)', text, re.IGNORECASE)
+    set_match = re.search(r'\b(?:set|create|schedule)\s+(?:an\s+)?alarm\b.*?\b(?:for|in)\s*(\d{1,2}:\d{2}|\d+\s*(?:minutes?|mins?|hours?|hrs?))\b', text, re.IGNORECASE)
+    delete_match = re.search(r'\b(?:delete|remove|cancel)\s+(?:an\s+)?alarm\b.*?\b(?:called|named)\s*(\w+)', text, re.IGNORECASE)
+    snooze_match = re.search(r'\b(?:snooze|delay|postpone)\s+(?:an\s+)?alarm\b.*?\b(?:for|by)\s*(\d+\s*(?:minutes?|mins?))\b', text, re.IGNORECASE)
+    remind_match = re.search(r'\b(?:set|create|schedule)\s+(?:a\s+)?reminder\b.*?\b(?:to|for)\s*(.*?)\b\s*(?:at|in)\s*(\d{1,2}:\d{2}|\d+\s*(?:minutes?|mins?|hours?|hrs?))', text, re.IGNORECASE)
 
     if set_match:
         time_expression = set_match.group(1)
