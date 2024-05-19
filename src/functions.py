@@ -4,6 +4,7 @@ from dotenv.main import set_key
 import speech_recognition as sr
 from asyncio import create_task
 from dotenv import load_dotenv
+from crontab import CronTab
 from pathlib import Path
 from phue import Bridge
 import subprocess
@@ -546,7 +547,92 @@ async def query_openai(text, display, retries=3):
                 await handle_error(error_message, None, display)
         await asyncio.sleep(0.5)  # Wait before retrying
 
+def set_alarm(command, minute, hour, day_of_month, month, day_of_week, comment):
+    cron = CronTab(user=True)  # Use the current user's crontab
+    job = cron.new(command=command, comment=comment)
+    job.minute.on(minute)
+    job.hour.on(hour)
+    job.dom.on(day_of_month)
+    job.month.on(month)
+    job.dow.on(day_of_week)
+    cron.write()
+    return "Alarm set successfully."
+
+def delete_alarm(comment):
+    cron = CronTab(user=True)
+    cron.remove_all(comment=comment)
+    cron.write()
+    return "Alarm deleted successfully."
+
+def snooze_alarm(comment, snooze_minutes):
+    cron = CronTab(user=True)
+    job = None
+    for j in cron.find_comment(comment):
+        job = j
+        break
+    if job:
+        job.minute.every(snooze_minutes)
+        cron.write()
+        return "Alarm snoozed successfully."
+    else:
+        return "No such alarm to snooze."
+
+def parse_time_expression(time_expression):
+    if re.match(r'\d+:\d+', time_expression):  # HH:MM format
+        hour, minute = map(int, time_expression.split(':'))
+        return minute, hour, '*', '*', '*'
+    elif re.match(r'\d+\s*minutes', time_expression):  # N minutes from now
+        minute = int(re.search(r'\d+', time_expression).group())
+        return f'*/{minute}', '*', '*', '*', '*'
+    else:
+        raise ValueError("Invalid time expression")
+
+def set_reminder(command, minute, hour, day_of_month, month, day_of_week, comment):
+    cron = CronTab(user=True)  # Use the current user's crontab
+    job = cron.new(command=command, comment=comment)
+    job.minute.on(minute)
+    job.hour.on(hour)
+    job.dom.on(day_of_month)
+    job.month.on(month)
+    job.dow.on(day_of_week)
+    cron.write()
+    return "Reminder set successfully."
+
+async def alarm_reminder_action(text):
+    set_match = re.search(r'\bset alarm\b.*\bfor\b\s*(\d+:\d+|\d+\s*minutes)\b', text, re.IGNORECASE)
+    delete_match = re.search(r'\bdelete alarm\b.*\bcalled\b\s*(\w+)', text, re.IGNORECASE)
+    snooze_match = re.search(r'\bsnooze alarm\b.*\bfor\b\s*(\d+\s*minutes)\b', text, re.IGNORECASE)
+    remind_match = re.search(r'\bset reminder\b.*\bto\b\s*(.*)\b\s*at\s*(\d+:\d+|\d+\s*minutes)', text, re.IGNORECASE)
+
+    if set_match:
+        time_expression = set_match.group(1)
+        minute, hour, dom, month, dow = parse_time_expression(time_expression)
+        command = "paplay /usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga"  # Built-in system alarm sound
+        comment = "Alarm"
+        return set_alarm(command, minute, hour, dom, month, dow, comment)
+    elif delete_match:
+        comment = delete_match.group(1)
+        return delete_alarm(comment)
+    elif snooze_match:
+        snooze_time = snooze_match.group(1)
+        snooze_minutes = int(re.search(r'\d+', snooze_time).group())
+        comment = "Alarm"
+        return snooze_alarm(comment, snooze_minutes)
+    elif remind_match:
+        reminder_text = remind_match.group(1)
+        time_expression = remind_match.group(2)
+        minute, hour, dom, month, dow = parse_time_expression(time_expression)
+        command = f"python3 -c 'import pyttsx3; engine = pyttsx3.init(); engine.say(\"{reminder_text}\"); engine.runAndWait()'"
+        comment = "Reminder"
+        return set_reminder(command, minute, hour, dom, month, dow, comment)
+    else:
+        return "Invalid command."
+
 async def action_router(text: str, display):
+    # Alarm and Reminder actions
+    if re.search(r'\b(set|create|cancel|delete|remove|snooze|dismiss|stop|remind|alarm|timer)\b', text, re.IGNORECASE):
+        return await alarm_reminder_action(text)
+    
     # For Spotify actions
     if re.search(r'\b(play|resume|next song|go back|pause|stop|shuffle|repeat|volume)(\s.*)?(\bon\b\sSpotify)?\b', text, re.IGNORECASE):
         return await spotify_action(text)
