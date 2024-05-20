@@ -419,12 +419,12 @@ This will start the container and drop you into a shell session inside the conta
     Provides access to the host's sound devices.
 -v /dev/shm:/dev/shm:
     Provides access to shared memory.
--v /etc/asound.conf:/etc/asound.conf:ro:
-    Maps the ALSA configuration file as read-only.
 -v /usr/share/alsa:/usr/share/alsa:ro:
     Maps the ALSA shared data as read-only.
 -v /var/run/dbus:/var/run/dbus:
     Provides access to the D-Bus system for inter-process communication.
+--mount type=bind,source=/etc/asound.conf,target=/etc/asound.conf:
+    Binds the host's ALSA configuration to the container.
 ```
 
 ### 🐚 setup.sh
@@ -559,7 +559,7 @@ sudo systemctl enable docker
 sudo systemctl start docker
 
 # Create ALSA config (asound.conf, adjust as needed)
-sudo cat > /etc/asound.conf <<EOF
+sudo tee /etc/asound.conf > /dev/null <<EOF
 pcm.!default { type plug; slave.pcm "dmix0"; }
 ctl.!default { type hw; card 0; }
 pcm.dmix0 { type dmix; ipc_key 1024; ipc_perm 0666; slave { pcm "hw:0,0"; channels 2; period_time 0; period_size 1024; buffer_size 4096; rate 48000; } bindings { 0 0; 1 1; } }
@@ -655,6 +655,7 @@ if [[ "$1" != "--no-build" ]]; then
 
     echo "Running container 'gpt-home' from image 'gpt-home'..."
     docker run --restart unless-stopped -d --name gpt-home \
+        --mount type=bind,source=/etc/asound.conf,target=/etc/asound.conf \
         --privileged \
         --net=host \
         --tmpfs /run \
@@ -662,7 +663,6 @@ if [[ "$1" != "--no-build" ]]; then
         -v ~/gpt-home:/app \
         -v /dev/snd:/dev/snd \
         -v /dev/shm:/dev/shm \
-        -v /etc/asound.conf:/etc/asound.conf \
         -v /usr/share/alsa:/usr/share/alsa \
         -v /var/run/dbus:/var/run/dbus \
         -e OPENAI_API_KEY=$OPENAI_API_KEY \
@@ -683,13 +683,13 @@ if [[ "$1" == "--no-build" ]]; then
     docker ps -aq -f name=gpt-home | xargs -r docker rm -f
     docker pull judahpaul/gpt-home
     docker run --restart unless-stopped -d --name gpt-home \
+        --mount type=bind,source=/etc/asound.conf,target=/etc/asound.conf \
         --privileged \
         --net=host \
         --tmpfs /run \
         --tmpfs /run/lock \
         -v /dev/snd:/dev/snd \
         -v /dev/shm:/dev/shm \
-        -v /etc/asound.conf:/etc/asound.conf \
         -v /usr/share/alsa:/usr/share/alsa \
         -v /var/run/dbus:/var/run/dbus \
         -e OPENAI_API_KEY=$OPENAI_API_KEY \
