@@ -89,6 +89,12 @@ RUN mkdir -p /var/log/supervisor && \
     echo 'stdout_logfile=/dev/null'; \
     echo 'stdout_logfile_maxbytes=0'; \
     echo 'redirect_stderr=true'; \
+    echo 'startsecs=0'; \
+    echo 'autorestart=true'; \
+    echo 'stopsignal=INT'; \
+    echo 'stopasgroup=true'; \
+    echo 'killasgroup=true'; \
+    echo 'environment=HOME="/root",USER="root"'; \    
     echo ''; \
     echo '[program:web-interface]'; \
     echo 'command=bash -c "source /env/bin/activate && cd src && uvicorn backend:app --host 0.0.0.0 --port 8000"'; \
