@@ -330,7 +330,7 @@ async def connect_service(request: Request):
             
             if spotify_username and spotify_password:
                 # Update the spotifyd configuration dynamically
-                config_path = ROOT_DIR.parent / ".config/spotifyd/spotifyd.conf"
+                config_path = "/root/.config/spotifyd/spotifyd.conf"
                 whoami = subprocess.run(["whoami"], capture_output=True).stdout.decode().strip()
                 with open(config_path, "w") as file:
                     file.write("[global]\n")
