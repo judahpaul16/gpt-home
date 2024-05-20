@@ -218,6 +218,7 @@ if [[ "$1" != "--no-build" ]]; then
 
     echo "Running container 'gpt-home' from image 'gpt-home'..."
     docker run --restart unless-stopped -d --name gpt-home \
+        --mount type=bind,source=/etc/asound.conf,target=/etc/asound.conf \
         --privileged \
         --net=host \
         --tmpfs /run \
@@ -225,7 +226,6 @@ if [[ "$1" != "--no-build" ]]; then
         -v ~/gpt-home:/app \
         -v /dev/snd:/dev/snd \
         -v /dev/shm:/dev/shm \
-        -v /etc/asound.conf:/etc/asound.conf \
         -v /usr/share/alsa:/usr/share/alsa \
         -v /var/run/dbus:/var/run/dbus \
         -e OPENAI_API_KEY=$OPENAI_API_KEY \
@@ -246,13 +246,13 @@ if [[ "$1" == "--no-build" ]]; then
     docker ps -aq -f name=gpt-home | xargs -r docker rm -f
     docker pull judahpaul/gpt-home
     docker run --restart unless-stopped -d --name gpt-home \
+        --mount type=bind,source=/etc/asound.conf,target=/etc/asound.conf \
         --privileged \
         --net=host \
         --tmpfs /run \
         --tmpfs /run/lock \
         -v /dev/snd:/dev/snd \
         -v /dev/shm:/dev/shm \
-        -v /etc/asound.conf:/etc/asound.conf \
         -v /usr/share/alsa:/usr/share/alsa \
         -v /var/run/dbus:/var/run/dbus \
         -e OPENAI_API_KEY=$OPENAI_API_KEY \
