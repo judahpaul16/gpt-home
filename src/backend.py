@@ -129,32 +129,32 @@ async def settings(request: Request):
         new_settings = incoming_data['data']
         with settings_path.open("w") as f:
             json.dump(new_settings, f)
-        subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
+        subprocess.run(["supervisorctl", "restart", "gpt-home.service"])
         return JSONResponse(content=new_settings)
     else:
         return HTTPException(status_code=400, detail="Invalid action")
     
 @app.post("/gptRestart")
 async def gpt_restart(request: Request):
-    subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
+    subprocess.run(["supervisorctl", "restart", "gpt-home.service"])
     return JSONResponse(content={"success": True})
 
 @app.post("/spotifyRestart")
 async def spotify_restart(request: Request):
     loop = asyncio.get_event_loop()
-    subprocess.run(["sudo", "systemctl", "stop", "spotifyd"])
+    subprocess.run(["supervisorctl", "stop", "spotifyd"])
     await loop.run_in_executor(None, time.sleep, 10)
-    subprocess.run(["sudo", "systemctl", "start", "spotifyd"])
+    subprocess.run(["supervisorctl", "start", "spotifyd"])
     return JSONResponse(content={"success": True})
 
 @app.post("/reboot")
 async def reboot(request: Request):
-    subprocess.run(["sudo", "reboot"])
+    subprocess.run(["reboot"])
     return JSONResponse(content={"success": True})
 
 @app.post("/shutdown")
 async def shutdown(request: Request):
-    subprocess.run(["sudo", "shutdown", "now"])
+    subprocess.run(["shutdown", "now"])
     return JSONResponse(content={"success": True})
 
 @app.post("/availableModels")
@@ -195,7 +195,7 @@ async def update_model(request: Request):
                 json.dump(settings, f)
             
             # Restart service
-            subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
+            subprocess.run(["supervisorctl", "restart", "gpt-home.service"])
             
             return JSONResponse(content={"model": model_id})
         else:
@@ -343,7 +343,7 @@ async def connect_service(request: Request):
                     file.write("discovery = false\n")
                 
                 # Restart spotifyd to apply changes
-                subprocess.run(["sudo", "systemctl", "restart", "spotifyd"], check=True)
+                subprocess.run(["supervisorctl", "restart", "spotifyd"], check=True)
 
             # Setting REDIRECT URI explicitly to gpt-home.local
             redirect_uri = "http://gpt-home.local/api/callback"
@@ -381,7 +381,7 @@ async def connect_service(request: Request):
             auth_url = sp_oauth.get_authorize_url()
              
         # Restarting the service after setting up configurations for any of the services
-        subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
+        subprocess.run(["supervisorctl", "restart", "gpt-home.service"])
 
         logger.success(f"Successfully connected to {name}.")
         content = {"success": True}
@@ -411,7 +411,7 @@ async def disconnect_service(request: Request):
             unset_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP")
             unset_key(ENV_FILE_PATH, "PHILIPS_HUE_USERNAME")
 
-        subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
+        subprocess.run(["supervisorctl", "restart", "gpt-home.service"])
         return JSONResponse(content={"success": True})
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
@@ -478,7 +478,7 @@ async def handle_callback(request: Request):
 
             store_token(token_info)
 
-            subprocess.run(["sudo", "systemctl", "restart", "gpt-home.service"])
+            subprocess.run(["supervisorctl", "restart", "gpt-home.service"])
             
             return RedirectResponse(url="/", status_code=302)
         else:
@@ -579,9 +579,9 @@ async def spotify_control(request: Request):
 
         if not device_id:
             # restart spotifyd and try again
-            subprocess.run(["sudo", "systemctl", "stop", "spotifyd"])
+            subprocess.run(["supervisorctl", "stop", "spotifyd"])
             time.sleep(3)
-            subprocess.run(["sudo", "systemctl", "start", "spotifyd"])
+            subprocess.run(["supervisorctl", "start", "spotifyd"])
             time.sleep(3)
             devices = sp.devices()
             logger.debug(f"Devices: {devices}")
