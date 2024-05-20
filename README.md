@@ -559,7 +559,7 @@ sudo systemctl enable docker
 sudo systemctl start docker
 
 # Create ALSA config (asound.conf, adjust as needed)
-sudo cat > /etc/asound.conf <<EOF
+sudo tee /etc/asound.conf > /dev/null <<EOF
 pcm.!default { type plug; slave.pcm "dmix0"; }
 ctl.!default { type hw; card 0; }
 pcm.dmix0 { type dmix; ipc_key 1024; ipc_perm 0666; slave { pcm "hw:0,0"; channels 2; period_time 0; period_size 1024; buffer_size 4096; rate 48000; } bindings { 0 0; 1 1; } }
