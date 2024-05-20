@@ -129,14 +129,14 @@ async def settings(request: Request):
         new_settings = incoming_data['data']
         with settings_path.open("w") as f:
             json.dump(new_settings, f)
-        subprocess.run(["supervisorctl", "restart", "gpt-home.service"])
+        subprocess.run(["supervisorctl", "restart", "app"])
         return JSONResponse(content=new_settings)
     else:
         return HTTPException(status_code=400, detail="Invalid action")
     
 @app.post("/gptRestart")
 async def gpt_restart(request: Request):
-    subprocess.run(["supervisorctl", "restart", "gpt-home.service"])
+    subprocess.run(["supervisorctl", "restart", "app"])
     return JSONResponse(content={"success": True})
 
 @app.post("/spotifyRestart")
@@ -195,7 +195,7 @@ async def update_model(request: Request):
                 json.dump(settings, f)
             
             # Restart service
-            subprocess.run(["supervisorctl", "restart", "gpt-home.service"])
+            subprocess.run(["supervisorctl", "restart", "app"])
             
             return JSONResponse(content={"model": model_id})
         else:
@@ -381,7 +381,7 @@ async def connect_service(request: Request):
             auth_url = sp_oauth.get_authorize_url()
              
         # Restarting the service after setting up configurations for any of the services
-        subprocess.run(["supervisorctl", "restart", "gpt-home.service"])
+        subprocess.run(["supervisorctl", "restart", "app"])
 
         logger.success(f"Successfully connected to {name}.")
         content = {"success": True}
@@ -411,7 +411,7 @@ async def disconnect_service(request: Request):
             unset_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP")
             unset_key(ENV_FILE_PATH, "PHILIPS_HUE_USERNAME")
 
-        subprocess.run(["supervisorctl", "restart", "gpt-home.service"])
+        subprocess.run(["supervisorctl", "restart", "app"])
         return JSONResponse(content={"success": True})
     except Exception as e:
         return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
@@ -478,7 +478,7 @@ async def handle_callback(request: Request):
 
             store_token(token_info)
 
-            subprocess.run(["supervisorctl", "restart", "gpt-home.service"])
+            subprocess.run(["supervisorctl", "restart", "app"])
             
             return RedirectResponse(url="/", status_code=302)
         else:
