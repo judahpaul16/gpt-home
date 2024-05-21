@@ -801,6 +801,7 @@ chmod +x setup.sh
 - [PortAudio Docs](http://www.portaudio.com/docs/v19-doxydocs/index.html)
 - [SpeechRecognition Docs](https://pypi.org/project/SpeechRecognition/)
 - [OpenAI API Docs](https://platform.openai.com/docs/introduction)
+- [CalDAV API Docs](https://caldav.readthedocs.io/en/latest/)
 - [LiteLLM Docs](https://docs.litellm.ai/docs/)
 
 </td>

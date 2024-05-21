@@ -21,6 +21,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
     Spotify: ['https://developer.spotify.com/documentation/web-api/', 'https://developer.spotify.com/dashboard/'],
     OpenWeather: ['https://openweathermap.org/api/one-call-3', 'https://home.openweathermap.org/api_keys'],
     PhilipsHue: ['https://developers.meethue.com/develop/get-started-2/', 'https://github.com/studioimaginaire/phue'],
+    CalDAV: ['https://en.wikipedia.org/wiki/CalDAV', 'https://caldav.readthedocs.io/en/latest/'],
   };
 
   const fetchIPAddress = async () => {

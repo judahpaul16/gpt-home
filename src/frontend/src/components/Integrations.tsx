@@ -17,6 +17,7 @@ interface IntegrationsProps {
     Spotify: { status: boolean; usage: string[] };
     OpenWeather: { status: boolean; usage: string[] };
     PhilipsHue: { status: boolean; usage: string[] };
+    CalDAV: { status: boolean; usage: string[] };
   };
 }
 
@@ -25,12 +26,14 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
     Spotify: ['Play.....on Spotify', 'Play / Pause / Stop', 'Next Song / Go Back'],
     OpenWeather: ['How\'s the weather?', 'What\'s the temperature in....'],
     PhilipsHue: ['Dim the lights to...', 'Turn on / off....lights', 'Change the lights to red'],
+    CalDAV: ['What\'s on my calendar?', 'What\'s my next event?', 'Add an event to my calendar'],
   };
 
   const requiredFields: { [key: string]: string[] } = useMemo(() => ({
     Spotify: ['USERNAME', 'PASSWORD', 'CLIENT ID', 'CLIENT SECRET'],
     OpenWeather: ['API KEY'],
     PhilipsHue: ['BRIDGE IP ADDRESS'],
+    CalDAV: ['URL', 'USERNAME', 'PASSWORD'],
   }), []);
 
   const fetchStatuses = async () => {

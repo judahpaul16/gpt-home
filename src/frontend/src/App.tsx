@@ -25,10 +25,12 @@ const App: React.FC = () => {
     Spotify: { status: boolean; usage: string[] };
     OpenWeather: { status: boolean; usage: string[] };
     PhilipsHue: { status: boolean; usage: string[] };
+    CalDAV: { status: boolean; usage: string[] };
   }>({
     Spotify: { status: false, usage: [] },
     OpenWeather: { status: false, usage: [] },
     PhilipsHue: { status: false, usage: [] },
+    CalDAV: { status: false, usage: [] }
   });  
   
   const [showOverlay, setShowOverlay] = useState(false);
