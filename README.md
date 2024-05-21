@@ -34,10 +34,10 @@ This guide will explain how to build your own. It's pretty straight forward. You
 </td>
 <td>
 
+✅ Calendar (CalDAV)  
 ✅ Alarms  
 ✅ Reminders  
 🔲 LiteLLM  
-🔲 Calendar (CalDAV)  
 
 </td>
 </tr>
@@ -54,7 +54,8 @@ This guide will explain how to build your own. It's pretty straight forward. You
 ☁️ Weather  
 🌅 Sunrise/Sunset  
 ⏰ Alarms  
-⌚ Reminders
+⌚ Reminders  
+📆 Calendar
 
 </td>
 <td>
@@ -75,16 +76,19 @@ This guide will explain how to build your own. It's pretty straight forward. You
 
 
 ## 🚀 TL;DR
+1. Make sure your OpenAI API key is exported with:
 ```bash
-echo "export OPENAI_API_KEY='your_openai_api_key_here'" >> ~/.bashrc
-source ~/.bashrc
+echo "export OPENAI_API_KEY='your_openai_api_key_here'" >> ~/.bashrc && source ~/.bashrc
+```
+2. Run the setup script with the `--no-build` flag to pull the latest image from DockerHub:
+```bash
 curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh | \
     bash -s -- --no-build
 ```
 
 ## 🔌 Schematics
 ### ⚠️ Caution: Battery Connection
-**IMPORTANT**: The image on the left is for illustration purposes. ***Do not connect the battery directly to the Raspberry Pi. Use a UPS or power supply with a battery like this [one](https://a.co/d/1rMMCPR).*** Connecting the battery directly to the Raspberry Pi can cause damage to the board from voltage fluctuations.
+**IMPORTANT**: The image on the left is for illustration purposes. ***Do not connect the battery directly to the Raspberry Pi. Use a UPS or power supply with a battery like this [one](https://www.amazon.com/dp/B0C1GFX5LW?_encoding=UTF8&psc=1&ref_=cm_sw_r_cp_ud_dp_Z9X3PJZ7ZB8PCX42WHA6).*** Connecting the battery directly to the Raspberry Pi can cause damage to the board from voltage fluctuations.
 
 Before connecting the battery, ensure that the polarity is correct to avoid damage to your Raspberry Pi or other components. Disconnect power sources before making changes.
 
@@ -107,19 +111,19 @@ This is the list of parts I used to build my first GPT Home. You can use this as
 <p>
 
 **Core Components**  
-- **Raspberry Pi 4B**: [Link](https://a.co/d/aH6YCXY) - $50-$70
-- **Mini Speaker**: [Link](https://a.co/d/9bN8LZ2) - $18
-- **128 GB MicroSD card**: [Link](https://a.co/d/0SxSg7O) - $13
-- **USB 2.0 Mini Microphone**: [Link](https://a.co/d/eIrQUXC) - $8
+- **Raspberry Pi 4B**: [Link](https://www.amazon.com/dp/B07TD43PDZ?_encoding=UTF8&psc=1&ref_=cm_sw_r_cp_ud_dp_3VPS3ADQ8ZXST3X89X93) - $50-$70
+- **Mini Speaker**: [Link](https://www.amazon.com/dp/B01HB18IZ4?_encoding=UTF8&psc=1&ref_=cm_sw_r_cp_ud_dp_K4B3Z39KJ7ZWWQJ3NE57) - $18
+- **128 GB MicroSD card**: [Link](https://www.amazon.com/dp/B09X7BK27V?_encoding=UTF8&ref_=cm_sw_r_cp_ud_dp_5P662VFED8EPHAB70JNF&th=1) - $13
+- **USB 2.0 Mini Microphone**: [Link](https://www.amazon.com/dp/B01KLRBHGM?_encoding=UTF8&ref_=cm_sw_r_cp_ud_dp_TEE8RXB8QDPHZ97N556T&th=1) - $8
 
 ---
 
 **Optional Components**  
-- **128x32 OLED Display**: [Link](https://a.co/d/4Scrfjq) - $13-$14
-- **Standoff Spacer Column M3x40mm**: [Link](https://a.co/d/ees6oEA) - $14
-- **M1.4 M1.7 M2 M2.5 M3 Screw Kit**: [Link](https://a.co/d/4XJwiBY) - $15
-- **Raspberry Pi UPS Power Supply with Battery**: [Link](https://a.co/d/1rMMCPR) - $30
-- **Cool Case for Raspberry Pi 4B**: [Link](https://a.co/d/idSKJIG) - $16
+- **128x32 OLED Display**: [Link](https://www.amazon.com/dp/B08CDN5PSJ?_encoding=UTF8&psc=1&ref_=cm_sw_r_cp_ud_dp_VHXY426Y4QR6VHNAJ34D) - $13-$14
+- **Standoff Spacer Column M3x40mm**: [Link](https://www.amazon.com/dp/B07M7D8HMT?_encoding=UTF8&psc=1&ref_=cm_sw_r_cp_ud_dp_G9Y5DED2RVNWYEFCDGZJ) - $14
+- **M1.4 M1.7 M2 M2.5 M3 Screw Kit**: [Link](https://www.amazon.com/dp/B08KXS2MWG?_encoding=UTF8&psc=1&ref_=cm_sw_r_cp_ud_dp_Q9TVWARHCPKVKGDHFY5S) - $15
+- **Raspberry Pi UPS Power Supply with Battery**: [Link](https://www.amazon.com/dp/B0C1GFX5LW?_encoding=UTF8&psc=1&ref_=cm_sw_r_cp_ud_dp_Z9X3PJZ7ZB8PCX42WHA6) - $30
+- **Cool Case for Raspberry Pi 4B**: [Link](https://www.amazon.com/dp/B07TTN1M7G?_encoding=UTF8&psc=1&ref_=cm_sw_r_cp_ud_dp_TMN6JDWCHFP8J7N98EV8) - $16
 
 ---
 
