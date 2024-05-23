@@ -378,7 +378,7 @@ async def caldav_action(text: str):
     calendars = principal.calendars()
     if not calendars:
         return "No calendars found."
-
+    
     calendar = calendars[0]  # Use the first found calendar
     create_match = re.search(r'\b(?:add|create|schedule)\s+an?\s+(event|appointment)\s+called\s+(\w+)\s+on\s+(\d{4}-\d{2}-\d{2})\s+at\s+(\d{1,2}:\d{2})', text, re.IGNORECASE)
     delete_match = re.search(r'\b(?:delete|remove|cancel)\s+the\s+(event|appointment)\s+called\s+(\w+)', text, re.IGNORECASE)

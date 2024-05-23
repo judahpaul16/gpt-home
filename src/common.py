@@ -1,5 +1,9 @@
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+from requests.packages.urllib3.util.retry import Retry
 from concurrent.futures import ThreadPoolExecutor
+from requests.adapters import HTTPAdapter
 from datetime import datetime, timedelta
+from requests.sessions import Session
 from caldav.elements import dav, cdav
 from dotenv.main import set_key
 import speech_recognition as sr
