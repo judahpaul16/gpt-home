@@ -30,13 +30,15 @@ This guide will explain how to build your own. It's pretty straight forward. You
 ✅ Philips Hue  
 ✅ OpenWeatherMap  
 ✅ Open-Meteo  
+✅ Calendar (CalDAV)  
 
 </td>
 <td>
 
-✅ Calendar (CalDAV)  
 ✅ Alarms  
 ✅ Reminders  
+🔲 OpenAI Whisper  
+🔲 Home Assistant  
 🔲 LiteLLM  
 
 </td>
