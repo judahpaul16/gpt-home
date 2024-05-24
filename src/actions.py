@@ -417,7 +417,7 @@ async def caldav_action(text: str):
             next_event = events[0]
             summary = next_event.vobject_instance.vevent.summary.value
             start_time = next_event.vobject_instance.vevent.dtstart.value
-            return f"Your next event is '{summary}' on {start_time:%Y-%m-%d at %H:%M}."
+            return f"Your next event is '{summary}' on {start_time.strftime('%A, %B %d at %I:%M %p').replace(' 0', ' ')}"
         else:
             return "No upcoming events found."
 
@@ -428,7 +428,8 @@ async def caldav_action(text: str):
             for event in events:
                 summary = event.vobject_instance.vevent.summary.value
                 start_time = event.vobject_instance.vevent.dtstart.value
-                event_details.append(f"'{summary}' on {start_time:%Y-%m-%d at %H:%M}")
+                formatted_start_time = start_time.strftime('%A, %B %d at %I:%M %p').replace(' 0', ' ')
+                event_details.append(f"'{summary}' on {formatted_start_time}")
             return "Your upcoming events are: " + ", ".join(event_details)
         else:
             return "No events on your calendar for the next 30 days."
