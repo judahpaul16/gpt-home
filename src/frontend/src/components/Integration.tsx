@@ -16,11 +16,13 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({} as { [key: string]: string });
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const [spotifyTokenExists, setSpotifyTokenExists] = useState(false);
   const apiRefs: { [key: string]: string[] } = {
     Spotify: ['https://developer.spotify.com/documentation/web-api/', 'https://developer.spotify.com/dashboard/'],
     OpenWeather: ['https://openweathermap.org/api/one-call-3', 'https://home.openweathermap.org/api_keys'],
     PhilipsHue: ['https://developers.meethue.com/develop/get-started-2/', 'https://github.com/studioimaginaire/phue'],
+    CalDAV: ['https://en.wikipedia.org/wiki/CalDAV', 'https://caldav.readthedocs.io/en/latest/'],
   };
 
   const fetchIPAddress = async () => {
@@ -62,26 +64,28 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
 
   const connectService = async () => {
     // Validate that all required fields have values
+    setLoading(true);
     for (const field of requiredFields[name]) {
       if (!formData[field as keyof typeof formData]) {
         setError(`Please enter a value for ${field}`);
         setShowOverlay(false);
+        setLoading(false);
         return;
       }
     }
-  
+
     // Prepare the payload with all the required fields
     let fields: { [key: string]: string } = {};
     for (const field of requiredFields[name]) {
       fields[field] = formData[field as keyof typeof formData];
     }
-  
+
     // Make the Axios POST request
     axios.post('/connect-service', { name, fields })
-    .then((response) => {
-      if (response.data.redirect_url) {
-        window.location.replace(response.data.redirect_url)
-      } else if (response.data.success) {
+      .then((response) => {
+        if (response.data.redirect_url) {
+          window.location.replace(response.data.redirect_url);
+        } else if (response.data.success) {
           // If successfully connected, toggle the status and reset the form
           if (!status) toggleStatus(name); // only toggle if not already connected
           setShowOverlay(false);
@@ -96,6 +100,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
           console.log(response.data.traceback);
           setShowOverlay(false);
         }
+        setLoading(false);
       })
       .catch((error) => {
         // Handle network or server errors
@@ -103,8 +108,9 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
         console.log("Error: ", error);
         console.log("Error Response: ", error.response);
         setShowOverlay(false);
+        setLoading(false);
       });
-  };  
+  };
 
   const disconnectService = async () => {
     if (window.confirm(`Are you sure you want to disconnect from ${name}?`))
@@ -194,6 +200,12 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
                   http://{ipAddress}/api/callback</span><br />
               </div>
             }
+            {name === 'CalDAV' &&
+              <div style={{ color: 'red' }}>
+                NOTE: CalDAV requests must be made over HTTPS.<br />
+                More information on CalDAV URLs can be found <a target='_blank' rel='noopener noreferrer' href='https://caldav.readthedocs.io/en/latest/#some-notes-on-caldav-urls'>here</a>.
+              </div>
+            }
             {requiredFields[name].map((field) => (
               <div key={field}>
                 <input
@@ -208,7 +220,9 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
                 />
               </div>
             ))}
-            <button onClick={connectService}>Submit</button>
+            <button onClick={connectService} disabled={loading} className="submit">
+              {loading ? <div className="spinner"></div> : 'Submit'}
+            </button>
             <button onClick={() => setShowForm(false)}>Cancel</button>
             {error && <div className="error-text">{error}</div>}
           </div>

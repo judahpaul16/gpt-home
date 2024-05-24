@@ -1,5 +1,5 @@
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
-from functions import logger, SOURCE_DIR, log_file_path
+from common import logger, SOURCE_DIR, log_file_path
 from fastapi import FastAPI, Request, Response, status
 from spotipy.oauth2 import SpotifyClientCredentials
 from dotenv import load_dotenv, set_key, unset_key
@@ -322,6 +322,16 @@ async def connect_service(request: Request):
                     set_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP", value)
                     os.environ["PHILIPS_HUE_BRIDGE_IP"] = value
                     await set_philips_hue_username(value)
+            elif name == "caldav":
+                if key == "URL":
+                    set_key(ENV_FILE_PATH, "CALDAV_URL", value)
+                    os.environ["CALDAV_URL"] = value
+                elif key == "USERNAME":
+                    set_key(ENV_FILE_PATH, "CALDAV_USERNAME", value)
+                    os.environ["CALDAV_USERNAME"] = value
+                elif key == "PASSWORD":
+                    set_key(ENV_FILE_PATH, "CALDAV_PASSWORD", value)
+                    os.environ["CALDAV_PASSWORD"] = value
 
         if name == "spotify":
             spotify_username = fields.get("USERNAME")
@@ -410,6 +420,10 @@ async def disconnect_service(request: Request):
         elif name == "philipshue":
             unset_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP")
             unset_key(ENV_FILE_PATH, "PHILIPS_HUE_USERNAME")
+        elif name == "caldav":
+            unset_key(ENV_FILE_PATH, "CALDAV_URL")
+            unset_key(ENV_FILE_PATH, "CALDAV_USERNAME")
+            unset_key(ENV_FILE_PATH, "CALDAV_PASSWORD")
 
         subprocess.run(["supervisorctl", "restart", "app"])
         return JSONResponse(content={"success": True})
@@ -448,7 +462,8 @@ async def get_service_statuses(request: Request):
         statuses = {
             "Spotify": "SPOTIFY_CLIENT_ID" in env_config and "SPOTIFY_CLIENT_SECRET" in env_config and token_is_valid,
             "OpenWeather": "OPEN_WEATHER_API_KEY" in env_config,
-            "PhilipsHue": "PHILIPS_HUE_BRIDGE_IP" in env_config and "PHILIPS_HUE_USERNAME" in env_config and is_matching_scheme
+            "PhilipsHue": "PHILIPS_HUE_BRIDGE_IP" in env_config and "PHILIPS_HUE_USERNAME" in env_config and is_matching_scheme,
+            "CalDAV": "CALDAV_URL" in env_config and "CALDAV_USERNAME" in env_config and "CALDAV_PASSWORD" in env_config
         }
         
         return JSONResponse(content={"statuses": statuses})

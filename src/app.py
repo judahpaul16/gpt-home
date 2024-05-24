@@ -1,4 +1,4 @@
-from functions import *
+from common import *
 
 async def main():
     state_task = None
