@@ -382,8 +382,8 @@ async def caldav_action(text: str):
     calendar = calendars[0]  # Use the first found calendar
     create_match = re.search(r'\b(?:add|create|schedule)\s+an?\s+(event|appointment)\s+called\s+(\w+)\s+on\s+(\d{4}-\d{2}-\d{2})\s+at\s+(\d{1,2}:\d{2})', text, re.IGNORECASE)
     delete_match = re.search(r'\b(?:delete|remove|cancel)\s+the\s+(event|appointment)\s+called\s+(\w+)', text, re.IGNORECASE)
-    next_event_match = re.search(r"\bwhat's\s+my\s+next\s+(event|appointment)\b", text, re.IGNORECASE)
-    calendar_query_match = re.search(r"\bwhat's\s+on\s+my\s+calendar\b", text, re.IGNORECASE)
+    next_event_match = re.search(r"\bwhat'?s\s+my\s+next\s+(event|appointment)\b", text, re.IGNORECASE)
+    calendar_query_match = re.search(r"\bwhat'?s\s+on\s+my\s+calendar\b", text, re.IGNORECASE)
 
     if create_match:
         event_name = create_match.group(1)
@@ -405,29 +405,29 @@ async def caldav_action(text: str):
 
     elif delete_match:
         event_name = delete_match.group(1)
-        events = calendar.date_search(datetime.now(), datetime.now() + timedelta(days=365))  # Search within the next year
+        events = calendar.search(start=datetime.now(), end=datetime.now() + timedelta(days=365), event=True, expand=True)  # Search within the next year
         for event in events:
-            if event_name.lower() in event.instance.vevent.summary.value_reduced.lower():
+            if event_name.lower() in event.instance.vevent.summary.value.lower():
                 event.delete()
                 return f"Event '{event_name}' deleted successfully."
 
     elif next_event_match:
-        events = calendar.date_search(datetime.now(), datetime.now() + timedelta(days=30))  # Next 30 days
+        events = calendar.search(start=datetime.now(), end=datetime.now() + timedelta(days=30), event=True, expand=True)  # Next 30 days
         if events:
             next_event = events[0]
-            summary = next_event.vobject_instance.vevent.summary.value_reduced
-            start_time = next_event.vobject_instance.vevent.dtstart.value_reduced
+            summary = next_event.vobject_instance.vevent.summary.value
+            start_time = next_event.vobject_instance.vevent.dtstart.value
             return f"Your next event is '{summary}' on {start_time:%Y-%m-%d at %H:%M}."
         else:
             return "No upcoming events found."
 
     elif calendar_query_match:
-        events = calendar.date_search(datetime.now(), datetime.now() + timedelta(days=30))  # Next 30 days
+        events = calendar.search(start=datetime.now(), end=datetime.now() + timedelta(days=30), event=True, expand=True)  # Next 30 days
         if events:
             event_details = []
             for event in events:
-                summary = event.vobject_instance.vevent.summary.value_reduced
-                start_time = event.vobject_instance.vevent.dtstart.value_reduced
+                summary = event.vobject_instance.vevent.summary.value
+                start_time = event.vobject_instance.vevent.dtstart.value
                 event_details.append(f"'{summary}' on {start_time:%Y-%m-%d at %H:%M}")
             return "Your upcoming events are: " + ", ".join(event_details)
         else:
