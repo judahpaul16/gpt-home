@@ -53,15 +53,16 @@ This guide will explain how to build your own. It's pretty straight forward. You
 <td>
       
 ☁️ Weather  
-🌅 Sunrise/Sunset  
 ⏰ Alarms  
 ⌚ Reminders  
-📆 Calendar
+📆 Calendar  
+☑️ To-Do List
 
 </td>
 <td>
 
 📚 General Knowledge  
+🗣️ Translation  
 🎵 Music  
 💡 Lights  
 😆 Fun & Games

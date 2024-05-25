@@ -294,11 +294,11 @@ from actions import \
 
 async def action_router(text: str, display):
     # Alarm and Reminder actions
-    if re.search(r'\b(set|create|cancel|delete|remove|snooze|dismiss|stop|remind|alarm|timer)\b', text, re.IGNORECASE):
+    if re.search(r'\b(^set|create|cancel|delete|remove|snooze|dismiss|stop|remind|alarm|timer)\b', text, re.IGNORECASE):
         return await alarm_reminder_action(text)
     
     # For Spotify actions
-    if re.search(r'\b(play|resume|next song|go back|pause|stop|shuffle|repeat|volume)(\s.*)?(\bon\b\sSpotify)?\b', text, re.IGNORECASE):
+    if re.search(r'\b(^play|resume|next song|go back|pause|stop|shuffle|repeat|volume)(\s.*)?(\bon\b\sSpotify)?\b', text, re.IGNORECASE):
         return await spotify_action(text)
         
     # For Open Weather actions
@@ -310,8 +310,8 @@ async def action_router(text: str, display):
     elif re.search(r'\b(turn\s)?(the\s)?lights?\s?(on|off)?\b', text, re.IGNORECASE):
         return await philips_hue_action(text)
 
-    # For Calendar actions (CalDAV)
-    elif re.search(r'\b(event|calendar|schedule|appointment)\b', text, re.IGNORECASE):
+    # For Calendar & To-Do List actions (CalDAV)
+    elif re.search(r'\b(event|calendar|schedule|appointment|task|todo|to-do|task\slist|to-do\slist|left to do)\b', text, re.IGNORECASE):
         return await caldav_action(text)
 
     # If no pattern matches, query OpenAI

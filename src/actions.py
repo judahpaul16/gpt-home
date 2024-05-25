@@ -380,6 +380,58 @@ async def caldav_action(text: str):
         return "No calendars found."
     
     calendar = calendars[0]  # Use the first found calendar
+
+    task_create_match = re.search(r'\b(?:add|create)\s+task\s+called\s+(\w+)', text, re.IGNORECASE)
+    task_delete_match = re.search(r'\b(?:delete|remove)\s+task\s+called\s+(\w+)', text, re.IGNORECASE)
+    tasks_query_match = re.search(r'\b(what\s+(?:tasks|things)\s+are\s+(?:left|remaining|to\s+do)|what\s+else\s+is\s+there\s+to\s+do)\b', text, re.IGNORECASE)
+    completed_tasks_query_match = re.search(r'\bwhat\s+are\s+my\s+completed\s+tasks\b', text, re.IGNORECASE)
+
+    if task_create_match:
+        task_name = task_create_match.group(1)
+        task = calendar.add_todo(f"""
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        BEGIN:VTODO
+        SUMMARY:{task_name}
+        STATUS:NEEDS-ACTION
+        END:VTODO
+        END:VCALENDAR
+        """)
+        return f"Task '{task_name}' created successfully."
+
+    elif task_delete_match:
+        task_name = task_delete_match.group(1)
+        tasks = calendar.todos()
+        for task in tasks:
+            if task_name.lower() in task.instance.vtodo.summary.value.lower():
+                task.delete()
+                return f"Task '{task_name}' deleted successfully."
+
+    if tasks_query_match:
+        tasks = calendar.todos()
+        pending_task_details = []
+        for task in tasks:
+            if task.vobject_instance.vtodo.status.value != "COMPLETED":
+                summary = task.vobject_instance.vtodo.summary.value
+                status = task.vobject_instance.vtodo.status.value
+                pending_task_details.append(f"'{summary}' (Status: {status})")
+        if pending_task_details:
+            return "Your pending tasks are: " + ", ".join(pending_task_details)
+        else:
+            return "You have no pending tasks."
+
+    elif completed_tasks_query_match:
+        tasks = calendar.todos()
+        completed_task_details = []
+        for task in tasks:
+            if task.vobject_instance.vtodo.status.value == "COMPLETED":
+                summary = task.vobject_instance.vtodo.summary.value
+                completed_task_details.append(f"'{summary}'")
+        if completed_task_details:
+            return "Your completed tasks are: " + ", ".join(completed_task_details)
+        else:
+            return "You have no completed tasks."
+
     create_match = re.search(r'\b(?:add|create|schedule)\s+an?\s+(event|appointment)\s+called\s+(\w+)\s+on\s+(\d{4}-\d{2}-\d{2})\s+at\s+(\d{1,2}:\d{2})', text, re.IGNORECASE)
     delete_match = re.search(r'\b(?:delete|remove|cancel)\s+the\s+(event|appointment)\s+called\s+(\w+)', text, re.IGNORECASE)
     next_event_match = re.search(r"\bwhat'?s\s+my\s+next\s+(event|appointment)\b", text, re.IGNORECASE)
