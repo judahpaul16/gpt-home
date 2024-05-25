@@ -544,11 +544,13 @@ function install() {
         return 1
     fi
 
-    if [$package == "docker"]; then
-        echo "Docker installed. Adding user to docker group..."
-        sudo usermod -aG docker $(whoami)
-        echo "User added to \`docker\` group but session must be reloaded. Please log out, log back in, and rerun the script. Exiting..."
-        exit 0
+    if [ "$package" == "docker" ]; then
+        if ! docker ps >/dev/null 2>&1; then
+            echo "Docker installed. Adding $(whoami) to the 'docker' group..."
+            sudo usermod -aG docker $(whoami)
+            echo -e "${RED}User added to \`docker\` group but the session must be reloaded to access the Docker daemon. Please log out, log back in, and rerun the script. Exiting...${NC}"
+            exit 0
+        fi
     fi
 }
 
