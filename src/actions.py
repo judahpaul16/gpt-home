@@ -1,4 +1,5 @@
 from common import *
+from weather_codes import weather_codes
 
 async def spotify_action(text: str):
     client_id = os.getenv('SPOTIFY_CLIENT_ID')
@@ -78,11 +79,10 @@ async def open_weather_action(text: str):
                     response = await session.get(f"https://api.open-meteo.com/v1/forecast?latitude={coords.get('lat')}&longitude={coords.get('lon')}&current_weather=true&temperature_unit=fahrenheit")
                     if response.status == 200:
                         json_response = await response.json()
-                        weather = json_response.get('current_weather').get('weathercode')
+                        weather_code = json_response.get('current_weather').get('weathercode')
                         temp = json_response.get('current_weather').get('temperature')
-                        return f"It is currently {round(float(temp))} degrees with weather code {weather} in {city}."
-                    else:
-                        raise Exception(f"Received a {response.status} status code from both OpenWeather and Open-Meteo. {response.content.decode()}")
+                        weather_description = weather_codes[str(weather_code)]['day']['description'] if datetime.now().hour < 18 else weather_codes[str(weather_code)]['night']['description']
+                        return f"It is currently {round(float(temp))} degrees and {weather_description.lower()} in {city}."
 
                 # Weather forecast
                 else:
@@ -118,17 +118,20 @@ async def open_weather_action(text: str):
                         json_response = await response.json()
                         forecast = []
                         for day in json_response.get('daily'):
+                            day_weather_code = day.get('weathercode')
+                            day_weather_description = weather_codes[str(day_weather_code)]['day']['description'] if datetime.now().hour < 18 else weather_codes[str(day_weather_code)]['night']['description']
                             forecast.append({
                                 'temp_max': day.get('temperature_2m_max'),
                                 'temp_min': day.get('temperature_2m_min'),
+                                'weather_description': day_weather_description,
                                 'date': day.get('time')
                             })
                         tomorrow_forecast = list(filter(lambda x: x.get('date') == tomorrow.strftime('%Y-%m-%d'), forecast))[0]
                         speech_responses = []
-                        speech_responses.append(f"Tomorrow, it will be between {tomorrow_forecast.get('temp_min')}\u00B0F and {tomorrow_forecast.get('temp_max')}\u00B0F in {city}.")
+                        speech_responses.append(f"Tomorrow, it will be between {tomorrow_forecast.get('temp_min')}\u00B0F and {tomorrow_forecast.get('temp_max')}\u00B0F and {tomorrow_forecast.get('weather_description').lower()} in {city}.")
                         for day in forecast:
                             if day.get('date') != tomorrow.strftime('%Y-%m-%d'):
-                                speech_responses.append(f"On {day.get('date')}, it will be between {day.get('temp_min')}\u00B0F and {day.get('temp_max')}\u00B0F in {city}.")
+                                speech_responses.append(f"On {day.get('date')}, it will be between {day.get('temp_min')}\u00B0F and {day.get('temp_max')}\u00B0F and {day.get('weather_description').lower()} in {city}.")
                         return ' '.join(speech_responses)
 
             else:
@@ -153,12 +156,10 @@ async def open_weather_action(text: str):
                 response = await session.get(f"https://api.open-meteo.com/v1/forecast?latitude={coords.get('lat')}&longitude={coords.get('lon')}&current_weather=true&temperature_unit=fahrenheit")
                 if response.status == 200:
                     json_response = await response.json()
-                    weather = json_response.get('current_weather').get('weathercode')
+                    weather_code = json_response.get('current_weather').get('weathercode')
                     temp = json_response.get('current_weather').get('temperature')
-                    return f"It is currently {round(float(temp))} degrees with weather code {weather} in your location."
-                else:
-                    content = await response.content.read()
-                    raise Exception(f"Received a {response.status} status code from both OpenWeather and Open-Meteo. {content.decode()}")
+                    weather_description = weather_codes[str(weather_code)]['day']['description'] if datetime.now().hour < 18 else weather_codes[str(weather_code)]['night']['description']
+                    return f"It is currently {round(float(temp))} degrees and {weather_description.lower()} in {city}."
                 
         raise Exception("No Open Weather API key found. Please enter your API key for Open Weather in the web interface or try reconnecting the service.")
 
