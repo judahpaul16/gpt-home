@@ -617,7 +617,7 @@ sudo ln -s /etc/nginx/sites-available/gpt-home /etc/nginx/sites-enabled
 sudo systemctl enable nginx
 sudo nginx -t && sudo systemctl restart nginx
 
-sudo systemctl status nginx
+sudo systemctl status --no-pager nginx
 
 if [[ "$1" != "--no-build" ]]; then
     [ -d ~/gpt-home ] && rm -rf ~/gpt-home
