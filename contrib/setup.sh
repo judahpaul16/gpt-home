@@ -51,16 +51,6 @@ echo "               _|_||_|_                     \\"
 echo "      ____    |___||___|                     \\"
 echo -e "${NC}"
 
-# Add user to the Docker group
-sudo groupadd docker 2>/dev/null
-sudo usermod -aG docker $USER
-
-# Check if script is running with 'docker' group
-if ! groups $USER | grep -q "\bdocker\b"; then
-    echo "Re-executing script to apply Docker group membership..."
-    exec sg docker "$0 $*"
-fi
-
 # Mask systemd-networkd-wait-online.service to prevent boot delays
 sudo systemctl mask systemd-networkd-wait-online.service
 
@@ -109,6 +99,13 @@ function install() {
     else
         echo "Package manager not supported."
         return 1
+    fi
+
+    if [$package == "docker"]; then
+        echo "Docker installed. Adding user to docker group..."
+        sudo usermod -aG docker $(whoami)
+        echo "User added to \`docker\` group but session must be reloaded. Please log out, log back in, and rerun the script. Exiting..."
+        exit 0
     fi
 }
 
