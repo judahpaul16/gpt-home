@@ -294,7 +294,7 @@ from actions import \
 
 async def action_router(text: str, display):
     # Alarm and Reminder actions
-    if re.search(r'\b(^set|create|cancel|delete|remove|snooze|dismiss|stop|remind|alarm|timer)\b', text, re.IGNORECASE):
+    if re.search(r'\b(alarm|timer|reminder|remind me|^wake me up)\b', text, re.IGNORECASE):
         return await alarm_reminder_action(text)
     
     # For Spotify actions
@@ -311,7 +311,7 @@ async def action_router(text: str, display):
         return await philips_hue_action(text)
 
     # For Calendar & To-Do List actions (CalDAV)
-    elif re.search(r'\b(event|calendar|schedule|appointment|task|todo|to-do|task\slist|to-do\slist|left to do)\b', text, re.IGNORECASE):
+    elif re.search(r'\b(event|calendar|schedule|appointment|task|todo|to-do|task\slist|to-do\slist|to do)\b', text, re.IGNORECASE):
         return await caldav_action(text)
 
     # If no pattern matches, query OpenAI

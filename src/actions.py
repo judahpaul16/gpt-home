@@ -330,13 +330,33 @@ def set_reminder(command, minute, hour, day_of_month, month, day_of_week, commen
     return "Reminder set successfully."
 
 async def alarm_reminder_action(text):
-    set_match = re.search(r'\b(?:set|create|schedule)\s+(?:an\s+)?alarm\b.*?\b(?:for|in)\s*(\d{1,2}:\d{2}|\d+\s*(?:minutes?|mins?|hours?|hrs?))\b', text, re.IGNORECASE)
-    delete_match = re.search(r'\b(?:delete|remove|cancel)\s+(?:an\s+)?alarm\b.*?\b(?:called|named)\s*(\w+)', text, re.IGNORECASE)
-    snooze_match = re.search(r'\b(?:snooze|delay|postpone)\s+(?:an\s+)?alarm\b.*?\b(?:for|by)\s*(\d+\s*(?:minutes?|mins?))\b', text, re.IGNORECASE)
-    remind_match = re.search(r'\b(?:remind)\s+(?:me)\s+(?:to|in)\s*(\d+\s*(?:minutes?|mins?|hours?|hrs?))\s+to\s*(.+)', text, re.IGNORECASE)
+    set_match = re.search(
+        r'\b(?:set|create|schedule|wake\s+me\s+up)\s+(?:an\s+)?alarm\b.*?\b(?:for|in|at)\s*(\d{1,2}:\d{2}|\d+\s*(?:minutes?|mins?|hours?|hrs?))\b' +
+        r'|\bwake\s+me\s+up\b.*?\b(?:in|at)\s*(\d{1,2}:\d{2}|\d+\s*(?:minutes?|mins?|hours?|hrs?))\b',
+        text, 
+        re.IGNORECASE
+    )
+    delete_match = re.search(
+        r'\b(?:delete|remove|cancel)\s+(?:an\s+)?alarm\b.*?\b(?:called|named)\s*(\w+)', 
+        text, 
+        re.IGNORECASE
+    )
+    snooze_match = re.search(
+        r'\b(?:snooze|delay|postpone)\s+(?:an\s+)?alarm\b.*?\b(?:for|by)\s*(\d+\s*(?:minutes?|mins?))\b', 
+        text, 
+        re.IGNORECASE
+    )
+    remind_match = re.search(
+        r'\b(?:remind)\s+(?:me)\s+(?:to|in)\s*(\d+\s*(?:minutes?|mins?|hours?|hrs?))\s+to\s*(.+)', 
+        text, 
+        re.IGNORECASE
+    )
 
     if set_match:
-        time_expression = set_match.group(1)
+        # Check which group captured the time expression
+        time_expression = set_match.group(1) or set_match.group(2)
+        if time_expression is None:
+            return "No time specified for the alarm."
         minute, hour, dom, month, dow = parse_time_expression(time_expression)
         command = "aplay /usr/share/sounds/alarm.wav"
         comment = "Alarm"
@@ -352,6 +372,8 @@ async def alarm_reminder_action(text):
     elif remind_match:
         time_expression = remind_match.group(1)
         reminder_text = remind_match.group(2)
+        if time_expression is None:
+            return "No time specified for the reminder."
         minute, hour, dom, month, dow = parse_time_expression(time_expression)
         command = f"""
 bash -c 'source /env/bin/activate && python -c "import pyttsx3; 
@@ -381,10 +403,10 @@ async def caldav_action(text: str):
     
     calendar = calendars[0]  # Use the first found calendar
 
-    task_create_match = re.search(r'\b(?:add|create)\s+task\s+called\s+(\w+)', text, re.IGNORECASE)
-    task_delete_match = re.search(r'\b(?:delete|remove)\s+task\s+called\s+(\w+)', text, re.IGNORECASE)
-    tasks_query_match = re.search(r'\b(what\s+(?:tasks|things)\s+are\s+(?:left|remaining|to\s+do)|what\s+else\s+is\s+there\s+to\s+do)\b', text, re.IGNORECASE)
-    completed_tasks_query_match = re.search(r'\bwhat\s+are\s+my\s+completed\s+tasks\b', text, re.IGNORECASE)
+    task_create_match = re.search(r'\b(?:add|create)\s+(a )?task\s+called\s+(\w+)', text, re.IGNORECASE)
+    task_delete_match = re.search(r'\b(?:delete|remove)\s+(a )?task\s+called\s+(\w+)', text, re.IGNORECASE)
+    tasks_query_match = re.search(r'\b(left|to do|to-do|what else)\b', text, re.IGNORECASE)
+    completed_tasks_query_match = re.search(r'\bcompleted\s+tasks\b', text, re.IGNORECASE)
 
     if task_create_match:
         task_name = task_create_match.group(1)
@@ -434,8 +456,8 @@ async def caldav_action(text: str):
 
     create_match = re.search(r'\b(?:add|create|schedule)\s+an?\s+(event|appointment)\s+called\s+(\w+)\s+on\s+(\d{4}-\d{2}-\d{2})\s+at\s+(\d{1,2}:\d{2})', text, re.IGNORECASE)
     delete_match = re.search(r'\b(?:delete|remove|cancel)\s+the\s+(event|appointment)\s+called\s+(\w+)', text, re.IGNORECASE)
-    next_event_match = re.search(r"\bwhat'?s\s+my\s+next\s+(event|appointment)\b", text, re.IGNORECASE)
-    calendar_query_match = re.search(r"\bwhat'?s\s+on\s+my\s+calendar\b", text, re.IGNORECASE)
+    next_event_match = re.search(r"\bwhat'? ?i?s\s+my\s+next\s+(event|appointment)\b", text, re.IGNORECASE)
+    calendar_query_match = re.search(r"\bwhat'? ?i?s\s+on\s+my\s+calendar\b", text, re.IGNORECASE)
 
     if create_match:
         event_name = create_match.group(1)
