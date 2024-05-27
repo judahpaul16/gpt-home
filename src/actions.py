@@ -266,7 +266,7 @@ async def query_openai(text, display, retries=3):
                 logger.error(f"Error on try {i+1}: {e}")
             if i == retries - 1:  # If this was the last retry
                 error_message = f"Something went wrong after {retries} retries: {e}"
-                await handle_error(error_message, None, display)
+                raise Exception(error_message)
         await asyncio.sleep(0.5)  # Wait before retrying
 
 alarms = {}
