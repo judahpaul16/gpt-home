@@ -75,7 +75,11 @@ speak_lock = asyncio.Lock()
 display_lock = asyncio.Lock()
 
 def network_connected():
-    return os.system("ping -c 1 google.com") == 0
+    try:
+        response = requests.get("http://www.google.com", timeout=5)
+        return response.status_code == 200
+    except requests.RequestException:
+        return False
 
 # Manually draw a degree symbol °
 def degree_symbol(display, x, y, radius, color):
