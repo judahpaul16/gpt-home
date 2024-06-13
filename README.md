@@ -752,6 +752,7 @@ chmod +x setup.sh
         <tr><td>Debian Bullseye</td><td>✅</td></tr>
         <tr><td>Alma Linux 8</td><td>✅</td></tr>
         <tr><td>Alma Linux 9</td><td>✅</td></tr>
+        <tr><td colspan=2><a href="https://www.raspberrypi-spy.co.uk/2014/11/enabling-the-i2c-interface-on-the-raspberry-pi/">*Users of Raspberry Pi OS<br>should enable i2c manually*</td></tr>
     </table>
     </td>
     <!-- Node.js -->
@@ -821,7 +822,7 @@ chmod +x setup.sh
 ---
 
 ## 🤝 Contributing
-Contributions are certainly welcome! Please read the [contributing guidelines](CONTRIBUTING.md) for more information on how to contribute.
+Contributions are certainly welcome! Please read the [`contributing guidelines`](CONTRIBUTING.md) for more information on how to contribute.
 
 ## 📜 License
-This project is licensed under the GNU GPL v3.0 License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GNU GPL v3.0 License - see the [`LICENSE`](LICENSE) file for details.
