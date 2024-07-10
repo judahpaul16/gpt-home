@@ -1,5 +1,43 @@
 from common import *
 from weather_codes import weather_codes
+from transformers import pipeline
+
+class ActionRouter:
+    def __init__(self):
+        self.intent_pipeline = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+
+    def resolve(self, text):
+        candidate_labels = ["alarm", "spotify", "weather", "lights", "calendar", "other"]
+        result = self.intent_pipeline(text, candidate_labels)
+        action_label = result['labels'][0]
+
+        action_mapping = {
+            "alarm": "alarm_reminder_action",
+            "spotify": "spotify_action",
+            "weather": "open_weather_action",
+            "lights": "philips_hue_action",
+            "calendar": "caldav_action",
+            "other": "query_openai"
+        }
+
+        return Action(action_mapping[action_label], text)
+
+class Action:
+    def __init__(self, action_name, text):
+        self.action_name = action_name
+        self.text = text
+
+    async def perform(self, **kwargs):
+        action_func = globals()[self.action_name]
+        return await action_func(self.text, **kwargs)
+
+async def action_router(text: str, display):
+    act = router.resolve(text)
+    await act.perform(display=display)
+
+router = ActionRouter()
+router.initialize()
+atexit.register(router.shutdown)
 
 async def spotify_action(text: str):
     client_id = os.getenv('SPOTIFY_CLIENT_ID')

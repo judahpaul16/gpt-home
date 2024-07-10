@@ -20,6 +20,7 @@ import logging
 import asyncio
 import pyttsx3
 import aiohttp
+import atexit
 import caldav
 import base64
 import string
@@ -287,40 +288,6 @@ async def speak(text, stop_event=asyncio.Event()):
             engine.runAndWait()
         await loop.run_in_executor(executor, _speak)
         stop_event.set()
-
-from actions import \
-    alarm_reminder_action, \
-    spotify_action, \
-    open_weather_action, \
-    philips_hue_action, \
-    caldav_action, \
-    query_openai
-
-async def action_router(text: str, display):
-    # Alarm and Reminder actions
-    if re.search(r'\b(alarm|timer|reminder|remind me|^wake me up)\b', text, re.IGNORECASE):
-        return await alarm_reminder_action(text)
-    
-    # For Spotify actions
-    if re.search(r'\b(^play|resume|next song|go back|pause|stop|shuffle|repeat|volume)(\s.*)?(\bon\b\sSpotify)?\b', text, re.IGNORECASE):
-        return await spotify_action(text)
-        
-    # For Open Weather actions
-    elif re.search(r'\b(weather|forecast|temperature)\b.*\b(in|for|at)?\b(\w+)?', text, re.IGNORECASE) or \
-        re.search(r'\b(is|will)\sit\b.*\b(hot|cold|rain(ing|y)?|sun(ny|ning)?|cloud(y|ing)?|wind(y|ing)?|storm(y|ing)?|snow(ing)?)\b', text, re.IGNORECASE):
-        return await open_weather_action(text)
-
-    # For Philips Hue actions
-    elif re.search(r'\b(turn\s)?(the\s)?lights?\s?(on|off)?\b', text, re.IGNORECASE):
-        return await philips_hue_action(text)
-
-    # For Calendar & To-Do List actions (CalDAV)
-    elif re.search(r'\b(event|calendar|schedule|appointment|task|todo|to-do|task\slist|to-do\slist|to do)\b', text, re.IGNORECASE):
-        return await caldav_action(text)
-
-    # If no pattern matches, query OpenAI
-    else:
-        return await query_openai(text, display)
 
 async def handle_error(message, state_task, display):
     if state_task: 
