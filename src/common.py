@@ -20,7 +20,6 @@ import logging
 import asyncio
 import pyttsx3
 import aiohttp
-import atexit
 import caldav
 import base64
 import string

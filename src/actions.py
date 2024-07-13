@@ -2,25 +2,76 @@ from common import *
 from weather_codes import weather_codes
 from transformers import pipeline
 
+from semantic_router import Route
+from semantic_router.encoders import OpenAIEncoder
+from semantic_router.layer import RouteLayer
+import os
+
+alarm_route = Route(
+    name="alarm",
+    utterances=[
+        "set an alarm",
+        "wake me up",
+        "remind me in"
+    ]
+)
+
+spotify_route = Route(
+    name="spotify",
+    utterances=[
+        "play some music",
+        "open spotify",
+        "play my playlist"
+    ]
+)
+
+weather_route = Route(
+    name="weather",
+    utterances=[
+        "what's the weather",
+        "tell me the weather",
+        "forecast for today"
+    ]
+)
+
+lights_route = Route(
+    name="lights",
+    utterances=[
+        "turn on the lights",
+        "switch off the lights",
+        "dim the lights"
+    ]
+)
+
+calendar_route = Route(
+    name="calendar",
+    utterances=[
+        "schedule a meeting",
+        "what's on my calendar",
+        "add an event"
+    ]
+)
+
+general_route = Route(
+    name="general",
+    utterances=[
+        "tell me a joke",
+        "what's the time",
+        "how are you"
+    ]
+)
+
+routes = [alarm_route, spotify_route, weather_route, lights_route, calendar_route, general_route]
+encoder = OpenAIEncoder()
+rl = RouteLayer(encoder=encoder, routes=routes)
+
 class ActionRouter:
     def __init__(self):
-        self.intent_pipeline = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+        self.route_layer = rl
 
     def resolve(self, text):
-        candidate_labels = ["alarm", "spotify", "weather", "lights", "calendar", "other"]
-        result = self.intent_pipeline(text, candidate_labels)
-        action_label = result['labels'][0]
-
-        action_mapping = {
-            "alarm": "alarm_reminder_action",
-            "spotify": "spotify_action",
-            "weather": "open_weather_action",
-            "lights": "philips_hue_action",
-            "calendar": "caldav_action",
-            "other": "query_openai"
-        }
-
-        return Action(action_mapping[action_label], text)
+        result = self.route_layer(text)
+        return result.name if result else "other"
 
 class Action:
     def __init__(self, action_name, text):
@@ -32,12 +83,11 @@ class Action:
         return await action_func(self.text, **kwargs)
 
 async def action_router(text: str, display):
-    act = router.resolve(text)
+    action_name = router.resolve(text)
+    act = Action(action_name, text)
     await act.perform(display=display)
 
 router = ActionRouter()
-router.initialize()
-atexit.register(router.shutdown)
 
 async def spotify_action(text: str):
     client_id = os.getenv('SPOTIFY_CLIENT_ID')
