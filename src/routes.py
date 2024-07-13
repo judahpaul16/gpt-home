@@ -2,8 +2,10 @@ from semantic_router import Route
 from semantic_router.encoders import OpenAIEncoder
 from semantic_router.layer import RouteLayer
 
+from actions import *
+
 alarm_route = Route(
-    name="alarm",
+    name="alarm_reminder_action",
     utterances=[
         "set an alarm",
         "wake me up",
@@ -12,7 +14,7 @@ alarm_route = Route(
 )
 
 spotify_route = Route(
-    name="spotify",
+    name="spotify_action",
     utterances=[
         "play some music",
         "open spotify",
@@ -21,7 +23,7 @@ spotify_route = Route(
 )
 
 weather_route = Route(
-    name="weather",
+    name="open_weather_action",
     utterances=[
         "what's the weather",
         "tell me the weather",
@@ -30,7 +32,7 @@ weather_route = Route(
 )
 
 lights_route = Route(
-    name="lights",
+    name="philips_hue_action",
     utterances=[
         "turn on the lights",
         "switch off the lights",
@@ -39,7 +41,7 @@ lights_route = Route(
 )
 
 calendar_route = Route(
-    name="calendar",
+    name="caldav_action",
     utterances=[
         "schedule a meeting",
         "what's on my calendar",
@@ -48,11 +50,17 @@ calendar_route = Route(
 )
 
 general_route = Route(
-    name="general",
+    name="query_openai",
     utterances=[
         "tell me a joke",
         "what's the time",
-        "how are you"
+        "how are you",
+        "what is the meaning of life",
+        "what is the capital of France",
+        "what is the difference between Python 2 and Python 3",
+        "what is the best programming language",
+        "who was the first president of the United States",
+        "what is the largest mammal"
     ]
 )
 
@@ -66,7 +74,7 @@ class ActionRouter:
 
     def resolve(self, text):
         result = self.route_layer(text)
-        return result.name if result else "other"
+        return result.name if result else "query_openai"
 
 class Action:
     def __init__(self, action_name, text):
@@ -77,7 +85,7 @@ class Action:
         action_func = globals()[self.action_name]
         return await action_func(self.text, **kwargs)
 
-async def action_router(text: str, display, router=ActionRouter()):
+async def action_router(text: str, router=ActionRouter()):
     action_name = router.resolve(text)
     act = Action(action_name, text)
-    await act.perform(display=display)
+    return await act.perform()
