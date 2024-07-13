@@ -27,7 +27,7 @@ weather_route = Route(
     utterances=[
         "what's the weather",
         "tell me the weather",
-        "forecast for today"
+        "what is the temperature"
     ]
 )
 
@@ -82,8 +82,13 @@ class Action:
         self.text = text
 
     async def perform(self, **kwargs):
-        action_func = globals()[self.action_name]
-        return await action_func(self.text, **kwargs)
+        try:
+            action_func = globals()[self.action_name]
+            return await action_func(self.text, **kwargs)
+        except KeyError:
+            action_func = globals()["query_openai"]
+            return await action_func(self.text, **kwargs)
+        return "Action not found."
 
 async def action_router(text: str, router=ActionRouter()):
     action_name = router.resolve(text)
