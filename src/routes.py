@@ -59,3 +59,25 @@ general_route = Route(
 routes = [alarm_route, spotify_route, weather_route, lights_route, calendar_route, general_route]
 encoder = OpenAIEncoder()
 rl = RouteLayer(encoder=encoder, routes=routes)
+
+class ActionRouter:
+    def __init__(self):
+        self.route_layer = rl
+
+    def resolve(self, text):
+        result = self.route_layer(text)
+        return result.name if result else "other"
+
+class Action:
+    def __init__(self, action_name, text):
+        self.action_name = action_name
+        self.text = text
+
+    async def perform(self, **kwargs):
+        action_func = globals()[self.action_name]
+        return await action_func(self.text, **kwargs)
+
+async def action_router(text: str, display, router=ActionRouter()):
+    action_name = router.resolve(text)
+    act = Action(action_name, text)
+    await act.perform(display=display)
