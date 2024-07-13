@@ -225,7 +225,7 @@ async def philips_hue_action(text: str):
     
     raise Exception("No philips hue bridge IP found. Please enter your bridge IP for Phillips Hue in the web interface or try reconnecting the service.")
 
-async def query_openai(text, display, retries=3):
+async def query_openai(text, retries=3):
     # Load settings from settings.json
     settings = load_settings()
     max_tokens = settings.get("max_tokens")
@@ -233,7 +233,7 @@ async def query_openai(text, display, retries=3):
 
     for i in range(retries):
         try:
-            response = openai.ChatCompletion.create(
+            response = openai.chat.completions.create(
                 model=settings.get("model"),
                 messages=[
                     {"role": "system", "content": f"You are a helpful assistant. {settings.get('custom_instructions')}"},
@@ -242,31 +242,15 @@ async def query_openai(text, display, retries=3):
                 max_tokens=max_tokens,
                 temperature=temperature
             )
-            response_content = response['choices'][0]['message']['content'].strip()
+            response_content = response.choices[0].message.content.strip()
             if response_content:  # Check if the response is not empty
-                message = response_content
-                return message
+                return response_content
             else:
                 logger.warning(f"Retry {i+1}: Received empty response from OpenAI.")
         except Exception as e:
-            if 'Did you mean to use v1/completions?' in str(e):
-                # Re-query using v1/completions
-                prompt = f"You are a helpful assistant. {settings.get('custom_instructions')}\nHuman: {text}"
-                response = openai.Completion.create(
-                    model=settings.get("model"),
-                    prompt=prompt,
-                    max_tokens=max_tokens,
-                    temperature=temperature
-                )
-                response_content = response['choices'][0]['text'].strip()
-                if response_content:
-                    message = response_content
-                    return message
-            else:
-                logger.error(f"Error on try {i+1}: {e}")
+            logger.error(f"Error on try {i+1}: {e}")
             if i == retries - 1:  # If this was the last retry
-                error_message = f"Something went wrong after {retries} retries: {e}"
-                raise Exception(error_message)
+                raise Exception(f"Something went wrong after {retries} retries: {e}\n{traceback.format_exc()}")
         await asyncio.sleep(0.5)  # Wait before retrying
 
 alarms = {}
