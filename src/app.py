@@ -3,6 +3,18 @@ from routes import *
 
 async def main():
     state_task = None
+    semaphore = asyncio.Semaphore(10)  # Limit to 10 concurrent tasks
+
+    async def limited_task(task):
+        async with semaphore:
+            return await task
+
+    async def safe_task(task):
+        try:
+            await task
+        except Exception as e:
+            logger.error(f"Task failed: {e}")
+
     while True:
         try:
             # Load settings from settings.json
@@ -23,7 +35,11 @@ async def main():
             stop_event.set()
             if state_task:
                 state_task.cancel()
-            
+                try:
+                    await state_task
+                except asyncio.CancelledError:
+                    pass
+
             # Check if keyword is in text and respond
             if text:
                 clean_text = text.lower().translate(str.maketrans('', '', string.punctuation))
@@ -39,11 +55,11 @@ async def main():
                         delay_heard = await calculate_delay(heard_message)
 
                         # Create a task for OpenAI query, don't await it yet
-                        query_task = asyncio.create_task(action_router(actual_text))
+                        query_task = asyncio.create_task(limited_task(action_router(actual_text)))
 
                         await asyncio.gather(
-                            speak(heard_message, stop_event_heard),
-                            updateLCD(heard_message, display, stop_event=stop_event_heard, delay=delay_heard)
+                            limited_task(safe_task(speak(heard_message, stop_event_heard))),
+                            limited_task(safe_task(updateLCD(heard_message, display, stop_event=stop_event_heard, delay=delay_heard)))
                         )
 
                         response_message = await query_task
@@ -51,8 +67,8 @@ async def main():
                         # Calculate time to speak and display
                         delay_response = await calculate_delay(response_message)
 
-                        response_task_speak = asyncio.create_task(speak(response_message, stop_event_response))
-                        response_task_lcd = asyncio.create_task(updateLCD(response_message, display, stop_event=stop_event_response, delay=delay_response))
+                        response_task_speak = asyncio.create_task(limited_task(safe_task(speak(response_message, stop_event_response))))
+                        response_task_lcd = asyncio.create_task(limited_task(safe_task(updateLCD(response_message, display, stop_event=stop_event_response, delay=delay_response))))
 
                         logger.success(response_message)
                         await asyncio.gather(response_task_speak, response_task_lcd)
@@ -75,6 +91,7 @@ if __name__ == "__main__":
     init_done_event = asyncio.Event()  # Create an event to signal when initialization is done
 
     async def wrapped_initialize_system():
+        global display
         display = await initialize_system()
         init_done_event.set()  # Signal that initialization is done
         return display
@@ -85,5 +102,12 @@ if __name__ == "__main__":
         await init_done_event.wait()  # Wait for the event to be set
         await main()
 
-    loop.run_until_complete(wrapped_main())
-    loop.close()
+    try:
+        loop.run_until_complete(wrapped_main())
+    finally:
+        pending = asyncio.all_tasks(loop=loop)
+        for task in pending:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                loop.run_until_complete(task)
+        loop.close()

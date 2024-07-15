@@ -13,6 +13,7 @@ from threading import Timer
 from pathlib import Path
 from phue import Bridge
 import subprocess
+import contextlib
 import traceback
 import textwrap
 import requests
