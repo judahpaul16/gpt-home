@@ -1,9 +1,19 @@
-from semantic_router import Route
-from semantic_router.encoders import OpenAIEncoder
 from semantic_router.layer import RouteLayer
+import semantic_router.encoders as encoders
+from semantic_router import Route
 
 from actions import *
 
+# Load API key from environment variable
+API_KEY = os.getenv("LITELLM_API_KEY")
+if not API_KEY:
+    logger.error("LITELLM_API_KEY environment variable not set.")
+    raise EnvironmentError("LITELLM_API_KEY environment variable not set.")
+
+# Initialize the encoder
+encoder = encoders.BaseEncoder(api_key=API_KEY)
+
+# Define routes
 alarm_route = Route(
     name="alarm_reminder_action",
     utterances=[
@@ -65,7 +75,8 @@ general_route = Route(
 )
 
 routes = [alarm_route, spotify_route, weather_route, lights_route, calendar_route, general_route]
-encoder = OpenAIEncoder()
+
+# Initialize RouteLayer with the encoder and routes
 rl = RouteLayer(encoder=encoder, routes=routes)
 
 class ActionRouter:
@@ -73,8 +84,15 @@ class ActionRouter:
         self.route_layer = rl
 
     def resolve(self, text):
-        result = self.route_layer(text)
-        return result.name if result else "llm_action"
+        logger.info(f"Resolving text: {text}")
+        try:
+            result = self.route_layer(text)
+            action_name = result.name if result else "llm_action"
+            logger.info(f"Resolved action: {action_name}")
+            return action_name
+        except Exception as e:
+            logger.error(f"Error resolving text: {e}")
+            return "llm_action"
 
 class Action:
     def __init__(self, action_name, text):
@@ -84,13 +102,21 @@ class Action:
     async def perform(self, **kwargs):
         try:
             action_func = globals()[self.action_name]
+            logger.info(f"Performing action: {self.action_name} with text: {self.text}")
             return await action_func(self.text, **kwargs)
         except KeyError:
+            logger.warning(f"Action {self.action_name} not found. Falling back to llm_action.")
             action_func = globals()["llm_action"]
             return await action_func(self.text, **kwargs)
-        return "Action not found."
+        except Exception as e:
+            logger.error(f"Error performing action {self.action_name}: {e}")
+            return "Action failed due to an error."
 
 async def action_router(text: str, router=ActionRouter()):
-    action_name = router.resolve(text)
-    act = Action(action_name, text)
-    return await act.perform()
+    try:
+        action_name = router.resolve(text)
+        act = Action(action_name, text)
+        return await act.perform()
+    except Exception as e:
+        logger.error(f"Error in action_router: {e}")
+        return "Action routing failed due to an error."
