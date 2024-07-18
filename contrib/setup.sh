@@ -122,8 +122,8 @@ sudo systemctl start docker
 
 # Create ALSA config (asound.conf, adjust as needed)
 sudo tee /etc/asound.conf > /dev/null <<EOF
-pcm.!default { type hw card 0 }
-ctl.!default { type hw card 0 }
+pcm.!default { type hw card Headphones device 0 }
+ctl.!default { type hw card Headphones }
 EOF
 
 # Install Docker Buildx plugin
