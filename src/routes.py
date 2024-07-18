@@ -7,11 +7,24 @@ from actions import *
 # Load API key from environment variable
 API_KEY = os.getenv("LITELLM_API_KEY")
 if not API_KEY:
-    logger.error("LITELLM_API_KEY environment variable not set.")
     raise EnvironmentError("LITELLM_API_KEY environment variable not set.")
 
-# Initialize the encoder
-encoder = encoders.BaseEncoder(api_key=API_KEY)
+def initialize_encoder(api_key):
+    # Assuming they don't change their API key prefixes
+    if "sk-" in api_key:
+        return encoders.OpenAIEncoder(openai_api_key=api_key)
+    elif "hf_" in api_key:
+        return encoders.HFEndpointEncoder(huggingface_api_key=api_key)
+    elif "ck_" in api_key:
+        return encoders.CohereEncoder(cohere_api_key=api_key)
+    elif "az_" in api_key:
+        return encoders.AzureOpenAIEncoder(api_key=api_key)
+    elif "ms_" in api_key:
+        return encoders.MistralEncoder(mistralai_api_key=api_key)
+    else:
+        raise ValueError("Unsupported API key provided or unable to determine encoder type for semantic routing.")
+
+encoder = initialize_encoder(API_KEY)
 
 # Define routes
 alarm_route = Route(
