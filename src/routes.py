@@ -14,7 +14,9 @@ def initialize_encoder(api_key):
     if "sk-" in api_key:
         return encoders.OpenAIEncoder(openai_api_key=api_key)
     elif "hf_" in api_key:
-        return encoders.HFEndpointEncoder(huggingface_api_key=api_key)
+        settings = load_settings()
+        model = settings.get("model")
+        return encoders.HFEndpointEncoder(huggingface_url=f"https://api-inference.huggingface.co/models/{model}/v1/chat/completions", huggingface_api_key=api_key)
     elif "ck_" in api_key:
         return encoders.CohereEncoder(cohere_api_key=api_key)
     elif "az_" in api_key:
