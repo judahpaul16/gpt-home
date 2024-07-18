@@ -6,6 +6,7 @@ from dotenv import load_dotenv, set_key, unset_key
 from fastapi.exceptions import HTTPException
 from fastapi.staticfiles import StaticFiles
 from datetime import datetime, timedelta
+from litellm import Model, api_key
 from typing import Optional
 import spotipy.util as util
 from phue import Bridge
@@ -15,7 +16,6 @@ import requests
 import asyncio
 import spotipy
 import hashlib
-import openai
 import base64
 import httpx
 import time
@@ -160,16 +160,12 @@ async def shutdown(request: Request):
 @app.post("/availableModels")
 async def available_models():
     try:
-        # Get available models from OpenAI
-        openai.api_key = os.getenv("OPENAI_API_KEY")
-        model_list = openai.Model.list()
-        
-        # Filter to only keep supported models.
-        supported_models = [model['id'] for model in model_list['data'] if "gpt" in model['id'].lower()]
+        model_list = Model.list()
+        supported_models = [model['id'] for model in model_list['data']]
 
         return JSONResponse(content={"models": supported_models})
     except Exception as e:
-        return HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
     
 @app.post("/updateModel")
 async def update_model(request: Request):
@@ -177,16 +173,12 @@ async def update_model(request: Request):
         incoming_data = await request.json()
         model_id = incoming_data['model_id']
         
-        # Get available models from OpenAI
-        openai.api_key = os.getenv("OPENAI_API_KEY")
-        model_list = openai.Model.list()
+        api_key = os.getenv("LITELLM_API_KEY")
+        model_list = Model.list()
         
-        # Filter to only keep supported models.
-        supported_models = [model['id'] for model in model_list['data'] if "gpt" in model['id'].lower()]
+        supported_models = [model['id'] for model in model_list['data']]
         
-        # Check if model is supported
         if model_id in supported_models:
-            # Update settings.json
             settings_path = SOURCE_DIR / "settings.json"
             with settings_path.open("r") as f:
                 settings = json.load(f)

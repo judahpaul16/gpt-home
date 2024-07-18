@@ -50,7 +50,7 @@ calendar_route = Route(
 )
 
 general_route = Route(
-    name="query_openai",
+    name="llm_action",
     utterances=[
         "tell me a joke",
         "what's the time",
@@ -74,7 +74,7 @@ class ActionRouter:
 
     def resolve(self, text):
         result = self.route_layer(text)
-        return result.name if result else "query_openai"
+        return result.name if result else "llm_action"
 
 class Action:
     def __init__(self, action_name, text):
@@ -86,7 +86,7 @@ class Action:
             action_func = globals()[self.action_name]
             return await action_func(self.text, **kwargs)
         except KeyError:
-            action_func = globals()["query_openai"]
+            action_func = globals()["llm_action"]
             return await action_func(self.text, **kwargs)
         return "Action not found."
 
