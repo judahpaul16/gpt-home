@@ -27,7 +27,9 @@ spotify_route = Route(
     name="spotify_action",
     utterances=[
         "play some music",
-        "open spotify",
+        "next song",
+        "pause the music",
+        "play earth wind and fire on Spotify",
         "play my playlist"
     ]
 )
@@ -37,7 +39,9 @@ weather_route = Route(
     utterances=[
         "what's the weather",
         "tell me the weather",
-        "what is the temperature"
+        "what is the temperature",
+        "is it going to rain",
+        "how is the weather in New York"
     ]
 )
 
@@ -46,7 +50,9 @@ lights_route = Route(
     utterances=[
         "turn on the lights",
         "switch off the lights",
-        "dim the lights"
+        "dim the lights",
+        "change the color of the lights",
+        "set the lights to red"
     ]
 )
 
@@ -55,7 +61,8 @@ calendar_route = Route(
     utterances=[
         "schedule a meeting",
         "what's on my calendar",
-        "add an event"
+        "add an event",
+        "what is left to do today"
     ]
 )
 
