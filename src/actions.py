@@ -53,7 +53,7 @@ async def city_from_ip():
 
 async def open_weather_action(text: str):
     try:
-        api_key = os.getenv('OPEN_WEATHER_API_KEY')
+        API_KEY = os.getenv('OPEN_WEATHER_API_KEY')
         async with aiohttp.ClientSession() as session:
             if re.search(r'(weather|temperature).*\sin\s', text, re.IGNORECASE):
                 city_match = re.search(r'in\s([\w\s]+)', text, re.IGNORECASE)
@@ -66,7 +66,7 @@ async def open_weather_action(text: str):
                     if coords is None:
                         return f"No weather data available for {city}. Please check the city name and try again."
                     
-                    if api_key:
+                    if API_KEY:
                         response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&units=imperial")
                         if response.status == 200:
                             json_response = await response.json()
