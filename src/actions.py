@@ -242,7 +242,7 @@ async def llm_action(text, retries=3):
                 ],
                 max_tokens=max_tokens,
                 temperature=temperature,
-                api_key=os.getenv("LITELLM_API_KEY")
+                api_key=os.getenv("LITELLM_API_KEY", os.getenv("OPENAI_API_KEY"))
             )
             response_content = response.choices[0].message.content.strip()
             if response_content:  # Check if the response is not empty

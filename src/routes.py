@@ -4,7 +4,8 @@ from semantic_router import Route
 
 from actions import *
 
-encoder = encoders.BM25Encoder()
+API_KEY = os.getenv("OPENAI_API_KEY")
+encoder = encoders.OpenAIEncoder(openai_api_key=API_KEY)
 
 # Define routes
 alarm_route = Route(
