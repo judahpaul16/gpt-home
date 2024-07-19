@@ -3,6 +3,7 @@ from requests.packages.urllib3.util.retry import Retry
 from concurrent.futures import ThreadPoolExecutor
 from requests.adapters import HTTPAdapter
 from datetime import datetime, timedelta
+from litellm import completion, check_valid_key
 from requests.sessions import Session
 from caldav.elements import dav, cdav
 from dotenv.main import set_key
@@ -17,6 +18,7 @@ import contextlib
 import traceback
 import textwrap
 import requests
+import litellm
 import logging
 import asyncio
 import pyttsx3
@@ -25,7 +27,6 @@ import caldav
 import base64
 import string
 import struct
-import openai
 import busio
 import json
 import time
@@ -60,10 +61,13 @@ try:
 except Exception as e:
     logger.debug(f"Failed to import adafruit_ssd1306. Skipping...\n    Reason: {e}\n{traceback.format_exc()}")
 
+executor = ThreadPoolExecutor()
+
 # Initialize the speech recognition engine
 r = sr.Recognizer()
-openai.api_key = os.environ['OPENAI_API_KEY']
-executor = ThreadPoolExecutor()
+
+# Initialize the LiteLLM API key
+litellm.api_key = os.getenv("LITELLM_API_KEY", os.getenv("OPENAI_API_KEY"))
 
 # Initialize the text-to-speech engine
 engine = pyttsx3.init()

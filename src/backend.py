@@ -12,10 +12,10 @@ from phue import Bridge
 import subprocess
 import traceback
 import requests
+import litellm
 import asyncio
 import spotipy
 import hashlib
-import openai
 import base64
 import httpx
 import time
@@ -160,16 +160,13 @@ async def shutdown(request: Request):
 @app.post("/availableModels")
 async def available_models():
     try:
-        # Get available models from OpenAI
-        openai.api_key = os.getenv("OPENAI_API_KEY")
-        model_list = openai.Model.list()
-        
-        # Filter to only keep supported models.
-        supported_models = [model['id'] for model in model_list['data'] if "gpt" in model['id'].lower()]
+        response = requests.get("https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json")
+        model_list = response.json()
+        supported_models = [model for model in model_list.keys()]
 
         return JSONResponse(content={"models": supported_models})
     except Exception as e:
-        return HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
     
 @app.post("/updateModel")
 async def update_model(request: Request):
@@ -177,16 +174,13 @@ async def update_model(request: Request):
         incoming_data = await request.json()
         model_id = incoming_data['model_id']
         
-        # Get available models from OpenAI
-        openai.api_key = os.getenv("OPENAI_API_KEY")
-        model_list = openai.Model.list()
+        litellm.api_key = os.getenv("LITELLM_API_KEY", os.getenv("OPENAI_API_KEY"))
         
-        # Filter to only keep supported models.
-        supported_models = [model['id'] for model in model_list['data'] if "gpt" in model['id'].lower()]
+        response = requests.get("https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json")
+        model_list = response.json()
+        supported_models = [model for model in model_list.keys()]
         
-        # Check if model is supported
         if model_id in supported_models:
-            # Update settings.json
             settings_path = SOURCE_DIR / "settings.json"
             with settings_path.open("r") as f:
                 settings = json.load(f)

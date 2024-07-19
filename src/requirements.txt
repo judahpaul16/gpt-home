@@ -28,7 +28,7 @@ idna==3.4
 multidict==6.0.4
 ninja==1.11.1
 oauthlib==3.2.2
-openai==1.10.0
+litellm==1.41.24
 phue==1.1
 Pillow==10.0.0
 protobuf==4.24.3

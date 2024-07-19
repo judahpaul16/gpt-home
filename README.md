@@ -37,8 +37,8 @@ This guide will explain how to build your own. It's pretty straight forward. You
 ✅ Alarms  
 ✅ Reminders  
 ✅ Calendar (CalDAV)  
+✅ LiteLLM  
 🔲 Home Assistant  
-🔲 LiteLLM  
 
 </td>
 </tr>
@@ -78,11 +78,15 @@ This guide will explain how to build your own. It's pretty straight forward. You
 
 
 ## 🚀 TL;DR
-1. Make sure your OpenAI API key is exported with:
+1. ***Required for Semantic Routing:*** Make sure to export your OpenAI API Key to an environment variable.
 ```bash
-echo "export OPENAI_API_KEY='your_openai_api_key_here'" >> ~/.bashrc && source ~/.bashrc
+echo "export OPENAI_API_KEY='your_api_key_here'" >> ~/.bashrc && source ~/.bashrc
 ```
-2. Run the setup script with the `--no-build` flag to pull the latest image from DockerHub:
+2. ***Optional:*** If you want to use a model not provided by OpenAI, make sure your API key for the provider you want to use is exported to an environment variable called `LITELLM_API_KEY`. See the [LiteLLM docs](https://litellm.vercel.app/docs/providers) for a list of all supported providers.
+```bash
+echo "export LITELLM_API_KEY='your_api_key_here'" >> ~/.bashrc && source ~/.bashrc
+```
+3. Run the setup script with the `--no-build` flag to pull the latest image from DockerHub:
 ```bash
 curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh | \
     bash -s -- --no-build
@@ -352,17 +356,21 @@ sudo dnf groupinstall -y "Development Tools"   # For RHEL/CentOS/Alma 9^
 ---
 
 ## 🐳 Building the Docker Container
-Before you run the setup script to build the container you should first export your `OPENAI_API_KEY` to an environment variable. The setup script will use this to initialize the container with your OpenAI API key.
+Before you run the setup script to build the container you should first make sure to export your OpenAI API Key to an environment variable.  
+- ***Optionally,*** if you want to use a model not provided by OpenAI, make sure your API key for the provider you want to use is exported to an environment variable called `LITELLM_API_KEY`. See the [LiteLLM docs](https://litellm.vercel.app/docs/providers) for a list of all supported providers. The setup script will use this variable to initialize the container.
 
 ***Note: Executing `export` directly in the terminal does not persist after reboot.***
 ```bash
-export OPENAI_API_KEY="your_openai_api_key_here"
+export OPENAI_API_KEY="your_api_key_here"
 ```
 
 Alternatively, you can put this at the end of your `~/.bashrc` file. (recommended) 
 ```bash
-# export your OpenAI API Key in here to initialize it at boot
-export OPENAI_API_KEY="your_openai_api_key_here"
+# export your API Key in here to initialize it at boot
+export OPENAI_API_KEY="your_api_key_here"
+
+# Optional: Anthropic, Mistral, Cohere, HuggingFace, etc.
+export LITELLM_API_KEY="your_api_key_here"
 
 # Optional: Add these aliases to your .bashrc file for easier management
 alias gpt-start="docker exec -it gpt-home supervisorctl start app"
@@ -565,8 +573,8 @@ sudo systemctl start docker
 
 # Create ALSA config (asound.conf, adjust as needed)
 sudo tee /etc/asound.conf > /dev/null <<EOF
-pcm.!default { type hw card 0 }
-ctl.!default { type hw card 0 }
+pcm.!default { type hw card Headphones device 0 }
+ctl.!default { type hw card Headphones }
 EOF
 
 # Install Docker Buildx plugin
@@ -667,6 +675,7 @@ if [[ "$1" != "--no-build" ]]; then
         -v /usr/share/alsa:/usr/share/alsa \
         -v /var/run/dbus:/var/run/dbus \
         -e OPENAI_API_KEY=$OPENAI_API_KEY \
+        -e LITELLM_API_KEY=$LITELLM_API_KEY \
         gpt-home
 
     echo "Container 'gpt-home' is now running."
@@ -694,6 +703,7 @@ if [[ "$1" == "--no-build" ]]; then
         -v /usr/share/alsa:/usr/share/alsa \
         -v /var/run/dbus:/var/run/dbus \
         -e OPENAI_API_KEY=$OPENAI_API_KEY \
+        -e LITELLM_API_KEY=$LITELLM_API_KEY \
         judahpaul/gpt-home
     docker ps -a | grep gpt-home
     sleep 10

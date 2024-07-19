@@ -122,8 +122,8 @@ sudo systemctl start docker
 
 # Create ALSA config (asound.conf, adjust as needed)
 sudo tee /etc/asound.conf > /dev/null <<EOF
-pcm.!default { type hw card 0 }
-ctl.!default { type hw card 0 }
+pcm.!default { type hw card Headphones device 0 }
+ctl.!default { type hw card Headphones }
 EOF
 
 # Install Docker Buildx plugin
@@ -224,6 +224,7 @@ if [[ "$1" != "--no-build" ]]; then
         -v /usr/share/alsa:/usr/share/alsa \
         -v /var/run/dbus:/var/run/dbus \
         -e OPENAI_API_KEY=$OPENAI_API_KEY \
+        -e LITELLM_API_KEY=$LITELLM_API_KEY \
         gpt-home
 
     echo "Container 'gpt-home' is now running."
@@ -251,6 +252,7 @@ if [[ "$1" == "--no-build" ]]; then
         -v /usr/share/alsa:/usr/share/alsa \
         -v /var/run/dbus:/var/run/dbus \
         -e OPENAI_API_KEY=$OPENAI_API_KEY \
+        -e LITELLM_API_KEY=$LITELLM_API_KEY \
         judahpaul/gpt-home
     docker ps -a | grep gpt-home
     sleep 10
