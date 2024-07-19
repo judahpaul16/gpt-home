@@ -6,13 +6,13 @@ from dotenv import load_dotenv, set_key, unset_key
 from fastapi.exceptions import HTTPException
 from fastapi.staticfiles import StaticFiles
 from datetime import datetime, timedelta
-from litellm import Model, api_key
 from typing import Optional
 import spotipy.util as util
 from phue import Bridge
 import subprocess
 import traceback
 import requests
+import litellm
 import asyncio
 import spotipy
 import hashlib
@@ -160,8 +160,9 @@ async def shutdown(request: Request):
 @app.post("/availableModels")
 async def available_models():
     try:
-        model_list = Model.list()
-        supported_models = [model['id'] for model in model_list['data']]
+        response = requests.get("https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json")
+        model_list = response.json()
+        supported_models = [model for model in model_list.keys()]
 
         return JSONResponse(content={"models": supported_models})
     except Exception as e:
@@ -173,10 +174,11 @@ async def update_model(request: Request):
         incoming_data = await request.json()
         model_id = incoming_data['model_id']
         
-        api_key = os.getenv("LITELLM_API_KEY")
-        model_list = Model.list()
+        litellm.api_key = os.getenv("LITELLM_API_KEY", os.getenv("OPENAI_API_KEY"))
         
-        supported_models = [model['id'] for model in model_list['data']]
+        response = requests.get("https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json")
+        model_list = response.json()
+        supported_models = [model for model in model_list.keys()]
         
         if model_id in supported_models:
             settings_path = SOURCE_DIR / "settings.json"

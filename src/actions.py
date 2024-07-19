@@ -53,7 +53,7 @@ async def city_from_ip():
 
 async def open_weather_action(text: str):
     try:
-        API_KEY = os.getenv('OPEN_WEATHER_API_KEY')
+        api_key = os.getenv('OPEN_WEATHER_API_KEY')
         async with aiohttp.ClientSession() as session:
             if re.search(r'(weather|temperature).*\sin\s', text, re.IGNORECASE):
                 city_match = re.search(r'in\s([\w\s]+)', text, re.IGNORECASE)
@@ -66,7 +66,7 @@ async def open_weather_action(text: str):
                     if coords is None:
                         return f"No weather data available for {city}. Please check the city name and try again."
                     
-                    if API_KEY:
+                    if api_key:
                         response = await session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={coords.get('lat')}&lon={coords.get('lon')}&appid={api_key}&units=imperial")
                         if response.status == 200:
                             json_response = await response.json()
@@ -242,17 +242,19 @@ async def llm_action(text, retries=3):
                 ],
                 max_tokens=max_tokens,
                 temperature=temperature,
-                api_key=os.getenv("LITELLM_API_KEY", os.getenv("OPENAI_API_KEY"))
             )
             response_content = response.choices[0].message.content.strip()
             if response_content:  # Check if the response is not empty
                 return response_content
             else:
                 logger.warning(f"Retry {i+1}: Received empty response from LLM.")
+        except litellm.exceptions.BadRequestError as e:
+            logger.error(traceback.format_exc())
+            return f"The API key you provided for `{model}` is not valid. Double check the API key corresponds to the model/provider you are trying to call."
         except Exception as e:
             logger.error(f"Error on try {i+1}: {e}")
             if i == retries - 1:  # If this was the last retry
-                raise Exception(f"Something went wrong after {retries} retries: {e}\n{traceback.format_exc()}")
+                return f"Something went wrong after {retries} retries: {e}\n{traceback.format_exc()}"
         await asyncio.sleep(0.5)  # Wait before retrying
 
 alarms = {}

@@ -3,7 +3,7 @@ from requests.packages.urllib3.util.retry import Retry
 from concurrent.futures import ThreadPoolExecutor
 from requests.adapters import HTTPAdapter
 from datetime import datetime, timedelta
-from litellm import completion, api_key
+from litellm import completion, check_valid_key
 from requests.sessions import Session
 from caldav.elements import dav, cdav
 from dotenv.main import set_key
@@ -18,6 +18,7 @@ import contextlib
 import traceback
 import textwrap
 import requests
+import litellm
 import logging
 import asyncio
 import pyttsx3
@@ -66,7 +67,7 @@ executor = ThreadPoolExecutor()
 r = sr.Recognizer()
 
 # Initialize the LiteLLM API key
-api_key = os.environ["LITELLM_API_KEY"]
+litellm.api_key = os.getenv("LITELLM_API_KEY", os.getenv("OPENAI_API_KEY"))
 
 # Initialize the text-to-speech engine
 engine = pyttsx3.init()
