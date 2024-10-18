@@ -1,9 +1,28 @@
 name: CI/CD Pipeline
 
 on:
-  push:
-    branches:
-      - main
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: 'Log level'
+        required: true
+        default: 'warning'
+        type: choice
+        options:
+        - info
+        - warning
+        - debug
+      tags:
+        description: 'Test scenario tags'
+        required: false
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   docker:
@@ -11,6 +30,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch all history, including tags
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -31,10 +52,21 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GH_TOKEN }}
 
-      - name: Build and push to Docker Hub
+      - name: Get the version
+        id: get_version
         run: |
-          timeout 3600 docker buildx build --platform linux/arm64 --no-cache -t ${{ secrets.DOCKERHUB_USERNAME }}/gpt-home:latest --push .
+          VERSION=$(git tag | sort --version-sort | tail -n1)
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "VERSION=${VERSION}"
 
-      - name: Build and push to GHCR
+      - name: Build and push to Docker Hub and GHCR
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
         run: |
-          timeout 3600 docker buildx build --platform linux/arm64 --no-cache -t ghcr.io/${{ github.repository_owner }}/gpt-home:latest --push .
+          # Build the Docker image with multiple tags
+          timeout 3600 docker buildx build --platform linux/arm64 --no-cache \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/gpt-home:$VERSION \
+            -t ghcr.io/${{ github.repository_owner }}/gpt-home:$VERSION \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/gpt-home:latest \
+            -t ghcr.io/${{ github.repository_owner }}/gpt-home:latest \
+            --push .
