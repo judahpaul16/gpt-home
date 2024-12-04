@@ -78,6 +78,7 @@ def last_logs(request: Request, last_line_number: Optional[int] = 0):
         total_lines = 0
         with log_file_path.open("r") as f:
             for line in f:
+                line = line.replace("`", "")
                 if is_start_of_new_log(line):
                     if current_entry:  # If there's an accumulated entry, add it to new_logs
                         new_logs.append(''.join(current_entry))
