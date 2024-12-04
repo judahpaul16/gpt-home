@@ -28,7 +28,18 @@ const EventLogs: React.FC = () => {
     const fetchAllLogs = async () => {
       const response = await fetch('/logs', { method: 'POST' });
       const data = await response.json();
-      const allLogs = data.log_data.split('\n').map((log: string) => ({
+      const logLevels = ['SUCCESS', 'INFO', 'ERROR', 'WARNING', 'DEBUG'];
+      let logArray = data.log_data.split('\n');
+      logArray = logArray.filter((log: string) => log !== '');
+      // if entry doesn't start with a log level, append it to the previous entry
+      for (let i = 0; i < logArray.length; i++) {
+        const log = logArray[i];
+        if (!logLevels.some(level => log.startsWith(level))) {
+          logArray[i - 1] += `\n${log}`;
+          logArray.splice(i, 1);
+        }
+      }
+      const allLogs = logArray.map((log: string) => ({
         content: log,
         isNew: false,
         type: log.split(":")[0].toLowerCase(),
