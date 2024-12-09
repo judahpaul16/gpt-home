@@ -246,13 +246,14 @@ a:hover {
 }
 
 .password-modal input[type=password] {
-  border: 2px solid var(--tertiary-color) !important;
+  border: 2px solid var(--quaternary-color) !important;
   box-sizing: border-box !important;
+  height: 2.5em;
+  margin: .75em auto .4em;
+  max-width: 200px !important;
   padding: 5px !important;
   width: 100% !important;
-  max-width: 200px !important;
-  margin: 0.75em auto 0.4em;
-  height: 2.5em;
+  background-color: var(--secondary-color) !important;
 }
 
 .error-message {

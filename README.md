@@ -383,7 +383,7 @@ alias wi-start="docker exec -it gpt-home supervisorctl start web-interface"
 alias wi-restart="docker exec -it gpt-home supervisorctl restart web-interface && sudo systemctl restart nginx"
 alias wi-stop="docker exec -it gpt-home supervisorctl stop web-interface"
 alias wi-status="docker exec -it gpt-home supervisorctl status web-interface"
-alias wi-build="docker exec -it gpt-home bash -c 'cd /app/src/frontend && npm run build'"
+alias wi-build="docker exec -it gpt-home bash -c 'cd /app/src/frontend && npm i && npm run build'"
 alias wi-log="tail -n 100 -f /var/log/nginx/access.log"
 alias wi-error="tail -n 100 -f /var/log/nginx/error.log"
 

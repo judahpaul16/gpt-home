@@ -3,6 +3,7 @@
   "model": "gpt-3.5-turbo",
   "max_tokens": 100,
   "temperature": 0.7,
-  "custom_instructions": ""
+  "custom_instructions": "",
+  "dark_mode": false
 }
   

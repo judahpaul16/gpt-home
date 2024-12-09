@@ -29,30 +29,40 @@ const App: React.FC = () => {
     getMode();
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem("darkMode", darkMode.toString());
-  }, [darkMode]);
-
   const getMode = async () => {
-    const response = await fetch('/api/settings/dark-mode');
-    const data = await response.json();
-    setDarkMode(data.darkMode);
-  };
-
-  const toggleDarkMode = () => {
-    setDarkMode((prevMode) => {
-      const newMode = !prevMode;
-      document.documentElement.classList.toggle("dark-mode", newMode);
-      fetch('/api/settings/dark-mode', {
+    try {
+      const response = await fetch('/api/settings/dark-mode', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ darkMode: newMode })
       });
-      return newMode;
+      const data = await response.json();
+      const newMode = data.darkMode;
+      
+      setDarkMode(newMode);
+      document.documentElement.classList.toggle("dark-mode", newMode);
+    } catch (error) {
+      console.error("Failed to fetch dark mode setting", error);
+      // Fallback to default
+      setDarkMode(false);
+    }
+  };
+
+  const toggleDarkMode = () => {
+    const newMode = !darkMode;
+    document.documentElement.classList.toggle("dark-mode", newMode);
+    
+    fetch('/api/settings/dark-mode', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ darkMode: newMode })
     });
-  };  
+  
+    setDarkMode(newMode);
+  };
 
   const [integrations, setIntegrations] = useState<{
     Spotify: { status: boolean; usage: string[] };
@@ -134,8 +144,8 @@ const App: React.FC = () => {
       {showOverlay && <div className="overlay"></div>}
       {(unlocked || process.env.NODE_ENV === 'development') && (
         <header className="App-header">
-          <div className={`theme-toggle ${darkMode ? 'dark-mode' : ''}`}>
-            <IconButton onClick={toggleDarkMode} className='theme-toggle-icon'>
+          <div className={`theme-toggle ${darkMode ? 'dark-mode' : ''}`} onClick={toggleDarkMode}>
+            <IconButton className='theme-toggle-icon'>
               {darkMode ? <Brightness7Icon /> : <Brightness4Icon />}
             </IconButton>
           </div>

@@ -56,20 +56,39 @@ def get_local_ip():
     ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().split()[0]
     return JSONResponse(content={"ip": ip})
 
-
 @app.post("/api/settings/dark-mode")
-def toggle_dark_mode(request: Request):
+async def toggle_dark_mode(request: Request):
     try:
-        incoming_data = request.json()
+        settings_path = SOURCE_DIR / "settings.json"
+
+        # Read existing settings
+        with open(settings_path, 'r') as f:
+            settings = json.load(f)
+
+        # Try to read incoming JSON, handle if empty
+        try:
+            incoming_data = await request.json()
+        except Exception:
+            incoming_data = {}
+
         if 'darkMode' in incoming_data:
-            dark_mode = incoming_data['darkMode']
-            set_key(ENV_FILE_PATH, "DARK_MODE", str(dark_mode).lower())
-            return JSONResponse(content={"success": True})
-        else:
-            mode = os.getenv("DARK_MODE", "false")
-            return JSONResponse(content={"darkMode": mode})
+            dark_mode = str(incoming_data['darkMode']).lower()
+
+            # Update settings
+            settings['dark_mode'] = dark_mode
+
+            # Write updated settings back to file
+            with open(settings_path, 'w') as f:
+                json.dump(settings, f)
+
+            return JSONResponse(content={"success": True, "darkMode": dark_mode})
+
+        # Fallback to returning the current mode
+        mode = settings.get('dark_mode', 'false').lower()
+        return JSONResponse(content={"darkMode": mode == "true"})
+
     except Exception as e:
-        return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
+        return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()}, status_code=500)
 
 ## Event Logs ##
 

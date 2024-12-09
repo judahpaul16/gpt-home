@@ -1,6 +1,6 @@
 .settings-container {
-    background: var(--tertiary-color);
-    border: 5px solid var(--quaternary-color);
+    background: var(--quaternary-color);
+    border: 5px solid var(--tertiary-color);
     border-radius: 10px;
     font-size: 16pt;
     max-height: 65vh;
@@ -55,7 +55,7 @@
     border: none;
     border-radius: 10px;
     box-shadow: 0 4px 8px rgba(0,0,0,.1);
-    color: var(--text-color);
+    color: white;
     cursor: pointer;
     display: inline-flex;
     margin: .5em;
