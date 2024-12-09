@@ -223,7 +223,7 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
             <button onClick={connectService} disabled={loading} className="submit">
               {loading ? <div className="spinner"></div> : 'Submit'}
             </button>
-            <button onClick={() => setShowForm(false)}>Cancel</button>
+            <button onClick={() => setShowForm(false)} className="cancel">Cancel</button>
             {error && <div className="error-text">{error}</div>}
           </div>
         </div>

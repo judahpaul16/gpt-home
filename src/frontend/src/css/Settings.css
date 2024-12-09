@@ -1,6 +1,6 @@
 .settings-container {
-    background: #ececec;
-    border: 5px solid #d3d3d3;
+    background: var(--tertiary-color);
+    border: 5px solid var(--quaternary-color);
     border-radius: 10px;
     font-size: 16pt;
     max-height: 65vh;
@@ -37,7 +37,7 @@
 .settings-group label input,
 .settings-group label select,
 .settings-group label textarea {
-    border: 2px solid #ccc !important;
+    border: 2px solid var(--quaternary-color) !important;
     box-sizing: border-box !important;
     padding: 5px !important;
     width: 100% !important;
@@ -55,7 +55,7 @@
     border: none;
     border-radius: 10px;
     box-shadow: 0 4px 8px rgba(0,0,0,.1);
-    color: #fff;
+    color: var(--text-color);
     cursor: pointer;
     display: inline-flex;
     margin: .5em;
