@@ -1,4 +1,4 @@
-FROM ubuntu:23.04
+FROM ubuntu:24.04
 
 # Set non-interactive installation to avoid tzdata prompt
 ENV DEBIAN_FRONTEND=noninteractive
@@ -13,15 +13,20 @@ RUN dpkg --add-architecture armhf
 # Install necessary packages
 RUN /bin/bash -c "yes | add-apt-repository universe && \
     dpkg --add-architecture armhf && apt-get update && \
+    add-apt-repository ppa:deadsnakes/ppa && \
     apt-get install -y --no-install-recommends supervisor nano neovim \
         avahi-daemon avahi-utils libnss-mdns dbus iputils-ping \
         build-essential curl git libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
         libsqlite3-dev llvm libncursesw5-dev xz-utils tk-dev libraspberrypi-bin \
         libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev libjpeg-dev \
         portaudio19-dev alsa-utils libasound2-dev i2c-tools \
-        python3 python3-pip python3-dev python3-smbus python3-venv \
+        python3.11 python3-pip python3.11-dev python3-smbus python3.11-venv \
         jackd2 libogg0 libflac-dev flac libespeak1 cmake openssl expect \
-        nodejs libc6:armhf libdbus-1-3:armhf libasound2:armhf && rm -rf /var/lib/apt/lists/*"
+        nodejs libc6:armhf libdbus-1-3:armhf && rm -rf /var/lib/apt/lists/*"
+        
+# Ensure python3 points to Python 3.11
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 && \
+    update-alternatives --config python3 --force
 
 # Download and setup spotifyd binary from latest GitHub release
 RUN wget https://github.com/Spotifyd/spotifyd/releases/latest/download/spotifyd-linux-armhf-full.tar.gz && \

@@ -63,7 +63,7 @@ def logs(request: Request):
     if log_file_path.exists() and log_file_path.is_file():
         with log_file_path.open("r") as f:
             log_data = f.read()
-        return JSONResponse(content={"log_data": log_data})
+        return JSONResponse(content={"log_data": log_data.replace("`", "")})
     else:
         return Response(status_code=status.HTTP_404_NOT_FOUND, content="Log file not found")
     
