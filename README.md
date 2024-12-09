@@ -1,6 +1,6 @@
 # 🏠 GPT Home 🤖💬
 
-![Ubuntu Server Version](https://img.shields.io/badge/Ubuntu_Server-v23.04-orange?style=flat-square&logo=ubuntu)
+![Ubuntu Server Version](https://img.shields.io/badge/Ubuntu_Server-v24.04-orange?style=flat-square&logo=ubuntu)
 ![Raspberry Pi Version](https://img.shields.io/badge/Raspberry_Pi-4B-red?style=flat-square&logo=raspberry-pi)
 ![Python Version](https://img.shields.io/badge/Python-v3.11-blue?style=flat-square&logo=python)
 ![Node.js Version](https://img.shields.io/badge/Node.js-v18.17.1-green?style=flat-square&logo=node.js)
@@ -756,7 +756,7 @@ chmod +x setup.sh
     <table>
         <tr><th colspan="2">Operating System</th></tr>
         <tr><td>Ubuntu 22.04</td><td>✅</td></tr>
-        <tr><td>Ubuntu 23.04</td><td>✅</td></tr>
+        <tr><td>Ubuntu 23.04</td><td>✅ (EOL)</td></tr>
         <tr><td>Ubuntu 24.04</td><td>✅</td></tr>
         <tr><td>Debian Buster</td><td>✅</td></tr>
         <tr><td>Debian Bullseye</td><td>✅</td></tr>
