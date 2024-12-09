@@ -56,6 +56,21 @@ def get_local_ip():
     ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().split()[0]
     return JSONResponse(content={"ip": ip})
 
+
+@app.post("/api/settings/dark-mode")
+def toggle_dark_mode(request: Request):
+    try:
+        incoming_data = request.json()
+        if 'darkMode' in incoming_data:
+            dark_mode = incoming_data['darkMode']
+            set_key(ENV_FILE_PATH, "DARK_MODE", str(dark_mode).lower())
+            return JSONResponse(content={"success": True})
+        else:
+            mode = os.getenv("DARK_MODE", "false")
+            return JSONResponse(content={"darkMode": mode})
+    except Exception as e:
+        return JSONResponse(content={"error": str(e), "traceback": traceback.format_exc()})
+
 ## Event Logs ##
 
 @app.post("/logs")

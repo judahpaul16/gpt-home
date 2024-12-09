@@ -26,18 +26,30 @@ const App: React.FC = () => {
   const [darkMode, setDarkMode] = useState<boolean>(false);
 
   useEffect(() => {
-    const savedMode = localStorage.getItem("darkMode");
-    setDarkMode(savedMode === "true");
+    getMode();
   }, []);
 
   useEffect(() => {
     localStorage.setItem("darkMode", darkMode.toString());
   }, [darkMode]);
 
+  const getMode = async () => {
+    const response = await fetch('/api/settings/dark-mode');
+    const data = await response.json();
+    setDarkMode(data.darkMode);
+  };
+
   const toggleDarkMode = () => {
     setDarkMode((prevMode) => {
       const newMode = !prevMode;
       document.documentElement.classList.toggle("dark-mode", newMode);
+      fetch('/api/settings/dark-mode', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ darkMode: newMode })
+      });
       return newMode;
     });
   };  
