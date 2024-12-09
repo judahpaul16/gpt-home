@@ -1,6 +1,6 @@
 .about-container {
-  background: #ececec;
-  border: 5px solid #d3d3d3;
+  background: var(--quaternary-color);
+  border: 5px solid var(--tertiary-color);
   text-align: center;
   border-radius: 10px;
   padding: 1em 1.5em;

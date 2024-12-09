@@ -18,9 +18,30 @@ import InfoIcon from '@mui/icons-material/Info';
 import IntegrationIcon from '@mui/icons-material/IntegrationInstructions';
 import IconButton from '@mui/material/IconButton';
 import MenuIcon from '@mui/icons-material/Menu';
+import Brightness7Icon from '@mui/icons-material/Brightness7';
+import Brightness4Icon from '@mui/icons-material/Brightness4';
 
 const App: React.FC = () => {
   const location = useLocation();
+  const [darkMode, setDarkMode] = useState<boolean>(false);
+
+  useEffect(() => {
+    const savedMode = localStorage.getItem("darkMode");
+    setDarkMode(savedMode === "true");
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("darkMode", darkMode.toString());
+  }, [darkMode]);
+
+  const toggleDarkMode = () => {
+    setDarkMode((prevMode) => {
+      const newMode = !prevMode;
+      document.documentElement.classList.toggle("dark-mode", newMode);
+      return newMode;
+    });
+  };  
+
   const [integrations, setIntegrations] = useState<{
     Spotify: { status: boolean; usage: string[] };
     OpenWeather: { status: boolean; usage: string[] };
@@ -96,11 +117,16 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    <div className="App">
+    <div className={`App ${darkMode ? "dark-mode" : ""}`}>
       {process.env.NODE_ENV !== 'development' && !unlocked && <PasswordModal unlockApp={unlockApp} />}
       {showOverlay && <div className="overlay"></div>}
       {(unlocked || process.env.NODE_ENV === 'development') && (
         <header className="App-header">
+          <div className={`theme-toggle ${darkMode ? 'dark-mode' : ''}`}>
+            <IconButton onClick={toggleDarkMode} className='theme-toggle-icon'>
+              {darkMode ? <Brightness7Icon /> : <Brightness4Icon />}
+            </IconButton>
+          </div>
           <div className="dashboard-container">
             <IconButton
               edge="start"

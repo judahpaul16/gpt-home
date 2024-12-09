@@ -1,6 +1,6 @@
 .App {
   text-align: center;
-  background-color: #F4F4F4;
+  background-color: var(--secondary-color);
 }
 
 .App-header {
@@ -10,7 +10,7 @@
   align-items: center;
   justify-content: center;
   font-size: calc(10px + 2vmin);
-  color: #333333;
+  color: var(--text-color);;
 }
 
 .dashboard-container {
@@ -19,15 +19,33 @@
   align-items: center;
 }
 
+.theme-toggle {
+  position: absolute;
+  top: 1em;
+  right: 1em;
+  padding: 0.5em;
+  cursor: pointer;
+  border-radius: 50%;
+  background-color: var(--primary-color);
+  border: 2px solid var(--quaternary-color);
+}
+
 /* Mobile Styling */
 @media (max-width: 768px) {
   .App-header {
-    overflow-x: hidden;
+    overflow: hidden !important;
   }
 
   .dashboard {
     flex-direction: column;
     width: 100vw;
+  }
+
+  .theme-toggle {
+    top: unset;
+    bottom: 1.5em;
+    right: 1.5em;
+    padding: 1em;
   }
 
   .integrations-dashboard {
@@ -49,6 +67,12 @@
     margin: 1em !important;
     max-height: 80vmax !important;
     overflow: scroll !important;
+    text-align: center;
+    margin-bottom: 0 !important;
+  }
+
+  td {
+    padding: 0.5em !important;
   }
 }
 
@@ -84,7 +108,7 @@
   width: 200px;
   height: 85vh;
   flex: 1;
-  background: white;
+  background: var(--primary-color);
   border-radius: 10px;
   padding: 0.5em;
   margin-right: 2em;
@@ -111,7 +135,7 @@
 
 .sidebar-title-link {
   text-decoration: none;
-  color: #5f5f5f;
+  color: var(--text-color);
 }
 
 .sidebar-links-container {
@@ -133,7 +157,7 @@
 }
 
 .menu-toggle {
-  color: #333333;
+  color: var(--text-color);;
   visibility: hidden;
   width: fit-content !important;
   position: absolute !important;
@@ -158,7 +182,7 @@
 }
 
 .active {
-  background-color: #f4f4f4;
+  background-color: var(--primary-color);
 }
 
 .MuiButtonBase-root {
@@ -170,16 +194,21 @@
 }
 
 .MuiButtonBase-root:hover {
-  background-color: #F4F4F4;
+  background-color: var(--primary-color);
   border-radius: 10px;
 }
 
 .MuiTypography-root {
-  color: #404040;
+  color: var(--text-color);
 }
 
 a {
+  color: #5ea2fa;
   text-decoration: none;
+}
+
+a:hover {
+  color: #3f7ae0;
 }
 
 .overlay {
@@ -188,7 +217,7 @@ a {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.7);
+  background-color: rgba(0, 0, 0, 0.5);
   z-index: 9999;
 }
 
@@ -197,7 +226,7 @@ a {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: white;
+  background: var(--primary-color);
   border-radius: 10px;
   padding: 1em;
   z-index: 9999;
@@ -217,7 +246,7 @@ a {
 }
 
 .password-modal input[type=password] {
-  border: 2px solid #ccc !important;
+  border: 2px solid var(--tertiary-color) !important;
   box-sizing: border-box !important;
   padding: 5px !important;
   width: 100% !important;

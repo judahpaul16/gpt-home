@@ -72,7 +72,11 @@ const Integrations: React.FC<IntegrationsProps> = ({ setStatus, toggleStatus, to
               <TableRow key={name}>
               <TableCell>{name}</TableCell>
                 <TableCell>
-                  {integrations[name as keyof typeof integrations].status ? 'Connected' : 'Not Connected'}
+                  {integrations[name as keyof typeof integrations].status ? (
+                    <img alt="Active" src="https://img.shields.io/badge/active-green?style=flat-square"/>
+                  ) : (
+                    <img alt="Inactive" src="https://img.shields.io/badge/inactive-red?style=flat-square"/>
+                  )}
                 </TableCell>
                 <TableCell>
                 <Integration

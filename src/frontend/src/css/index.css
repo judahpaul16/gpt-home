@@ -1,6 +1,25 @@
+:root {
+  --primary-color: #ffffff;
+  --secondary-color: #ececec;
+  --tertiary-color: #bdbdbd;
+  --quaternary-color: #d3d3d3;
+  --text-color: #4d4d4d;
+}
+
+.dark-mode {
+  --primary-color: #1e1e1e !important;
+  --secondary-color: #2e2e2e !important;
+  --tertiary-color: #3e3e3e !important;
+  --quaternary-color: #4e4e4e !important;
+  --text-color: #ffffff !important;
+}
+
 * {
-  transition:
-    scroll-behavior 0.3s ease-in-out,
+  transition: scroll-behavior 0.3s ease-in-out;
+}
+
+td, tr, th, svg {
+  color: var(--text-color) !important;
 }
 
 body {
@@ -10,8 +29,8 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #F4F4F4;
-  overflow-x: hidden;
+  background-color: var(--primary-color);
+  overflow: hidden;
 }
 
 code, pre {
@@ -40,17 +59,13 @@ h1, h2, h3, h4, h5, h6 {
 
 button {
   background-color: #007bff;
-  color: white;
+  color: var(--primary-color);
   border: none;
   padding: 12px 24px;
   margin-inline: 0.5em;
   margin-top: 1em;
   cursor: pointer;
   border-radius: 4px;
-}
-
-button:hover {
-  background-color: #0056b3;
 }
 
 input[type="text"] {
