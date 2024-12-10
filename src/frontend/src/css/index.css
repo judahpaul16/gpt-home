@@ -68,10 +68,17 @@ button {
   border-radius: 2em;
 }
 
-input[type="text"], input[type=password] {
-  width: 100%;
-  padding: 12px 20px;
-  box-sizing: border-box;
-  border: 2px solid var(--quaternary-color) !important;
+.settings-container button {
+  color: white;
+}
+
+input, select, textarea {
+  background-color: #fff;
   background-color: var(--primary-color);
+  border: 2px solid #d3d3d3!important;
+  border: 2px solid var(--quaternary-color)!important;
+  box-sizing: border-box;
+  padding: 12px 20px;
+  width: 100%;
+  color: var(--text-color);
 }
