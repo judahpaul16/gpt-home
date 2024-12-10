@@ -98,6 +98,10 @@
   margin: 0 auto;
 }
 
+.MuiTableCell-root {
+  border-bottom: 1px solid var(--quaternary-color);
+}
+
 .MuiPaper-root {
   width: 200px;
   display: contents !important;
