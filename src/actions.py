@@ -55,7 +55,6 @@ async def open_weather_action(text: str):
     try:
         api_key = os.getenv('OPEN_WEATHER_API_KEY')
         async with aiohttp.ClientSession() as session:
-            settings = load_settings()
             if re.search(r'(weather|temperature).*\sin\s', text, re.IGNORECASE):
                 city_match = re.search(r'in\s([\w\s]+)', text, re.IGNORECASE)
                 if city_match:
@@ -76,8 +75,7 @@ async def open_weather_action(text: str):
                             temp = json_response.get('current').get('temp')
                             combined_response = f"It is currently {round(float(temp))} degrees and {weather.lower()} in {city}."
                             return await llm_action(
-                                prompt=f"Does the following response answer the user's question?\n\nUser's question: {text}\n\nResponse: {combined_response}\n\nIf it does, return the response. If not, use the following weather data to answer the question: {json_response.get('current')}",
-                                model=settings.get("model")
+                                text=f"Does the following response answer the user's question?\n\nUser's question: {text}\n\nResponse: {combined_response}\n\nIf it does, return the response. If not, use the following weather data to answer the question: {json_response.get('current')}"
                             )
                     
                     # Fallback to Open-Meteo
@@ -89,8 +87,7 @@ async def open_weather_action(text: str):
                         weather_description = weather_codes[str(weather_code)]['day']['description'] if datetime.now().hour < 18 else weather_codes[str(weather_code)]['night']['description']
                         combined_response = f"It is currently {round(float(temp))} degrees and {weather_description.lower()} in {city}."
                         return await llm_action(
-                            prompt=f"Does the following response answer the user's question?\n\nUser's question: {text}\n\nResponse: {combined_response}\n\nIf it does, return the response. If not, use the following weather data to answer the question: {json_response.get('current_weather')}",
-                            model=settings.get("model")
+                            text=f"Does the following response answer the user's question?\n\nUser's question: {text}\n\nResponse: {combined_response}\n\nIf it does, return the response. If not, use the following weather data to answer the question: {json_response.get('current_weather')}"
                         )
 
                 # Weather forecast
@@ -121,8 +118,7 @@ async def open_weather_action(text: str):
                                     speech_responses.append(f"On {day.get('date')}, it will be {round(float(day.get('temp')))} degrees and {day.get('weather').lower()} in {city}.")
                             combined_response = ' '.join(speech_responses)
                             return await llm_action(
-                                prompt=f"Does the following response answer the user's question?\n\nUser's question: {text}\n\nResponse: {combined_response}\n\nIf it does, return the response. If not, use the following forecast data to answer the question: {forecast}",
-                                model=settings.get("model")
+                                text=f"Does the following response answer the user's question?\n\nUser's question: {text}\n\nResponse: {combined_response}\n\nIf it does, return the response. If not, use the following forecast data to answer the question: {forecast}"
                             )
                     
                     # Fallback to Open-Meteo
@@ -147,8 +143,7 @@ async def open_weather_action(text: str):
                                 speech_responses.append(f"On {day.get('date')}, it will be between {day.get('temp_min')}\u00B0F and {day.get('temp_max')}\u00B0F and {day.get('weather_description').lower()} in {city}.")
                         combined_response = ' '.join(speech_responses)
                         return await llm_action(
-                            prompt=f"Does the following response answer the user's question?\n\nUser's question: {text}\n\nResponse: {combined_response}\n\nIf it does, return the response. If not, use the following forecast data to answer the question: {forecast}",
-                            model=settings.get("model")
+                            text=f"Does the following response answer the user's question?\n\nUser's question: {text}\n\nResponse: {combined_response}\n\nIf it does, return the response. If not, use the following forecast data to answer the question: {forecast}"
                         )
 
             else:
@@ -169,8 +164,7 @@ async def open_weather_action(text: str):
                         temp = json_response.get('current').get('temp')
                         combined_response = f"It is currently {round(float(temp))} degrees and {weather.lower()} in your location."
                         return await llm_action(
-                            prompt=f"Does the following response answer the user's question?\n\nUser's question: {text}\n\nResponse: {combined_response}\n\nIf it does, return the response. If not, use the following weather data to answer the question: {json_response}",
-                            model=settings.get("model")
+                            text=f"Does the following response answer the user's question?\n\nUser's question: {text}\n\nResponse: {combined_response}\n\nIf it does, return the response. If not, use the following weather data to answer the question: {json_response}"
                         )
                 
                 # Fallback to Open-Meteo
@@ -182,8 +176,7 @@ async def open_weather_action(text: str):
                     weather_description = weather_codes[str(weather_code)]['day']['description'] if datetime.now().hour < 18 else weather_codes[str(weather_code)]['night']['description']
                     combined_response = f"It is currently {round(float(temp))} degrees and {weather_description.lower()} in {city}."
                     return await llm_action(
-                        prompt=f"Does the following response answer the user's question?\n\nUser's question: {text}\n\nResponse: {combined_response}\n\nIf it does, return the response. If not, use the following weather data to answer the question: {json_response}",
-                        model=settings.get("model")
+                        text=f"Does the following response answer the user's question?\n\nUser's question: {text}\n\nResponse: {combined_response}\n\nIf it does, return the response. If not, use the following weather data to answer the question: {json_response}"
                     )
                 
         raise Exception("No Open Weather API key found. Please enter your API key for Open Weather in the web interface or try reconnecting the service.")
