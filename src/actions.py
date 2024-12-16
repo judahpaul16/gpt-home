@@ -110,7 +110,12 @@ async def open_weather_action(text: str):
                             for day in forecast:
                                 if day.get('date') != tomorrow.strftime('%A'):
                                     speech_responses.append(f"On {day.get('date')}, it will be {round(float(day.get('temp')))} degrees and {day.get('weather').lower()} in {city}.")
-                            return ' '.join(speech_responses)
+                            # Use OpenAI to verify if the speech response answers the user's question
+                            combined_response = ' '.join(speech_responses)
+                            openai_response = await completion(
+                                prompt=f"Does the following response answer the user's question?\n\nUser's question: {text}\n\nResponse: {combined_response}\n\nIf it does, return the response. If not, use the following forecast data to answer the question: {forecast}",
+                            )
+                            return openai_response
                     
                     # Fallback to Open-Meteo
                     response = await session.get(f"https://api.open-meteo.com/v1/forecast?latitude={coords.get('lat')}&longitude={coords.get('lon')}&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit")
