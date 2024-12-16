@@ -55,6 +55,7 @@ async def open_weather_action(text: str):
     try:
         api_key = os.getenv('OPEN_WEATHER_API_KEY')
         async with aiohttp.ClientSession() as session:
+            settings = load_settings()
             if re.search(r'(weather|temperature).*\sin\s', text, re.IGNORECASE):
                 city_match = re.search(r'in\s([\w\s]+)', text, re.IGNORECASE)
                 if city_match:
@@ -73,10 +74,11 @@ async def open_weather_action(text: str):
                             logger.debug(json_response)
                             weather = json_response.get('current').get('weather')[0].get('main')
                             temp = json_response.get('current').get('temp')
-                            openai_response = await completion(
-                                prompt=f"Does the following response answer the user's question?\n\nUser's question: {text}\n\nResponse: It is currently {round(float(temp))} degrees and {weather.lower()} in {city}.\n\nIf it does, return the response. If not, use the following weather data to answer the question: {json_response.get('current')}",
+                            combined_response = f"It is currently {round(float(temp))} degrees and {weather.lower()} in {city}."
+                            return await llm_action(
+                                prompt=f"Does the following response answer the user's question?\n\nUser's question: {text}\n\nResponse: {combined_response}\n\nIf it does, return the response. If not, use the following weather data to answer the question: {json_response.get('current')}",
+                                model=settings.get("model")
                             )
-                            return openai_response
                     
                     # Fallback to Open-Meteo
                     response = await session.get(f"https://api.open-meteo.com/v1/forecast?latitude={coords.get('lat')}&longitude={coords.get('lon')}&current_weather=true&temperature_unit=fahrenheit")
@@ -85,10 +87,11 @@ async def open_weather_action(text: str):
                         weather_code = json_response.get('current_weather').get('weathercode')
                         temp = json_response.get('current_weather').get('temperature')
                         weather_description = weather_codes[str(weather_code)]['day']['description'] if datetime.now().hour < 18 else weather_codes[str(weather_code)]['night']['description']
-                        openai_response = await completion(
-                            prompt=f"Does the following response answer the user's question?\n\nUser's question: {text}\n\nResponse: It is currently {round(float(temp))} degrees and {weather_description.lower()} in {city}.\n\nIf it does, return the response. If not, use the following weather data to answer the question: {json_response.get('current_weather')}",
+                        combined_response = f"It is currently {round(float(temp))} degrees and {weather_description.lower()} in {city}."
+                        return await llm_action(
+                            prompt=f"Does the following response answer the user's question?\n\nUser's question: {text}\n\nResponse: {combined_response}\n\nIf it does, return the response. If not, use the following weather data to answer the question: {json_response.get('current_weather')}",
+                            model=settings.get("model")
                         )
-                        return openai_response
 
                 # Weather forecast
                 else:
@@ -116,12 +119,11 @@ async def open_weather_action(text: str):
                             for day in forecast:
                                 if day.get('date') != tomorrow.strftime('%A'):
                                     speech_responses.append(f"On {day.get('date')}, it will be {round(float(day.get('temp')))} degrees and {day.get('weather').lower()} in {city}.")
-                            # Use OpenAI to verify if the speech response answers the user's question
                             combined_response = ' '.join(speech_responses)
-                            openai_response = await completion(
+                            return await llm_action(
                                 prompt=f"Does the following response answer the user's question?\n\nUser's question: {text}\n\nResponse: {combined_response}\n\nIf it does, return the response. If not, use the following forecast data to answer the question: {forecast}",
+                                model=settings.get("model")
                             )
-                            return openai_response
                     
                     # Fallback to Open-Meteo
                     response = await session.get(f"https://api.open-meteo.com/v1/forecast?latitude={coords.get('lat')}&longitude={coords.get('lon')}&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit")
@@ -144,10 +146,10 @@ async def open_weather_action(text: str):
                             if day.get('date') != tomorrow.strftime('%Y-%m-%d'):
                                 speech_responses.append(f"On {day.get('date')}, it will be between {day.get('temp_min')}\u00B0F and {day.get('temp_max')}\u00B0F and {day.get('weather_description').lower()} in {city}.")
                         combined_response = ' '.join(speech_responses)
-                        openai_response = await completion(
+                        return await llm_action(
                             prompt=f"Does the following response answer the user's question?\n\nUser's question: {text}\n\nResponse: {combined_response}\n\nIf it does, return the response. If not, use the following forecast data to answer the question: {forecast}",
+                            model=settings.get("model")
                         )
-                        return openai_response
 
             else:
                 # General weather based on IP address location
@@ -166,10 +168,10 @@ async def open_weather_action(text: str):
                         weather = json_response.get('current').get('weather')[0].get('main')
                         temp = json_response.get('current').get('temp')
                         combined_response = f"It is currently {round(float(temp))} degrees and {weather.lower()} in your location."
-                        openai_response = await completion(
+                        return await llm_action(
                             prompt=f"Does the following response answer the user's question?\n\nUser's question: {text}\n\nResponse: {combined_response}\n\nIf it does, return the response. If not, use the following weather data to answer the question: {json_response}",
+                            model=settings.get("model")
                         )
-                        return openai_response
                 
                 # Fallback to Open-Meteo
                 response = await session.get(f"https://api.open-meteo.com/v1/forecast?latitude={coords.get('lat')}&longitude={coords.get('lon')}&current_weather=true&temperature_unit=fahrenheit")
@@ -179,10 +181,10 @@ async def open_weather_action(text: str):
                     temp = json_response.get('current_weather').get('temperature')
                     weather_description = weather_codes[str(weather_code)]['day']['description'] if datetime.now().hour < 18 else weather_codes[str(weather_code)]['night']['description']
                     combined_response = f"It is currently {round(float(temp))} degrees and {weather_description.lower()} in {city}."
-                    openai_response = await completion(
+                    return await llm_action(
                         prompt=f"Does the following response answer the user's question?\n\nUser's question: {text}\n\nResponse: {combined_response}\n\nIf it does, return the response. If not, use the following weather data to answer the question: {json_response}",
+                        model=settings.get("model")
                     )
-                    return openai_response
                 
         raise Exception("No Open Weather API key found. Please enter your API key for Open Weather in the web interface or try reconnecting the service.")
 
