@@ -30,7 +30,6 @@ const Settings: React.FC = () => {
   }, []);  
 
   const updateSettings = () => {
-    // if old or new password is not empty, then change password
     if (oldPassword !== '' || newPassword !== '' || confirmInput !== '') {
       if (oldPassword === '') {
         alert('Old password cannot be empty');
@@ -50,6 +49,16 @@ const Settings: React.FC = () => {
       } else {
         changePassword();
       }
+    }
+
+    if (!settings.default_zip_code || settings.default_zip_code === '') {
+      alert('Default zip code cannot be empty');
+      return;
+    }
+
+    if (!settings.speech_engine || settings.speech_engine === '') {
+      alert('Speech engine setting cannot be empty');
+      return;
     }
 
     axios.post('/settings', { action: 'update', data: settings }).then((response) => {
@@ -148,6 +157,25 @@ const Settings: React.FC = () => {
               value={settings.keyword || ''}
               onChange={(e) => setSettings({ ...settings, keyword: e.target.value })}
             />
+          </label>
+          <label>
+            Default Zip Code:
+            <input
+              type="text"
+              id='zip-code-input'
+              value={settings.defaultZipCode || ''}
+              onChange={(e) => setSettings({ ...settings, defaultZipCode: e.target.value })}
+            />
+          </label>
+          <label>
+            Speech Engine:
+            <select
+              value={settings.speechEngine || ''}
+              onChange={(e) => setSettings({ ...settings, speechEngine: e.target.value })}
+            >
+              <option value="pyttsx3">pyttsx3</option>
+              <option value="gtts">gTTS</option>
+            </select>
           </label>
         </div>
 

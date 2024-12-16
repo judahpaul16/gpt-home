@@ -85,9 +85,6 @@ engine.setProperty('alsa_device', 'hw:Headphones,0')
 speak_lock = asyncio.Lock()
 display_lock = asyncio.Lock()
 
-# Set TTS engine
-speech_engine = os.getenv("SPEECH_ENGINE", "pyttsx3")
-
 def network_connected():
     try:
         response = requests.get("http://www.google.com", timeout=5)
@@ -294,6 +291,8 @@ async def display_state(state, display, stop_event):
                 await asyncio.sleep(0.5)
 
 async def speak(text, stop_event=asyncio.Event()):
+    settings = load_settings()
+    speech_engine = settings.get("speech_engine", "pyttsx3")
     async with speak_lock:
         loop = asyncio.get_running_loop()
         def _speak():

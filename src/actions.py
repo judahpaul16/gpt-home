@@ -75,6 +75,7 @@ async def open_weather_action(text: str):
     try:
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         api_key = os.getenv('OPEN_WEATHER_API_KEY')
+        settings = load_settings()
         async with aiohttp.ClientSession() as session:
             if re.search(r'(weather|temperature).*\sin\s', text, re.IGNORECASE):
                 city_match = re.search(r'in\s([\w\s]+)', text, re.IGNORECASE)
@@ -169,7 +170,7 @@ async def open_weather_action(text: str):
 
             else:
                 # General weather based on environment variable zip code or IP address location
-                zip_code = os.getenv('DEFAULT_ZIP_CODE')
+                zip_code = settings.get('default_zip_code')
                 if zip_code:
                     city = await city_from_zip(zip_code)
                 else:
