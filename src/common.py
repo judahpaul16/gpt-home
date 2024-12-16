@@ -85,6 +85,9 @@ engine.setProperty('alsa_device', 'hw:Headphones,0')
 speak_lock = asyncio.Lock()
 display_lock = asyncio.Lock()
 
+# Set TTS engine
+speech_engine = os.getenv("SPEECH_ENGINE", "pyttsx3")
+
 def network_connected():
     try:
         response = requests.get("http://www.google.com", timeout=5)
@@ -294,16 +297,17 @@ async def speak(text, stop_event=asyncio.Event()):
     async with speak_lock:
         loop = asyncio.get_running_loop()
         def _speak():
-            mp3_fp = BytesIO()
-            tts = gTTS(text, lang='en')
-            tts.write_to_fp(mp3_fp)
-            mixer.init()
-            mp3_fp.seek(0)
-            mixer.music.load(mp3_fp, "mp3")
-            mixer.music.play()
-
-            #engine.say(text)
-            #engine.runAndWait()
+            if speech_engine == 'gtts':
+                mp3_fp = BytesIO()
+                tts = gTTS(text, lang='en')
+                tts.write_to_fp(mp3_fp)
+                mixer.init()
+                mp3_fp.seek(0)
+                mixer.music.load(mp3_fp, "mp3")
+                mixer.music.play()
+            else:
+                engine.say(text)
+                engine.runAndWait()
         await loop.run_in_executor(executor, _speak)
         stop_event.set()
 
