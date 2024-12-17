@@ -47,7 +47,7 @@ requests==2.31.0
 requests-oauthlib==1.3.1
 RPi.GPIO==0.7.1
 rsa==4.9
-semantic-router==0.0.51
+semantic-router==0.0.72
 sniffio==1.3.0
 SpeechRecognition==3.10.0
 spidev==3.6
