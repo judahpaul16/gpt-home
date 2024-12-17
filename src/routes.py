@@ -63,6 +63,7 @@ calendar_route = Route(
 general_route = Route(
     name="llm_action",
     utterances=[
+        "hows it going",
         "tell me a joke",
         "what's the time",
         "how are you",
