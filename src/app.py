@@ -44,7 +44,7 @@ async def main():
             if text:
                 clean_text = text.lower().translate(str.maketrans('', '', string.punctuation))
                 if keyword in clean_text:
-                    enable_heard = os.getenv('ENABLE_HEARD', 'true') == 'true'
+                    enable_heard = settings.get("say_heard", "true") == "true"
                     actual_text = clean_text.split(keyword, 1)[1].strip()
                     if actual_text:
                         heard_message = f"Heard: \"{actual_text}\""

@@ -30,6 +30,7 @@ const Settings: React.FC = () => {
   }, []);  
 
   const updateSettings = () => {
+    // if old or new password is not empty, then change password
     if (oldPassword !== '' || newPassword !== '' || confirmInput !== '') {
       if (oldPassword === '') {
         alert('Old password cannot be empty');
@@ -165,6 +166,16 @@ const Settings: React.FC = () => {
             >
               <option value="pyttsx3">pyttsx3</option>
               <option value="gtts">gTTS</option>
+            </select>
+          </label>
+          <label>
+            Repeat Heard:
+            <select
+              value={settings.say_heard || ''}
+              onChange={(e) => setSettings({ ...settings, say_heard: e.target.value })}
+            >
+              <option value="true">True</option>
+              <option value="false">False</option>
             </select>
           </label>
         </div>
