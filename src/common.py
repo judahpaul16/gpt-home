@@ -292,7 +292,7 @@ async def display_state(state, display, stop_event):
 
 async def speak(text, stop_event=asyncio.Event()):
     settings = load_settings()
-    speech_engine = settings.get("speech_engine", "pyttsx3")
+    speech_engine = settings.get("speechEngine", "pyttsx3")
     async with speak_lock:
         loop = asyncio.get_running_loop()
         def _speak():
