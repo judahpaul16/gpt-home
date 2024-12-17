@@ -158,9 +158,11 @@ const Settings: React.FC = () => {
               onChange={(e) => setSettings({ ...settings, defaultZipCode: e.target.value })}
             />
           </label>
+          <br />
           <label>
             Speech Engine:
             <select
+              id='speech-engine'
               value={settings.speechEngine || ''}
               onChange={(e) => setSettings({ ...settings, speechEngine: e.target.value })}
             >
@@ -171,6 +173,7 @@ const Settings: React.FC = () => {
           <label>
             Repeat Heard:
             <select
+              id='say-heard'
               value={settings.sayHeard || ''}
               onChange={(e) => setSettings({ ...settings, sayHeard: e.target.value })}
             >
