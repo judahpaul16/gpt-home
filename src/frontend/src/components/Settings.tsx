@@ -172,7 +172,7 @@ const Settings: React.FC = () => {
             Repeat Heard:
             <select
               value={settings.say_heard || ''}
-              onChange={(e) => setSettings({ ...settings, say_heard: e.target.value })}
+              onChange={(e) => setSettings({ ...settings, sayHeard: e.target.value })}
             >
               <option value="true">True</option>
               <option value="false">False</option>
