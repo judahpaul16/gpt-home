@@ -149,6 +149,38 @@ const Settings: React.FC = () => {
               onChange={(e) => setSettings({ ...settings, keyword: e.target.value })}
             />
           </label>
+          <label>
+            Default Zip Code:
+            <input
+              type="text"
+              id='zip-code-input'
+              value={settings.defaultZipCode || ''}
+              onChange={(e) => setSettings({ ...settings, defaultZipCode: e.target.value })}
+            />
+          </label>
+          <br />
+          <label>
+            Speech Engine:
+            <select
+              id='speech-engine'
+              value={settings.speechEngine || ''}
+              onChange={(e) => setSettings({ ...settings, speechEngine: e.target.value })}
+            >
+              <option value="pyttsx3">pyttsx3</option>
+              <option value="gtts">gTTS</option>
+            </select>
+          </label>
+          <label>
+            Repeat Heard:
+            <select
+              id='say-heard'
+              value={settings.sayHeard || ''}
+              onChange={(e) => setSettings({ ...settings, sayHeard: e.target.value })}
+            >
+              <option value="true">True</option>
+              <option value="false">False</option>
+            </select>
+          </label>
         </div>
 
         {/* OpenAI Settings */}
