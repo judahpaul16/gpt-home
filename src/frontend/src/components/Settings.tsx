@@ -51,16 +51,6 @@ const Settings: React.FC = () => {
       }
     }
 
-    if (!settings.default_zip_code || settings.default_zip_code === '') {
-      alert('Default zip code cannot be empty');
-      return;
-    }
-
-    if (!settings.speech_engine || settings.speech_engine === '') {
-      alert('Speech engine setting cannot be empty');
-      return;
-    }
-
     axios.post('/settings', { action: 'update', data: settings }).then((response) => {
       setSettings(response.data);
       alert('Settings updated!');
