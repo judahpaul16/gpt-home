@@ -33,6 +33,7 @@ pre {
 .new-entry {
   animation: flash 1s ease-in-out;
   background-color: transparent;
+  color: black;
 }
 
 .old-entry, .info {
@@ -42,18 +43,22 @@ pre {
 /* Log types */
 .success {
   background-color: #ccffcc;
+  color: black;
 }
 
 .warning {
   background-color: #ffffcc;
+  color: black;
 }
 
 .error {
   background-color: #ffcccc;
+  color: black;
 }
 
 .critical {
   background-color: #ff9999;
+  color: black;
 }
 
 @keyframes flash {
