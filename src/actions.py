@@ -27,21 +27,28 @@ async def coords_from_city(city, api_key=None):
             response = await session.get(f"http://api.openweathermap.org/geo/1.0/direct?q={city}&appid={api_key}")
             if response.status == 200:
                 json_response = await response.json()
-                coords = {
-                    "lat": json_response[0].get('lat'),
-                    "lon": json_response[0].get('lon')
-                }
+                if len(json_response) > 0:
+                    coords = {
+                        "lat": json_response[0].get('lat'),
+                        "lon": json_response[0].get('lon')
+                    }
+                else:
+                    return None
                 return coords
         
         # Fallback to Open-Meteo if no API key or OpenWeather fails
         response = await session.get(f"https://nominatim.openstreetmap.org/search?q={city}&format=json")
         if response.status == 200:
             json_response = await response.json()
-            coords = {
-                "lat": float(json_response[0].get('lat')),
-                "lon": float(json_response[0].get('lon'))
-            }
+            if len(json_response) > 0:
+                coords = {
+                    "lat": float(json_response[0].get('lat')),
+                    "lon": float(json_response[0].get('lon'))
+                }
+            else:
+                return None
             return coords
+        
 async def city_from_zip(zip_code: str, country_code: str = "us"):
     api_key = os.getenv('OPEN_WEATHER_API_KEY')
     if not api_key:
