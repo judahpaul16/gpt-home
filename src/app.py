@@ -44,6 +44,7 @@ async def main():
             if text:
                 clean_text = text.lower().translate(str.maketrans('', '', string.punctuation))
                 if keyword in clean_text:
+                    enable_heard = settings.get("sayHeard", "true") == "true"
                     actual_text = clean_text.split(keyword, 1)[1].strip()
                     if actual_text:
                         heard_message = f"Heard: \"{actual_text}\""
@@ -52,15 +53,17 @@ async def main():
                         stop_event_response = asyncio.Event()
 
                         # Calculate time to speak and display
-                        delay_heard = await calculate_delay(heard_message)
+                        if enable_heard:
+                            delay_heard = await calculate_delay(heard_message)
 
                         # Create a task for OpenAI query, don't await it yet
                         query_task = asyncio.create_task(limited_task(action_router(actual_text)))
 
-                        await asyncio.gather(
-                            limited_task(safe_task(speak(heard_message, stop_event_heard))),
-                            limited_task(safe_task(updateLCD(heard_message, display, stop_event=stop_event_heard, delay=delay_heard)))
-                        )
+                        if enable_heard:
+                            await asyncio.gather(
+                                limited_task(safe_task(speak(heard_message, stop_event_heard))),
+                                limited_task(safe_task(updateLCD(heard_message, display, stop_event=stop_event_heard, delay=delay_heard)))
+                            )
 
                         response_message = await query_task
                         

@@ -140,15 +140,50 @@ const Settings: React.FC = () => {
         {/* General Settings */}
         <div className="settings-section">
           <div className="settings-section-header">General Settings</div>
-          <label>
-            Keyword:
-            <input
-              type="text"
-              id='keyword-input'
-              value={settings.keyword || ''}
-              onChange={(e) => setSettings({ ...settings, keyword: e.target.value })}
-            />
-          </label>
+          <div className="settings-group">
+            <label>
+              Keyword:<br />
+              <input
+                type="text"
+                id='keyword-input'
+                value={settings.keyword || ''}
+                onChange={(e) => setSettings({ ...settings, keyword: e.target.value })}
+              />
+            </label>
+            <label>
+              Default Zip Code:<br />
+              <input
+                type="text"
+                id='zip-code-input'
+                value={settings.defaultZipCode || ''}
+                onChange={(e) => setSettings({ ...settings, defaultZipCode: e.target.value })}
+              />
+            </label>
+          </div>
+          <div className="settings-group">
+            <label>
+              Speech Engine:<br />
+              <select
+                id='speech-engine'
+                value={settings.speechEngine || ''}
+                onChange={(e) => setSettings({ ...settings, speechEngine: e.target.value })}
+              >
+                <option value="pyttsx3">pyttsx3</option>
+                <option value="gtts">gTTS</option>
+              </select>
+            </label>
+            <label>
+              Repeat Heard:<br />
+              <select
+                id='say-heard'
+                value={settings.sayHeard || ''}
+                onChange={(e) => setSettings({ ...settings, sayHeard: e.target.value })}
+              >
+                <option value="true">True</option>
+                <option value="false">False</option>
+              </select>
+            </label>
+          </div>
         </div>
 
         {/* OpenAI Settings */}

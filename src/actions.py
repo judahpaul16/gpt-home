@@ -42,6 +42,26 @@ async def coords_from_city(city, api_key=None):
                 "lon": float(json_response[0].get('lon'))
             }
             return coords
+async def city_from_zip(zip_code: str, country_code: str = "us"):
+    api_key = os.getenv('OPEN_WEATHER_API_KEY')
+    if not api_key:
+        logger.error("No API key provided for OpenWeatherMap.")
+        return None
+
+    async with aiohttp.ClientSession() as session:
+        try:
+            response = await session.get(
+                f"http://api.openweathermap.org/geo/1.0/zip?zip={zip_code},{country_code}&appid={api_key}"
+            )
+            if response.status == 200:
+                json_response = await response.json()
+                city = json_response.get('name')
+                return city
+            else:
+                logger.error(f"Failed to retrieve city from zip code. Status: {response.status}")
+        except Exception as e:
+            logger.error(f"Error retrieving city from zip code: {traceback.format_exc()}")
+    return None
 
 async def city_from_ip():
     async with aiohttp.ClientSession() as session:
@@ -53,7 +73,9 @@ async def city_from_ip():
 
 async def open_weather_action(text: str):
     try:
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         api_key = os.getenv('OPEN_WEATHER_API_KEY')
+        settings = load_settings()
         async with aiohttp.ClientSession() as session:
             if re.search(r'(weather|temperature).*\sin\s', text, re.IGNORECASE):
                 city_match = re.search(r'in\s([\w\s]+)', text, re.IGNORECASE)
@@ -73,7 +95,12 @@ async def open_weather_action(text: str):
                             logger.debug(json_response)
                             weather = json_response.get('current').get('weather')[0].get('main')
                             temp = json_response.get('current').get('temp')
-                            return f"It is currently {round(float(temp))} degrees and {weather.lower()} in {city}."
+                            combined_response = f"It is currently {round(float(temp))} degrees and {weather.lower()} in {city}."
+                            return await llm_action(
+                                text=f"""Provide a concise response to the user's question based on the weather data.  Do not summarize or respond to anything other than the question\n
+                                User's question: {text}\n\nCurrent time: {current_time}\n
+                                Response: {combined_response}\n\nIf the response is sufficient, return it. Otherwise, use the following weather data to answer the question: {json_response.get('current')}"""
+                            )
                     
                     # Fallback to Open-Meteo
                     response = await session.get(f"https://api.open-meteo.com/v1/forecast?latitude={coords.get('lat')}&longitude={coords.get('lon')}&current_weather=true&temperature_unit=fahrenheit")
@@ -82,7 +109,12 @@ async def open_weather_action(text: str):
                         weather_code = json_response.get('current_weather').get('weathercode')
                         temp = json_response.get('current_weather').get('temperature')
                         weather_description = weather_codes[str(weather_code)]['day']['description'] if datetime.now().hour < 18 else weather_codes[str(weather_code)]['night']['description']
-                        return f"It is currently {round(float(temp))} degrees and {weather_description.lower()} in {city}."
+                        combined_response = f"It is currently {round(float(temp))} degrees and {weather_description.lower()} in {city}."
+                        return await llm_action(
+                                text=f"""Provide a concise response to the user's question based on the weather data.  Do not summarize or respond to anything other than the question\n
+                                User's question: {text}\n\nCurrent time: {current_time}\n
+                                Response: {combined_response}\n\nIf the response is sufficient, return it. Otherwise, use the following weather data to answer the question: {json_response.get('current')}"""
+                        )
 
                 # Weather forecast
                 else:
@@ -110,7 +142,12 @@ async def open_weather_action(text: str):
                             for day in forecast:
                                 if day.get('date') != tomorrow.strftime('%A'):
                                     speech_responses.append(f"On {day.get('date')}, it will be {round(float(day.get('temp')))} degrees and {day.get('weather').lower()} in {city}.")
-                            return ' '.join(speech_responses)
+                            combined_response = ' '.join(speech_responses)
+                            return await llm_action(
+                                text=f"""Provide a concise response to the user's question based on the weather data.  Do not summarize or respond to anything other than the question\n
+                                User's question: {text}\n\nCurrent time: {current_time}\n
+                                Response: {combined_response}\n\nIf the response is sufficient, return it. Otherwise, use the following weather data to answer the question: {json_response.get('current')}"""
+                            )
                     
                     # Fallback to Open-Meteo
                     response = await session.get(f"https://api.open-meteo.com/v1/forecast?latitude={coords.get('lat')}&longitude={coords.get('lon')}&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit")
@@ -132,11 +169,21 @@ async def open_weather_action(text: str):
                         for day in forecast:
                             if day.get('date') != tomorrow.strftime('%Y-%m-%d'):
                                 speech_responses.append(f"On {day.get('date')}, it will be between {day.get('temp_min')}\u00B0F and {day.get('temp_max')}\u00B0F and {day.get('weather_description').lower()} in {city}.")
-                        return ' '.join(speech_responses)
+                        combined_response = ' '.join(speech_responses)
+                        return await llm_action(
+                                text=f"""Provide a concise response to the user's question based on the weather data.  Do not summarize or respond to anything other than the question\n
+                                User's question: {text}\n\nCurrent time: {current_time}\n
+                                Response: {combined_response}\n\nIf the response is sufficient, return it. Otherwise, use the following weather data to answer the question: {json_response.get('current')}"""
+                        )
 
             else:
-                # General weather based on IP address location
-                city = await city_from_ip()
+                # General weather based on environment variable zip code or IP address location
+                zip_code = settings.get('default_zip_code')
+                if zip_code:
+                    city = await city_from_zip(zip_code)
+                else:
+                    city = await city_from_ip()
+
                 coords = await coords_from_city(city, api_key)
                 if city is None:
                     return f"Could not determine your city based on your IP address. Please provide a city name."
@@ -150,7 +197,12 @@ async def open_weather_action(text: str):
                         logger.debug(json_response)
                         weather = json_response.get('current').get('weather')[0].get('main')
                         temp = json_response.get('current').get('temp')
-                        return f"It is currently {round(float(temp))} degrees and {weather.lower()} in your location."
+                        combined_response = f"It is currently {round(float(temp))} degrees and {weather.lower()} in your location."
+                        return await llm_action(
+                            text=f"""Provide a concise response to the user's question based on the weather data.  Do not summarize or respond to anything other than the question\n
+                            User's question: {text}\n\nCurrent time: {current_time}\n
+                            Response: {combined_response}\n\nIf the response is sufficient, return it. Otherwise, use the following weather data to answer the question: {json_response.get('current')}"""
+                        )
                 
                 # Fallback to Open-Meteo
                 response = await session.get(f"https://api.open-meteo.com/v1/forecast?latitude={coords.get('lat')}&longitude={coords.get('lon')}&current_weather=true&temperature_unit=fahrenheit")
@@ -159,8 +211,12 @@ async def open_weather_action(text: str):
                     weather_code = json_response.get('current_weather').get('weathercode')
                     temp = json_response.get('current_weather').get('temperature')
                     weather_description = weather_codes[str(weather_code)]['day']['description'] if datetime.now().hour < 18 else weather_codes[str(weather_code)]['night']['description']
-                    return f"It is currently {round(float(temp))} degrees and {weather_description.lower()} in {city}."
-                
+                    combined_response = f"It is currently {round(float(temp))} degrees and {weather_description.lower()} in {city}."
+                    return await llm_action(
+                        text=f"""Provide a concise response to the user's question based on the weather data.  Do not summarize or respond to anything other than the question\n
+                        User's question: {text}\n\nCurrent time: {current_time}\n
+                        Response: {combined_response}\n\nIf the response is sufficient, return it. Otherwise, use the following weather data to answer the question: {json_response.get('current')}"""
+                    )
         raise Exception("No Open Weather API key found. Please enter your API key for Open Weather in the web interface or try reconnecting the service.")
 
     except Exception as e:

@@ -5,7 +5,9 @@ from semantic_router import Route
 from actions import *
 
 API_KEY = os.getenv("OPENAI_API_KEY")
-encoder = encoders.OpenAIEncoder(openai_api_key=API_KEY)
+encoder = encoders.OpenAIEncoder(
+    name="text-embedding-3-large", score_threshold=0.5, dimensions=256
+)
 
 # Define routes
 alarm_route = Route(
@@ -31,11 +33,11 @@ spotify_route = Route(
 weather_route = Route(
     name="open_weather_action",
     utterances=[
-        "what's the weather",
+        "how's the weather today?",
         "tell me the weather",
         "what is the temperature",
         "is it going to rain",
-        "how is the weather in New York"
+        "what is the weather like in New York"
     ]
 )
 
@@ -63,6 +65,7 @@ calendar_route = Route(
 general_route = Route(
     name="llm_action",
     utterances=[
+        "how's it going",
         "tell me a joke",
         "what's the time",
         "how are you",

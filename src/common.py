@@ -33,6 +33,12 @@ import time
 import os
 import re
 
+# TTS
+from gtts import gTTS
+from io import BytesIO
+from pygame import mixer
+import time
+
 SOURCE_DIR = Path(__file__).parent
 log_file_path = SOURCE_DIR / "events.log"
 
@@ -285,11 +291,22 @@ async def display_state(state, display, stop_event):
                 await asyncio.sleep(0.5)
 
 async def speak(text, stop_event=asyncio.Event()):
+    settings = load_settings()
+    speech_engine = settings.get("speechEngine", "pyttsx3")
     async with speak_lock:
         loop = asyncio.get_running_loop()
         def _speak():
-            engine.say(text)
-            engine.runAndWait()
+            if speech_engine == 'gtts':
+                mp3_fp = BytesIO()
+                tts = gTTS(text, lang='en')
+                tts.write_to_fp(mp3_fp)
+                mixer.init()
+                mp3_fp.seek(0)
+                mixer.music.load(mp3_fp, "mp3")
+                mixer.music.play()
+            else:
+                engine.say(text)
+                engine.runAndWait()
         await loop.run_in_executor(executor, _speak)
         stop_event.set()
 
