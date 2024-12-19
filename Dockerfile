@@ -56,7 +56,8 @@ RUN mkdir -p /usr/share/sounds && cp /app/contrib/alarm.wav /usr/share/sounds
 
 # Create virtual environment and install dependencies
 RUN python3 -m venv /env && \
-    /env/bin/pip install --no-cache-dir --use-pep517 -r src/requirements.txt
+    /env/bin/pip install wheel && \
+    /env/bin/pip install --no-cache-dir -r src/requirements.txt
 
 # Start D-Bus system bus
 RUN dbus-uuidgen > /var/lib/dbus/machine-id
