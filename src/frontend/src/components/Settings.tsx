@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../css/Settings.css';
+import '@fortawesome/fontawesome-free/css/all.min.css';
 
 const Settings: React.FC = () => {
   const [settings, setSettings] = useState<any>({});
@@ -114,159 +115,192 @@ const Settings: React.FC = () => {
     <div className="dashboard settings-dashboard">
       <h2>Settings</h2>
 
-      <button className="settings-top-btn" onClick={() => {
-        if (window.confirm('Are you sure you want to restart GPT Home service?'))
-          {gptRestart();}
-        }
-      }>Restart GPT Home Service</button>
-      <button className="settings-top-btn" onClick={() => {
-        if (window.confirm('Are you sure you want to restart Spotifyd service?'))
-          {spotifyRestart();}
-        }
-      }>Restart Spotifyd Service</button>
-      <button className="settings-top-btn system-btn" onClick={() => {
-        if (window.confirm('Are you sure you want to shutdown?'))
-          {shutdown();}
-        }
-      }>Shutdown System</button>
-      <button className="settings-top-btn system-btn" onClick={() => {
-        if (window.confirm('Are you sure you want to reboot?'))
-          {reboot();}
-        }
-      }>Reboot System</button>
-
-      <div className="settings-container">
-        
-        {/* General Settings */}
-        <div className="settings-section">
-          <div className="settings-section-header">General Settings</div>
-          <div className="settings-group">
-            <label>
-              Keyword:<br />
-              <input
-                type="text"
-                id='keyword-input'
-                value={settings.keyword || ''}
-                onChange={(e) => setSettings({ ...settings, keyword: e.target.value })}
-              />
-            </label>
-            <label>
-              Default Zip Code:<br />
-              <input
-                type="text"
-                id='zip-code-input'
-                value={settings.defaultZipCode || ''}
-                onChange={(e) => setSettings({ ...settings, defaultZipCode: e.target.value })}
-              />
-            </label>
-          </div>
-          <div className="settings-group">
-            <label>
-              Speech Engine:<br />
-              <select
-                id='speech-engine'
-                value={settings.speechEngine || ''}
-                onChange={(e) => setSettings({ ...settings, speechEngine: e.target.value })}
-              >
-                <option value="pyttsx3">pyttsx3</option>
-                <option value="gtts">gTTS</option>
-              </select>
-            </label>
-            <label>
-              Repeat Heard:<br />
-              <select
-                id='say-heard'
-                value={settings.sayHeard || ''}
-                onChange={(e) => setSettings({ ...settings, sayHeard: e.target.value })}
-              >
-                <option value="true">True</option>
-                <option value="false">False</option>
-              </select>
-            </label>
-          </div>
+      <div style={{ display: 'inline-block' }}>
+        <div className="settings-top">
+          <button className="settings-top-btn" onClick={() => {
+            if (window.confirm('Are you sure you want to restart GPT Home service?'))
+              {gptRestart();}
+            }
+          }>Restart GPT Home Service</button>
+          <button className="settings-top-btn" onClick={() => {
+            if (window.confirm('Are you sure you want to restart Spotifyd service?'))
+              {spotifyRestart();}
+            }
+          }>Restart Spotifyd Service</button>
+          <button className="settings-top-btn system-btn relative" onClick={() => {
+            if (window.confirm('Are you sure you want to shutdown?'))
+              {shutdown();}
+            }}>
+              <i className="fas fa-power-off"></i>
+              <span className="tooltip">Shutdown System</span>
+            </button>
+          <button className="settings-top-btn system-btn relative" onClick={() => {
+            if (window.confirm('Are you sure you want to reboot?'))
+              {reboot();}
+            }}>
+              <i className="fas fa-rotate"></i>
+              <span className="tooltip">Reboot System</span>
+            </button>
+          <button className="settings-top-btn save-btn relative" onClick={updateSettings}>
+              <i className="fas fa-save"></i>
+              <span className="tooltip">Save Settings</span>
+            </button>
         </div>
 
-        {/* OpenAI Settings */}
-        <div className="settings-section">
-          <div className="settings-section-header">OpenAI Settings</div>
-          <div className="settings-group">
+        <div className="settings-container">
+          
+          {/* API Keys */}
+          <div className="settings-section">
+            <div className="settings-section-header">API Keys</div>
             <label>
-              Model:<br />
-              {availableModels.length > 0 ? (
-                <select
-                  value={settings.model || ''}
-                  onChange={(e) => setSettings({ ...settings, model: e.target.value })}
-                >
-                  {availableModels.map((model, index) => (
-                    <option key={index} value={model}>
-                      {model}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <p>Loading models...</p>
-              )}
-            </label>
-            <label>
-              Max Tokens:<br />
+              OpenAI (required):<br />
               <input
-                type="number"
-                value={settings.max_tokens || ''}
-                onChange={(e) => setSettings({ ...settings, max_tokens: parseInt(e.target.value, 10) })}
+                type="text"
+                value={settings.openai_api_key || ''}
+                onChange={(e) => setSettings({ ...settings, openai_api_key: e.target.value })}
+                style={{ width: '90%', paddingTop: '5px' }}
               />
             </label>
+            <br /><br />
             <label>
-              Temperature:<br />
+              LiteLLM (optional):<br />
               <input
-                type="number"
-                step="0.01"
-                value={settings.temperature || ''}
-                onChange={(e) => setSettings({ ...settings, temperature: parseFloat(e.target.value) })}
-              />
-            </label>
-            <label>
-              Custom Instructions:<br />
-              <textarea
-                value={settings.custom_instructions || ''}
-                onChange={(e) => setSettings({ ...settings, custom_instructions: e.target.value })}
+                type="text"
+                value={settings.litellm_api_key || ''}
+                onChange={(e) => setSettings({ ...settings, litellm_api_key: e.target.value })}
+                style={{ width: '90%', paddingTop: '5px' }}
               />
             </label>
           </div>
-        </div>
-        
-        {/* Change Password */}
-        <div className="settings-section">
-          <div className="settings-section-header">Change Password</div>
+
+          {/* General Settings */}
+          <div className="settings-section">
+            <div className="settings-section-header">General Settings</div>
             <div className="settings-group">
               <label>
-                Old Password:<br />
+                Keyword:<br />
                 <input
-                  type="password"
-                  value={oldPassword}
-                  onChange={(e) => setOldPassword(e.target.value)}
+                  type="text"
+                  id='keyword-input'
+                  value={settings.keyword || ''}
+                  onChange={(e) => setSettings({ ...settings, keyword: e.target.value })}
                 />
               </label>
               <label>
-                New Password:<br />
+                Default Zip Code:<br />
                 <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                />
-              </label>
-              <label>
-                Confirm New Password:<br />
-                <input
-                  type="password"
-                  value={confirmInput}
-                  onChange={(e) => setConfirmInput(e.target.value)}
+                  type="text"
+                  id='zip-code-input'
+                  value={settings.defaultZipCode || ''}
+                  onChange={(e) => setSettings({ ...settings, defaultZipCode: e.target.value })}
                 />
               </label>
             </div>
-        </div>
+            <div className="settings-group">
+              <label>
+                Speech Engine:<br />
+                <select
+                  id='speech-engine'
+                  value={settings.speechEngine || ''}
+                  onChange={(e) => setSettings({ ...settings, speechEngine: e.target.value })}
+                >
+                  <option value="pyttsx3">pyttsx3</option>
+                  <option value="gtts">gTTS</option>
+                </select>
+              </label>
+              <label>
+                Repeat Heard:<br />
+                <select
+                  id='say-heard'
+                  value={settings.sayHeard || ''}
+                  onChange={(e) => setSettings({ ...settings, sayHeard: e.target.value })}
+                >
+                  <option value="true">True</option>
+                  <option value="false">False</option>
+                </select>
+              </label>
+            </div>
+          </div>
 
-        {/* Update Settings Button */}
-        <button onClick={updateSettings}>Update</button>
+          {/* LLM Settings */}
+          <div className="settings-section">
+            <div className="settings-section-header">LLM Settings</div>
+            <div className="settings-group">
+              <label>
+                Model:<br />
+                {availableModels.length > 0 ? (
+                  <select
+                    value={settings.model || ''}
+                    onChange={(e) => setSettings({ ...settings, model: e.target.value })}
+                  >
+                    {availableModels.map((model, index) => (
+                      <option key={index} value={model}>
+                        {model}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <p>Loading models...</p>
+                )}
+              </label>
+              <label>
+                Max Tokens:<br />
+                <input
+                  type="number"
+                  value={settings.max_tokens || ''}
+                  onChange={(e) => setSettings({ ...settings, max_tokens: parseInt(e.target.value, 10) })}
+                />
+              </label>
+              <label>
+                Temperature:<br />
+                <input
+                  type="number"
+                  step="0.01"
+                  value={settings.temperature || ''}
+                  onChange={(e) => setSettings({ ...settings, temperature: parseFloat(e.target.value) })}
+                />
+              </label>
+              <label>
+                Custom Instructions:<br />
+                <textarea
+                  value={settings.custom_instructions || ''}
+                  onChange={(e) => setSettings({ ...settings, custom_instructions: e.target.value })}
+                />
+              </label>
+            </div>
+          </div>
+          
+          {/* Change Password */}
+          <div className="settings-section">
+            <div className="settings-section-header">Change Password</div>
+              <div className="settings-group">
+                <label>
+                  Old Password:<br />
+                  <input
+                    type="password"
+                    value={oldPassword}
+                    onChange={(e) => setOldPassword(e.target.value)}
+                  />
+                </label>
+                <label>
+                  New Password:<br />
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                  />
+                </label>
+                <label>
+                  Confirm New Password:<br />
+                  <input
+                    type="password"
+                    value={confirmInput}
+                    onChange={(e) => setConfirmInput(e.target.value)}
+                  />
+                </label>
+              </div>
+          </div>
+        </div>
       </div>
     </div>
   );

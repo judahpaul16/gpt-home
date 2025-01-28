@@ -4,7 +4,15 @@ from semantic_router import Route
 
 from actions import *
 
-API_KEY = os.getenv("OPENAI_API_KEY")
+API_KEY = ""
+
+def refresh_api_key():
+    with open("settings.json", "r") as f:
+        API_KEY = json.load(f)["openai_api_key"]
+    os.environ["OPENAI_API_KEY"] = API_KEY
+
+refresh_api_key()
+
 encoder = encoders.OpenAIEncoder(
     name="text-embedding-3-large", score_threshold=0.5, dimensions=256
 )
@@ -117,6 +125,7 @@ class Action:
             return "Action failed due to an error."
 
 async def action_router(text: str, router=ActionRouter()):
+    refresh_api_key()
     try:
         action_name = router.resolve(text)
         act = Action(action_name, text)
