@@ -1,7 +1,13 @@
+.relative {
+    position: relative;
+}
+
 .settings-container {
     background: var(--quaternary-color);
     border: 5px solid var(--tertiary-color);
-    border-radius: 10px;
+    border-top: none;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
     font-size: 16pt;
     max-height: 65vh;
     width: 50vw;
@@ -14,14 +20,22 @@
 .settings-section {
     margin-bottom: 1em;
     padding-bottom: 1em;
-    border-bottom: solid 1px #a1a1a1;
+    border-bottom: solid 1px var(--quinary-color);
 }
   
 .settings-section-header {
     font-size: 18pt;
     margin-bottom: 10px;
 }
-  
+
+.settings-top {
+    padding-bottom: 0.3em;
+    background-color: var(--quaternary-color);
+    border: 5px solid var(--tertiary-color);
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
 .settings-group {
     display: flex;
     justify-content: center;
@@ -51,7 +65,7 @@
 }
 
 .settings-top-btn {
-    background-color: #ffa550;
+    background-color: #007bff;
     border: none;
     border-radius: 10px;
     box-shadow: 0 4px 8px rgba(0,0,0,.1);
@@ -66,13 +80,40 @@
 }
 
 .settings-top-btn:hover {
-    background-color: #ff8a00;
+    background-color: #0056b3;
 }
 
 .system-btn {
-    background-color: crimson;
+    background-color: #fd5e5e;
 }
 
 .system-btn:hover {
-    background-color: #ff0000;
+    background-color: #c53030;
+}
+
+.save-btn {
+    background-color: #28a745;
+}
+
+.save-btn:hover {
+    background-color: #218838;
+}
+
+button:hover .tooltip {
+    display: block;
+    background-color: #007bff;
+    border-radius: 5px;
+    color: var(--text-color);
+    font-size: 12pt;
+    padding: 5px;
+    text-align: center;
+    z-index: 1;
+    top: 0;
+    left: -1em;
+    transform: translateY(-110%);
+}
+
+.tooltip {
+    position: absolute;
+    display: none;
 }

@@ -73,7 +73,9 @@ executor = ThreadPoolExecutor()
 r = sr.Recognizer()
 
 # Initialize the LiteLLM API key
-litellm.api_key = os.getenv("LITELLM_API_KEY", os.getenv("OPENAI_API_KEY"))
+with open("settings.json", "r") as f:
+    settings = json.load(f)
+    litellm.api_key = settings["openai_api_key"] if settings["litellm_api_key"] == "" else settings["litellm_api_key"]
 
 # Initialize the text-to-speech engine
 engine = pyttsx3.init()
