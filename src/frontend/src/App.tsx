@@ -23,7 +23,8 @@ import Brightness4Icon from '@mui/icons-material/Brightness4';
 
 const App: React.FC = () => {
   const location = useLocation();
-  const [darkMode, setDarkMode] = useState<boolean>(false);
+  const default_mode = true;
+  const [darkMode, setDarkMode] = useState<boolean>(default_mode);
 
   useEffect(() => {
     getMode();
@@ -45,7 +46,7 @@ const App: React.FC = () => {
     } catch (error) {
       console.error("Failed to fetch dark mode setting", error);
       // Fallback to default
-      setDarkMode(false);
+      setDarkMode(default_mode);
     }
   };
 

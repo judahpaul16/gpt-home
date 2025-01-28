@@ -183,7 +183,8 @@ const Integration: React.FC<IntegrationProps> = ({ name, usage, status, required
         <div className="overlay">
           <div className="form-container">
             { apiRefs[name] && apiRefs[name].length > 0 &&
-              <h4>{name} API Integration Reference:<hr/>
+              <h4>{name} API Integration Reference:
+              <hr />
                 {apiRefs[name].map((link) => (
                   <a key={link} target='_blank' rel='noopener noreferrer' href={link}>{link}<br/></a>
                 ))}

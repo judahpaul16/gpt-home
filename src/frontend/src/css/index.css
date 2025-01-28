@@ -1,16 +1,20 @@
 :root {
   --primary-color: #ffffff;
   --secondary-color: #ececec;
-  --tertiary-color: #bdbdbd;
-  --quaternary-color: #d3d3d3;
+  --tertiary-color: #cfcfcf;
+  --quaternary-color: #dadada;
+  --quinary-color: #b1b1bd3a;
+  --senary-color: #adadbd44;
   --text-color: #4d4d4d;
 }
 
 .dark-mode {
-  --primary-color: #1e1e1e !important;
-  --secondary-color: #2e2e2e !important;
-  --tertiary-color: #3e3e3e !important;
-  --quaternary-color: #4e4e4e !important;
+  --primary-color: #34344b !important;
+  --secondary-color: #181b33 !important;
+  --tertiary-color: #2c2c4e !important;
+  --quaternary-color: #3c3c5a !important;
+  --quinary-color: #2c2c4e3a !important;
+  --senary-color: #34344b44 !important;
   --text-color: #ffffff !important;
 }
 
@@ -49,12 +53,13 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 ::-webkit-scrollbar-track {
-  background-color: var(--secondary-color);
+  background-color: var(--quinary-color);
+  border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: var(--tertiary-color);
-  border-radius: 4px;
+  background-color: var(--senary-color);
+  border-radius: 5px;
 }
 
 button {
