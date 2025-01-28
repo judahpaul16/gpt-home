@@ -1,10 +1,14 @@
 .integration {
   text-align: center;
-  border: 2px solid var(--quaternary-color);
   padding: 1em;
   border-radius: 10px;
   background-color: var(--primary-color);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--tertiary-color);
 }
 
 .form-container {
@@ -40,7 +44,7 @@
 .btn-connect {
   background-color: #4CAF50;
   border: none;
-  color: var(--primary-color);
+  color: white;
   padding: 0.5em 1em;
   text-align: center;
   text-decoration: none;
@@ -59,7 +63,7 @@
 .btn-disconnect {
   background-color: #f44336;
   border: none;
-  color: var(--primary-color);
+  color: white;
   padding: 0.5em 1em;
   text-align: center;
   text-decoration: none;
@@ -78,7 +82,7 @@
 .btn-edit {
   background-color: #cccccc;
   border: none;
-  color: var(--primary-color);
+  color: white;
   padding: 0.5em 1em;
   text-align: center;
   text-decoration: none;
@@ -97,7 +101,7 @@
 .btn-reauthorize {
   background-color: #ffa760;
   border: none;
-  color: var(--primary-color);
+  color: white;
   padding: 0.5em 1em;
   text-align: center;
   text-decoration: none;
@@ -115,7 +119,7 @@
 
 .submit, .cancel {
   border-radius: 2em;
-  color: var(--primary-color);
+  color: white;
   background-color: #4CAF50;
 }
 

@@ -23,11 +23,11 @@
   position: absolute;
   top: 1em;
   right: 1em;
-  padding: 0.5em;
+  display: flex;
+  padding: 0.25em;
   cursor: pointer;
-  border-radius: 50%;
+  border-radius: 100%;
   background-color: var(--primary-color);
-  border: 2px solid var(--quaternary-color);
 }
 
 /* Mobile Styling */
@@ -43,9 +43,8 @@
 
   .theme-toggle {
     top: unset;
-    bottom: 1.5em;
-    right: 1.5em;
-    padding: 1em;
+    bottom: 0.75em;
+    right: 0.75em;
   }
 
   .integrations-dashboard {
@@ -99,7 +98,7 @@
 }
 
 .MuiTableCell-root {
-  border-bottom: 1px solid var(--quaternary-color);
+  border-bottom: 1px solid var(--quinary-color) !important
 }
 
 .MuiPaper-root {
@@ -186,11 +185,12 @@
 }
 
 .active {
-  background-color: var(--primary-color);
+  background-color: var(--secondary-color);
 }
 
 .MuiButtonBase-root {
   width: 100%;
+  border-radius: 10px;
 }
 
 .MuiButtonBase-root li {
@@ -198,8 +198,7 @@
 }
 
 .MuiButtonBase-root:hover {
-  background-color: var(--primary-color);
-  border-radius: 10px;
+  background-color: var(--quinary-color);
 }
 
 .MuiTypography-root {
