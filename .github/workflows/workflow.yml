@@ -28,9 +28,6 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 360
-    container:
-      image: ubuntu:latest
-      options: --cpus 4 --memory 8g
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
