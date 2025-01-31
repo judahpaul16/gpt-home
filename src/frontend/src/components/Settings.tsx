@@ -153,7 +153,10 @@ const Settings: React.FC = () => {
           <div className="settings-section">
             <div className="settings-section-header">API Keys</div>
             <label>
-              OpenAI (required):<br />
+              <a href="https://platform.openai.com/settings/organization/api-keys" target="_blank" rel="noreferrer">
+                <i className="fas fa-circle-info"></i>
+              </a>
+              OpenAI (required)<br />
               <input
                 type="text"
                 value={settings.openai_api_key || ''}
@@ -163,7 +166,10 @@ const Settings: React.FC = () => {
             </label>
             <br /><br />
             <label>
-              LiteLLM (optional):<br />
+              <a href="https://docs.litellm.ai/docs/providers" target="_blank" rel="noreferrer">
+                <i className="fas fa-circle-info"></i>
+              </a>
+              LiteLLM (optional)<br />
               <input
                 type="text"
                 value={settings.litellm_api_key || ''}
@@ -178,7 +184,7 @@ const Settings: React.FC = () => {
             <div className="settings-section-header">General Settings</div>
             <div className="settings-group">
               <label>
-                Keyword:<br />
+                Keyword<br />
                 <input
                   type="text"
                   id='keyword-input'
@@ -187,7 +193,7 @@ const Settings: React.FC = () => {
                 />
               </label>
               <label>
-                Default Zip Code:<br />
+                Default Zip Code<br />
                 <input
                   type="text"
                   id='zip-code-input'
@@ -198,7 +204,7 @@ const Settings: React.FC = () => {
             </div>
             <div className="settings-group">
               <label>
-                Speech Engine:<br />
+                Speech Engine<br />
                 <select
                   id='speech-engine'
                   value={settings.speechEngine || ''}
@@ -209,7 +215,7 @@ const Settings: React.FC = () => {
                 </select>
               </label>
               <label>
-                Repeat Heard:<br />
+                Repeat Heard<br />
                 <select
                   id='say-heard'
                   value={settings.sayHeard || ''}
@@ -227,7 +233,7 @@ const Settings: React.FC = () => {
             <div className="settings-section-header">LLM Settings</div>
             <div className="settings-group">
               <label>
-                Model:<br />
+                Model<br />
                 {availableModels.length > 0 ? (
                   <select
                     value={settings.model || ''}
@@ -244,7 +250,7 @@ const Settings: React.FC = () => {
                 )}
               </label>
               <label>
-                Max Tokens:<br />
+                Max Tokens<br />
                 <input
                   type="number"
                   value={settings.max_tokens || ''}
@@ -252,7 +258,7 @@ const Settings: React.FC = () => {
                 />
               </label>
               <label>
-                Temperature:<br />
+                Temperature<br />
                 <input
                   type="number"
                   step="0.01"
@@ -261,7 +267,7 @@ const Settings: React.FC = () => {
                 />
               </label>
               <label>
-                Custom Instructions:<br />
+                Custom Instructions<br />
                 <textarea
                   value={settings.custom_instructions || ''}
                   onChange={(e) => setSettings({ ...settings, custom_instructions: e.target.value })}
@@ -275,7 +281,7 @@ const Settings: React.FC = () => {
             <div className="settings-section-header">Change Password</div>
               <div className="settings-group">
                 <label>
-                  Old Password:<br />
+                  Old Password<br />
                   <input
                     type="password"
                     value={oldPassword}
@@ -283,7 +289,7 @@ const Settings: React.FC = () => {
                   />
                 </label>
                 <label>
-                  New Password:<br />
+                  New Password<br />
                   <input
                     type="password"
                     value={newPassword}
@@ -291,7 +297,7 @@ const Settings: React.FC = () => {
                   />
                 </label>
                 <label>
-                  Confirm New Password:<br />
+                  Confirm New Password<br />
                   <input
                     type="password"
                     value={confirmInput}
