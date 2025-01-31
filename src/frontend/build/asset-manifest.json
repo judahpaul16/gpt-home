@@ -1,7 +1,7 @@
 {
   "files": {
-    "main.css": "/static/css/main.f79af943.css",
-    "main.js": "/static/js/main.6e683e91.js",
+    "main.css": "/static/css/main.6cd74154.css",
+    "main.js": "/static/js/main.a62cf8f5.js",
     "static/js/787.52d1be78.chunk.js": "/static/js/787.52d1be78.chunk.js",
     "static/media/fa-solid-900.ttf": "/static/media/fa-solid-900.2582b0e4bcf85eceead0.ttf",
     "static/media/fa-brands-400.ttf": "/static/media/fa-brands-400.1815e00441357e01619e.ttf",
@@ -12,12 +12,12 @@
     "static/media/fa-v4compatibility.ttf": "/static/media/fa-v4compatibility.da94ef451f4969af06e6.ttf",
     "static/media/fa-v4compatibility.woff2": "/static/media/fa-v4compatibility.ea8f94e1d22e0d35ccd4.woff2",
     "index.html": "/index.html",
-    "main.f79af943.css.map": "/static/css/main.f79af943.css.map",
-    "main.6e683e91.js.map": "/static/js/main.6e683e91.js.map",
+    "main.6cd74154.css.map": "/static/css/main.6cd74154.css.map",
+    "main.a62cf8f5.js.map": "/static/js/main.a62cf8f5.js.map",
     "787.52d1be78.chunk.js.map": "/static/js/787.52d1be78.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.f79af943.css",
-    "static/js/main.6e683e91.js"
+    "static/css/main.6cd74154.css",
+    "static/js/main.a62cf8f5.js"
   ]
 }
