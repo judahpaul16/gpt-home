@@ -19,19 +19,20 @@ RUN /bin/bash -c "yes | add-apt-repository universe && \
         build-essential curl git libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
         libsqlite3-dev llvm libncursesw5-dev xz-utils tk-dev libraspberrypi-bin \
         libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev libjpeg-dev \
-        portaudio19-dev alsa-utils libasound2-dev i2c-tools \
-        python3.11 python3-pip python3.11-dev python3-smbus python3.11-venv \
-        jackd2 libogg0 libflac-dev flac libespeak1 cmake openssl expect \
-        nodejs libc6:armhf libdbus-1-3:armhf && rm -rf /var/lib/apt/lists/*"
+        portaudio19-dev alsa-utils libasound2-dev:armhf libasound2-data:armhf \
+	libasound2-plugins:armhf i2c-tools python3.11 python3-pip python3.11-dev \
+	python3-smbus python3.11-venv jackd2 libogg0 libflac-dev flac libespeak1 \
+ 	cmake openssl expect nodejs libc6:armhf libdbus-1-3:armhf && \
+    rm -rf /var/lib/apt/lists/*"
         
 # Ensure python3 points to Python 3.11
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 && \
     update-alternatives --config python3 --force
 
 # Download and setup spotifyd binary from latest GitHub release
-RUN wget https://github.com/Spotifyd/spotifyd/releases/latest/download/spotifyd-linux-armhf-full.tar.gz && \
-    tar xzf spotifyd-linux-armhf-full.tar.gz -C /usr/local/bin && \
-    rm spotifyd-linux-armhf-full.tar.gz
+RUN wget https://github.com/Spotifyd/spotifyd/releases/latest/download/spotifyd-linux-armv6-slim.tar.gz && \
+    tar xzf spotifyd-linux-armv6-slim.tar.gz -C /usr/local/bin && \
+    rm spotifyd-linux-armv6-slim.tar.gz
 
 # Create Spotifyd configuration (this is just a basic config; adjust accordingly)
 RUN mkdir -p /root/.config/spotifyd && { \
