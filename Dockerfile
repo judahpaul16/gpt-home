@@ -22,7 +22,9 @@ RUN /bin/bash -c "yes | add-apt-repository universe && \
         portaudio19-dev alsa-utils libasound2-dev i2c-tools \
         python3.11 python3-pip python3.11-dev python3-smbus python3.11-venv \
         jackd2 libogg0 libflac-dev flac libespeak1 cmake openssl expect \
-        nodejs libc6:armhf libdbus-1-3:armhf && rm -rf /var/lib/apt/lists/*"
+        nodejs libc6:armhf libdbus-1-3:armhf \
+        && apt-get clean \
+        && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /var/cache/apt/archives/*"
         
 # Ensure python3 points to Python 3.11
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 && \
@@ -56,7 +58,7 @@ RUN mkdir -p /usr/share/sounds && cp /app/contrib/alarm.wav /usr/share/sounds
 
 # Create virtual environment and install dependencies
 RUN python3 -m venv /env && \
-    /env/bin/pip install wheel && \
+    /env/bin/pip install --no-cache-dir wheel && \
     /env/bin/pip install --no-cache-dir -r src/requirements.txt
 
 # Start D-Bus system bus
