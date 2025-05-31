@@ -145,6 +145,7 @@ fi
 sudo ufw allow ssh
 sudo ufw allow 80,443/tcp
 sudo ufw allow 5353/udp
+sudo ufw allow 1234
 echo "y" | sudo ufw enable
 
 # Setup NGINX for reverse proxy

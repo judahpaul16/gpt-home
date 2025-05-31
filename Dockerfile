@@ -42,7 +42,9 @@ RUN mkdir -p /root/.config/spotifyd && { \
     echo 'device_name = "GPT Home" # Name your device shows in Spotify Connect'; \
     echo 'bitrate = 320 # Choose bitrate from 96/160/320 kbps'; \
     echo 'cache_path = "/root/.spotifyd/cache"'; \
-    echo 'discovery = false'; \
+    echo 'disable_discovery = false'; \
+    echo 'use_mpris = true'; \
+    echo 'zeroconf_port = 1234'; \
 } > /root/.config/spotifyd/spotifyd.conf
 
 # Install Node.js
