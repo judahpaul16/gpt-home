@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
-    ca-certificates software-properties-common wget tar 
+    ca-certificates software-properties-common tar
 
 # Install ARMhf base libraries
 RUN dpkg --add-architecture armhf
