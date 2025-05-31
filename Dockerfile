@@ -32,7 +32,7 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 
 # Download and setup spotifyd binary from GitHub release version v0.4.1
 RUN curl -L https://github.com/Spotifyd/spotifyd/releases/download/v0.4.1/spotifyd-linux-aarch64-default.tar.gz -o spotifyd.tar.gz && \
-    tar xzf spotifyd.tar.gz -C /usr/local/bin && \
+    tar xzf spotifyd.tar.gz -C /usr/local/bin && chmod +x /usr/local/bin/spotifyd && \
     rm spotifyd.tar.gz
 
 # Create Spotifyd configuration (this is just a basic config; adjust accordingly)
