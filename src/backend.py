@@ -381,8 +381,8 @@ async def connect_service(request: Request):
                     file.write("bitrate = 320\n")
                     file.write(f"cache_path = \"/root/.spotifyd/cache\"\n")
                     file.write("disable_discovery = false\n")
-                    file.write("use_mpris = true\n")
                     file.write("zeroconf_port = 1234\n")
+                    file.write("use_mpris = false\n")
                 
                 # Restart spotifyd to apply changes
                 subprocess.run(["supervisorctl", "restart", "spotifyd"], check=True)

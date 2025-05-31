@@ -43,8 +43,8 @@ RUN mkdir -p /root/.config/spotifyd && { \
     echo 'bitrate = 320 # Choose bitrate from 96/160/320 kbps'; \
     echo 'cache_path = "/root/.spotifyd/cache"'; \
     echo 'disable_discovery = false'; \
-    echo 'use_mpris = true'; \
     echo 'zeroconf_port = 1234'; \
+    echo 'use_mpris = false'; \
 } > /root/.config/spotifyd/spotifyd.conf
 
 # Install Node.js
