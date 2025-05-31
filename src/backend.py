@@ -372,7 +372,6 @@ async def connect_service(request: Request):
             if spotify_username and spotify_password:
                 # Update the spotifyd configuration dynamically
                 config_path = "/root/.config/spotifyd/spotifyd.conf"
-                whoami = subprocess.run(["whoami"], capture_output=True).stdout.decode().strip()
                 with open(config_path, "w") as file:
                     file.write("[global]\n")
                     file.write(f"username = \"{spotify_username}\"\n")
@@ -380,7 +379,7 @@ async def connect_service(request: Request):
                     file.write("backend = \"alsa\"\n")
                     file.write("device_name = \"GPT Home\"\n")
                     file.write("bitrate = 320\n")
-                    file.write(f"cache_path = \"/home/{whoami}/.spotifyd/cache\"\n")
+                    file.write(f"cache_path = \"/root/.spotifyd/cache\"\n")
                     file.write("discovery = false\n")
                 
                 # Restart spotifyd to apply changes
