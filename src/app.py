@@ -1,5 +1,4 @@
 from common import *
-from routes import *
 
 async def main():
     state_task = None
@@ -91,15 +90,31 @@ async def main():
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
-    init_done_event = asyncio.Event()  # Create an event to signal when initialization is done
+    init_done_event = asyncio.Event()
 
     async def wrapped_initialize_system():
         global display
         display = await initialize_system()
-        init_done_event.set()  # Signal that initialization is done
+
+        settings = load_settings()
+        api_key = settings.get("litellm_api_key") or settings.get("openai_api_key")
+
+        if not api_key and display:
+            display.fill(0)
+            ip_address = subprocess.check_output(["hostname", "-I"]).decode("utf-8").split(" ")[0].strip()
+            display.text("Missing API Key", 0, 0, 1)
+            display.text("To update it, visit:", 0, 10, 1)
+            if ip_address:
+                display.text(f"{ip_address}/settings", 0, 20, 1)
+            else:
+                display.text("gpt-home.local/settings", 0, 20, 1)
+            display.show()
+
+        init_done_event.set()
         return display
 
     display = loop.run_until_complete(wrapped_initialize_system())
+    from routes import *
 
     async def wrapped_main():
         await init_done_event.wait()  # Wait for the event to be set
