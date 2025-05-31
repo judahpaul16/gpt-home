@@ -519,7 +519,7 @@ async def handle_callback(request: Request):
             token_info = sp_oauth.get_access_token(code)
             
             if not token_info:
-                raise Exception("Failed to get token info")
+                return JSONResponse(content={"message": "Failed to get token info"}) 
 
             store_token(token_info)
 
@@ -592,7 +592,7 @@ async def spotify_control(request: Request):
         token_info = get_stored_token()
 
         if not token_info:
-            raise Exception("No token information available. Please reauthorize with Spotify.")
+            return JSONResponse(content={"message": "No token information available. Please reauthorize with Spotify."}) 
 
         if not valid_token(token_info):
             # Try to refresh token
@@ -634,7 +634,7 @@ async def spotify_control(request: Request):
                 if "GPT Home" in device['name']:
                     device_id = device['id']
                     break
-            raise Exception("GPT Home not found as an available device.")
+            return JSONResponse(content={"message": "GPT Home not found as an available device."}) 
 
         if "play" in text:
             song = re.sub(r'^play\s+', '', text)  # Remove "play" at the beginning
@@ -696,10 +696,10 @@ async def spotify_control(request: Request):
                 return await spotify_control(request)
         else:
             logger.error(f"Error: {traceback.format_exc()}")
-            raise Exception(f"Something went wrong: Try to reauthorize Spotify in the web interface.")
+            return JSONResponse(content={"message": f"Something went wrong: Try to reauthorize Spotify in the web interface."}) 
     except Exception as e:
         logger.critical(f"Error: {traceback.format_exc()}")
-        raise Exception(f"Something went wrong: {e}")
+        return JSONResponse(content={"message": f"Something went wrong: {e}"}) 
 
 async def search_spotify(song: str, search_type: str, limit: int, sp):
     return sp.search(song, limit=limit, type=search_type)
@@ -745,7 +745,7 @@ async def spotify_get_track_uris(song: str, sp, search_types=['album', 'artist',
                 message = f"Playing episodes from the show '{item_name}'..."
                 return (await get_podcast_episodes(item_id, sp), message)
                 
-    raise Exception(f"No match found for: {song}")
+    return JSONResponse(content={"message": f"No match found for: {song}"}) 
 
 
 ## Philips Hue ##
@@ -761,4 +761,4 @@ async def set_philips_hue_username(bridge_ip: str):
         logger.success(f"Successfully set Philips Hue username to {username}.")
     except Exception as e:
         logger.error(f"Error: {traceback.format_exc()}")
-        raise Exception(f"Something went wrong: {e}")
+        return JSONResponse(content={"message": f"Something went wrong: {e}"}) 
