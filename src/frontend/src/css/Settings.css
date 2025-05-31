@@ -121,3 +121,7 @@ button:hover .tooltip {
 a i {
     margin-right: 5px;
 }
+
+.italic {
+    font-style: italic;
+}

@@ -156,7 +156,7 @@ const Settings: React.FC = () => {
               <a href="https://platform.openai.com/settings/organization/api-keys" target="_blank" rel="noreferrer">
                 <i className="fas fa-circle-info"></i>
               </a>
-              OpenAI (required)<br />
+              OpenAI<br /><span className="italic">Required for semantic routing</span><br />
               <input
                 type="text"
                 value={settings.openai_api_key || ''}
@@ -169,7 +169,7 @@ const Settings: React.FC = () => {
               <a href="https://docs.litellm.ai/docs/providers" target="_blank" rel="noreferrer">
                 <i className="fas fa-circle-info"></i>
               </a>
-              LiteLLM (optional)<br />
+              LiteLLM<br /><span className="italic">Optional; for general responses</span><br />
               <input
                 type="text"
                 value={settings.litellm_api_key || ''}
