@@ -30,10 +30,10 @@ RUN /bin/bash -c "yes | add-apt-repository universe && \
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 && \
     update-alternatives --config python3 --force
 
-# Download and setup spotifyd binary from latest GitHub release
-RUN wget https://github.com/Spotifyd/spotifyd/releases/latest/download/spotifyd-linux-armv7-full.tar.gz && \
-    tar xzf spotifyd-linux-armv7-full.tar.gz -C /usr/local/bin && \
-    rm spotifyd-linux-armv7-full.tar.gz
+# Download and setup spotifyd binary from GitHub release version v0.4.1
+RUN curl -L https://github.com/Spotifyd/spotifyd/releases/v0.4.1/download/spotifyd-linux-aarch64-default.tar.gz -o spotifyd.tar.gz && \
+    tar xzf spotifyd.tar.gz -C /usr/local/bin && \
+    rm spotifyd.tar.gz
 
 # Create Spotifyd configuration (this is just a basic config; adjust accordingly)
 RUN mkdir -p /root/.config/spotifyd && { \
