@@ -26,7 +26,7 @@ permissions:
 
 jobs:
   docker:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, ARM64]
     timeout-minutes: 360
     steps:
       - name: Checkout code
