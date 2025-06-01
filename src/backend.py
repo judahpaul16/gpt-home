@@ -632,11 +632,15 @@ async def spotify_control(request: Request):
             time.sleep(3)
             devices = sp.devices()
             logger.debug(f"Devices: {devices}")
+            found = False
             for device in devices['devices']:
                 if "GPT Home" in device['name']:
                     device_id = device['id']
+                    found = True
                     break
-            return JSONResponse(content={"message": "GPT Home not found as an available device."}) 
+
+            if not found:
+                return JSONResponse(content={"message": "GPT Home not found as an available device."}) 
 
         if "play" in text:
             song = re.sub(r'^play\s+', '', text)  # Remove "play" at the beginning
