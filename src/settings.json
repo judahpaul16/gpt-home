@@ -5,7 +5,7 @@
   "temperature": 0.7,
   "custom_instructions": "",
   "dark_mode": true,
-  "sayHeard": true,
+  "sayHeard": "true",
   "openai_api_key": "",
   "litellm_api_key": ""
 }
