@@ -197,8 +197,8 @@ const Settings: React.FC = () => {
                 <input
                   type="text"
                   id='zip-code-input'
-                  value={settings.defaultZipCode || ''}
-                  onChange={(e) => setSettings({ ...settings, defaultZipCode: e.target.value })}
+                  value={settings.default_zip_code || ''}
+                  onChange={(e) => setSettings({ ...settings, default_zip_code: e.target.value })}
                 />
               </label>
             </div>

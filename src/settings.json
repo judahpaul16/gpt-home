@@ -4,8 +4,10 @@
   "max_tokens": 100,
   "temperature": 0.7,
   "custom_instructions": "",
-  "dark_mode": true,
+  "speechEngine": "pyttsx3",
+  "dark_mode": "true",
   "sayHeard": "true",
+  "default_zip_code": "",
   "openai_api_key": "",
   "litellm_api_key": ""
 }
