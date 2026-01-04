@@ -1,0 +1,118 @@
+services:
+  db:
+    image: pgvector/pgvector:0.8.1-pg18-trixie
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-gpt_home}
+      POSTGRES_USER: ${POSTGRES_USER:-gpt_home}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gpt_home_secret}
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      - app-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gpt_home} -d ${POSTGRES_DB:-gpt_home} -h 127.0.0.1 -p 5432"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./contrib/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      app:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  web:
+    image: judahpaul/gpt-home-web:latest
+    build:
+      context: .
+      dockerfile: compose/web/Dockerfile
+      platforms:
+        - linux/arm64
+    platform: linux/arm64
+    restart: unless-stopped
+    profiles:
+      - prod
+    expose:
+      - "80"
+
+  web-dev:
+    build:
+      context: .
+      dockerfile: compose/web/Dockerfile.dev
+    restart: unless-stopped
+    profiles:
+      - dev
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      PORT: "80"
+    volumes:
+      - ./src/frontend:/app
+      - /app/node_modules
+      - ./.git:/app/.git:ro
+    networks:
+      default:
+        aliases:
+          - web
+    expose:
+      - "80"
+
+  app:
+    image: judahpaul/gpt-home-app:latest
+    build:
+      context: .
+      dockerfile: compose/app/Dockerfile
+      platforms:
+        - linux/arm64
+    platform: linux/arm64
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-gpt_home}:${POSTGRES_PASSWORD:-gpt_home_secret}@db:5432/${POSTGRES_DB:-gpt_home}
+    volumes:
+      - ./src/settings.json:/app/src/settings.json
+      - ./.env:/app/.env
+      - /etc/asound.conf:/etc/asound.conf
+      - /dev/shm:/dev/shm
+      - /usr/share/alsa:/usr/share/alsa
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      db:
+        condition: service_healthy
+    devices:
+      - /dev/snd:/dev/snd
+    privileged: true
+    expose:
+      - "8000"
+
+  spotifyd:
+    image: judahpaul/gpt-home-spotifyd:latest
+    build:
+      context: .
+      dockerfile: compose/spotifyd/Dockerfile
+      platforms:
+        - linux/arm64
+    platform: linux/arm64
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - /etc/asound.conf:/etc/asound.conf
+      - /dev/shm:/dev/shm
+      - /usr/share/alsa:/usr/share/alsa
+      - /var/run/dbus:/var/run/dbus
+    devices:
+      - /dev/snd:/dev/snd
+    privileged: true
+
+volumes:
+  app-postgres-data:

@@ -1,14 +1,11 @@
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
-from common import logger, SOURCE_DIR, log_file_path
+from fastapi.responses import JSONResponse, RedirectResponse
+from src.common import logger, SOURCE_DIR, log_file_path
 from fastapi import FastAPI, Request, Response, status
-from spotipy.oauth2 import SpotifyClientCredentials
 from dotenv import load_dotenv, set_key, unset_key
+from sse_starlette.sse import EventSourceResponse
 from fastapi.exceptions import HTTPException
-from fastapi.staticfiles import StaticFiles
-from datetime import datetime, timedelta
 from typing import Optional
-import spotipy.util as util
-from phue import Bridge
+from phue import Bridge, PhueRequestTimeout
 import subprocess
 import traceback
 import requests
@@ -16,41 +13,33 @@ import litellm
 import asyncio
 import spotipy
 import hashlib
-import base64
-import httpx
+import logging
+import socket
 import time
 import json
 import os
 import re
 
+# Suppress verbose LiteLLM callback logging (success_handler spam)
+litellm.suppress_debug_info = True
+litellm.set_verbose = False
+logging.getLogger("LiteLLM").setLevel(logging.ERROR)
+logging.getLogger("LiteLLM Proxy").setLevel(logging.ERROR)
+logging.getLogger("litellm").setLevel(logging.ERROR)
+
 ROOT_DIR = SOURCE_DIR.parent
-ENV_FILE_PATH = SOURCE_DIR / "frontend" / ".env"
+ENV_FILE_PATH = ROOT_DIR / ".env"
+FRONTEND_ENV_PATH = SOURCE_DIR / "frontend" / ".env"
 TOKEN_PATH = "spotify_token.json"
 
+# Load main .env for API keys
 load_dotenv(ENV_FILE_PATH)
+# Also load frontend .env if exists
+if FRONTEND_ENV_PATH.exists():
+    load_dotenv(FRONTEND_ENV_PATH, override=False)
 
 app = FastAPI()
 
-app.mount("/static", StaticFiles(directory=SOURCE_DIR / "frontend" / "build" / "static"), name="static")
-
-@app.get("/favicon.ico")
-def read_favicon():
-    return FileResponse(SOURCE_DIR / "frontend" / "build" / "favicon.ico")
-
-@app.get("/robot.gif")
-def read_robot():
-    return FileResponse(SOURCE_DIR / "frontend" / "build" / "robot.gif")
-
-## React App + API Calls ##
-
-# Catch-all route for React and other specific FastAPI routes
-@app.get("/{path:path}")
-async def read_root(request: Request, path: str):
-    if path == 'api/callback':
-        return await handle_callback(request)
-    else:
-        return FileResponse(SOURCE_DIR / "frontend" / "build" / "index.html")
-    
 @app.post("/get-local-ip")
 def get_local_ip():
     ip = subprocess.run(["hostname", "-I"], capture_output=True).stdout.decode().split()[0]
@@ -145,9 +134,61 @@ def clear_logs(request: Request):
     else:
         return Response(status_code=status.HTTP_404_NOT_FOUND, content="Log file not found")
 
+@app.get("/logs/stream")
+async def stream_logs(request: Request, last_line_number: int = 0):
+    """Stream new log entries via SSE."""
+    
+    async def generate():
+        current_line = last_line_number
+        
+        while True:
+            if await request.is_disconnected():
+                break
+            
+            if log_file_path.exists() and log_file_path.is_file():
+                all_entries = []
+                current_entry = []
+                
+                with log_file_path.open("r") as f:
+                    for line in f:
+                        line = line.replace("`", "")
+                        if is_start_of_new_log(line):
+                            if current_entry:
+                                all_entries.append(''.join(current_entry))
+                                current_entry = []
+                            current_entry.append(line)
+                        else:
+                            current_entry.append(line)
+                    
+                    if current_entry:
+                        all_entries.append(''.join(current_entry))
+                
+                while current_line < len(all_entries):
+                    entry = all_entries[current_line]
+                    log_type = entry.split(":")[0].lower() if ":" in entry else "info"
+                    yield {
+                        "event": "message",
+                        "data": json.dumps({"content": entry, "type": log_type})
+                    }
+                    current_line += 1
+            
+            await asyncio.sleep(1)
+    
+    # SSE best practice headers:
+    # - X-Accel-Buffering: no - Prevents nginx from buffering the response
+    # - Cache-Control: no-cache - Prevents caching of the stream
+    return EventSourceResponse(
+        generate(),
+        ping=15,  # Send keepalive comment every 15 seconds (per W3C recommendation)
+        headers={
+            "X-Accel-Buffering": "no",
+            "Cache-Control": "no-cache",
+        },
+    )
+
 ## Settings ##
 
-@app.post("/settings")
+@app.post("/api/settings")
 async def settings(request: Request):
     settings_path = SOURCE_DIR / "settings.json"
     incoming_data = await request.json()
@@ -155,42 +196,131 @@ async def settings(request: Request):
     if 'action' in incoming_data and incoming_data['action'] == 'read':
         if settings_path.exists() and settings_path.is_file():
             with settings_path.open("r") as f:
-                settings = json.load(f)
-            return JSONResponse(content=settings)
+                file_settings = json.load(f)
+            file_settings['litellm_api_key'] = os.getenv('LITELLM_API_KEY', '')
+            return JSONResponse(content=file_settings)
         else:
             return HTTPException(status_code=404, detail="Settings not found")
 
     elif 'action' in incoming_data and incoming_data['action'] == 'update':
         new_settings = incoming_data['data']
+                
+        if 'litellm_api_key' in new_settings:
+            val = new_settings.pop('litellm_api_key')
+            if val:
+                set_key(str(ENV_FILE_PATH), 'LITELLM_API_KEY', val)
+            else:
+                unset_key(str(ENV_FILE_PATH), 'LITELLM_API_KEY')
+        
+        # Also update EMBEDDING_MODEL env var if provided
+        if 'embedding_model' in new_settings:
+            val = new_settings.get('embedding_model')
+            if val:
+                set_key(str(ENV_FILE_PATH), 'EMBEDDING_MODEL', val)
+        
         with settings_path.open("w") as f:
-            json.dump(new_settings, f)
+            json.dump(new_settings, f, indent=2)
+        
         subprocess.run(["supervisorctl", "restart", "app"])
+        
+        new_settings['litellm_api_key'] = os.getenv('LITELLM_API_KEY', '')
         return JSONResponse(content=new_settings)
     else:
         return HTTPException(status_code=400, detail="Invalid action")
     
 @app.post("/gptRestart")
 async def gpt_restart(request: Request):
-    subprocess.run(["supervisorctl", "restart", "app"])
+    # In Docker environment, we can trigger a self-restart by exiting
+    # The container will restart due to restart: unless-stopped policy
+    import os
+    import signal
+    os.kill(os.getpid(), signal.SIGTERM)
     return JSONResponse(content={"success": True})
 
 @app.post("/spotifyRestart")
 async def spotify_restart(request: Request):
-    loop = asyncio.get_event_loop()
-    subprocess.run(["supervisorctl", "stop", "spotifyd"])
-    await loop.run_in_executor(None, time.sleep, 10)
-    subprocess.run(["supervisorctl", "start", "spotifyd"])
-    return JSONResponse(content={"success": True})
+    # In Docker environment, restart spotifyd container via Docker socket
+    try:
+        result = subprocess.run(
+            ["docker", "restart", "gpt-home-spotifyd-1"],
+            capture_output=True,
+            text=True
+        )
+        if result.returncode != 0:
+            # Fallback: try without the -1 suffix
+            subprocess.run(["docker", "restart", "gpt-home-spotifyd"], capture_output=True)
+        return JSONResponse(content={"success": True})
+    except Exception as e:
+        logger.error(f"Failed to restart spotifyd: {e}")
+        return JSONResponse(content={"success": False, "error": str(e)}, status_code=500)
 
 @app.post("/reboot")
 async def reboot(request: Request):
-    subprocess.run(["reboot"])
+    # Reboot the host system (requires privileged container or host access)
+    try:
+        subprocess.run(["nsenter", "--target", "1", "--mount", "--uts", "--ipc", "--net", "--pid", "--", "reboot"])
+    except Exception:
+        # Fallback for when nsenter isn't available
+        subprocess.run(["reboot"])
     return JSONResponse(content={"success": True})
 
 @app.post("/shutdown")
 async def shutdown(request: Request):
-    subprocess.run(["shutdown", "now"])
+    # Shutdown the host system (requires privileged container or host access)
+    try:
+        subprocess.run(["nsenter", "--target", "1", "--mount", "--uts", "--ipc", "--net", "--pid", "--", "shutdown", "now"])
+    except Exception:
+        # Fallback for when nsenter isn't available
+        subprocess.run(["shutdown", "now"])
     return JSONResponse(content={"success": True})
+
+@app.post("/clearMemory")
+async def clear_memory(request: Request):
+    """Clear all conversation history and memories from the database."""
+    try:
+        import psycopg
+        database_url = os.getenv(
+            "DATABASE_URL",
+            "postgresql://gpt_home:gpt_home_secret@localhost:5432/gpt_home"
+        )
+        
+        with psycopg.connect(database_url) as conn:
+            with conn.cursor() as cur:
+                # Clear checkpoints (conversation history)
+                cur.execute("TRUNCATE TABLE checkpoints CASCADE")
+                # Clear checkpoint_blobs
+                cur.execute("TRUNCATE TABLE checkpoint_blobs CASCADE")
+                # Clear checkpoint_writes
+                cur.execute("TRUNCATE TABLE checkpoint_writes CASCADE")
+                # Clear store (memories)
+                cur.execute("TRUNCATE TABLE store CASCADE")
+            conn.commit()
+        
+        logger.info("Cleared all conversation history and memories")
+        return JSONResponse(content={"success": True, "message": "Memory cleared successfully"})
+    except Exception as e:
+        logger.error(f"Failed to clear memory: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": str(e)}
+        )
+
+@app.get("/speechCapabilities")
+async def speech_capabilities():
+    """Return TTS/STT capabilities based on current API key."""
+    try:
+        from common import litellm_tts_available, litellm_stt_available, get_litellm_provider
+        return JSONResponse(content={
+            "provider": get_litellm_provider(),
+            "tts_available": litellm_tts_available(),
+            "stt_available": litellm_stt_available(),
+        })
+    except Exception as e:
+        return JSONResponse(content={
+            "provider": None,
+            "tts_available": False,
+            "stt_available": False,
+        })
 
 @app.post("/availableModels")
 async def available_models():
@@ -209,9 +339,8 @@ async def update_model(request: Request):
         incoming_data = await request.json()
         model_id = incoming_data['model_id']
         
-        with open("settings.json", "r") as f:
-            settings = json.load(f)
-            litellm.api_key = settings["openai_api_key"] if settings["litellm_api_key"] == "" else settings["litellm_api_key"]
+        # API key is now read from environment
+        litellm.api_key = os.getenv("LITELLM_API_KEY", "")
         
         response = requests.get("https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json")
         model_list = response.json()
@@ -352,7 +481,10 @@ async def connect_service(request: Request):
                 if key == "BRIDGE IP ADDRESS":
                     set_key(ENV_FILE_PATH, "PHILIPS_HUE_BRIDGE_IP", value)
                     os.environ["PHILIPS_HUE_BRIDGE_IP"] = value
-                    await set_philips_hue_username(value)
+                    # Try to connect and get username - return early if it fails
+                    hue_result = await set_philips_hue_username(value)
+                    if hue_result.status_code != 200:
+                        return hue_result
             elif name == "caldav":
                 if key == "URL":
                     set_key(ENV_FILE_PATH, "CALDAV_URL", value)
@@ -505,6 +637,7 @@ async def get_service_statuses(request: Request):
 ## Spotify ##
 
 # Callback for Spotify OAuth2
+@app.get("/api/callback")
 async def handle_callback(request: Request):
     try:
         code = request.query_params.get("code")
@@ -756,15 +889,99 @@ async def spotify_get_track_uris(song: str, sp, search_types=['album', 'artist',
 
 ## Philips Hue ##
 
-async def set_philips_hue_username(bridge_ip: str):
+def check_host_reachable(host: str, port: int = 80, timeout: float = 3.0) -> tuple[bool, str]:
+    """Check if a host is reachable on the network.
+    
+    Returns:
+        Tuple of (is_reachable, error_message)
+    """
     try:
-        b = Bridge(bridge_ip)
-        b.connect()
-        b.get_api()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        result = sock.connect_ex((host, port))
+        sock.close()
+        
+        if result == 0:
+            return True, ""
+        else:
+            return False, f"Connection refused (error code: {result})"
+    except socket.timeout:
+        return False, "Connection timed out"
+    except socket.gaierror as e:
+        return False, f"DNS resolution failed: {e}"
+    except OSError as e:
+        # Check for network unreachable errors
+        if e.errno == 101:  # Network is unreachable
+            return False, "Network is unreachable - the bridge may be on a different subnet"
+        elif e.errno == 113:  # No route to host
+            return False, "No route to host - check if the IP address is correct and the bridge is on your network"
+        return False, f"Network error: {e}"
+
+
+async def set_philips_hue_username(bridge_ip: str):
+    """Connect to Philips Hue bridge and retrieve username.
+    
+    First checks network reachability before attempting phue connection
+    to provide faster feedback on network issues.
+    """
+    # Quick network reachability check (3 second timeout)
+    is_reachable, error_msg = check_host_reachable(bridge_ip, port=80, timeout=3.0)
+    
+    if not is_reachable:
+        logger.warning(f"Philips Hue bridge at {bridge_ip} is not reachable: {error_msg}")
+        return JSONResponse(
+            content={
+                "message": f"Cannot reach Philips Hue bridge at {bridge_ip}. {error_msg}. "
+                           f"Please verify the IP address is correct and the bridge is on the same network.",
+                "success": False
+            }, 
+            status_code=408
+        )
+    
+    try:
+        # Set a shorter socket timeout for the phue library
+        original_timeout = socket.getdefaulttimeout()
+        socket.setdefaulttimeout(10.0)  # 10 second timeout for phue operations
+        
+        try:
+            b = Bridge(bridge_ip)
+            b.connect()
+            b.get_api()
+        finally:
+            socket.setdefaulttimeout(original_timeout)
+        
         logger.success("Successfully connected to Philips Hue bridge.")
         username = b.username
         set_key(ENV_FILE_PATH, "PHILIPS_HUE_USERNAME", username)
+        os.environ["PHILIPS_HUE_USERNAME"] = username  # Also set in environment
         logger.success(f"Successfully set Philips Hue username to {username}.")
+        return JSONResponse(content={"message": "Successfully connected to Philips Hue bridge.", "success": True})
+    except PhueRequestTimeout:
+        logger.warning(f"Philips Hue bridge at {bridge_ip} timed out during connection.")
+        return JSONResponse(
+            content={
+                "message": f"Connection to Philips Hue bridge at {bridge_ip} timed out. "
+                           f"The bridge is reachable but not responding. Please try again.",
+                "success": False
+            }, 
+            status_code=408
+        )
     except Exception as e:
-        logger.error(f"Error: {traceback.format_exc()}")
-        return JSONResponse(content={"message": f"Something went wrong: {e}"}) 
+        error_msg = str(e)
+        if "link button" in error_msg.lower():
+            logger.info("Philips Hue bridge requires link button press.")
+            return JSONResponse(
+                content={
+                    "message": "Please press the link button on your Philips Hue bridge and try again within 30 seconds.",
+                    "success": False
+                }, 
+                status_code=401
+            )
+        logger.error(f"Philips Hue error: {error_msg}")
+        return JSONResponse(
+            content={
+                "message": f"Failed to connect to Philips Hue: {error_msg}",
+                "success": False
+            }, 
+            status_code=500
+        ) 

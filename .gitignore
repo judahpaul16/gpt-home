@@ -27,6 +27,9 @@ yarn-error.log*
 # Logs
 events.log
 
+# Frontend build output
+src/frontend/build/
+
 # Auth
 spotify_token.json
 hashed_password.txt

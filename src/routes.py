@@ -1,135 +1,259 @@
-from semantic_router.layer import RouteLayer
-import semantic_router.encoders as encoders
-from semantic_router import Route
+"""
+GPT Home Action Router
 
-from actions import *
+This module provides the main interface for routing user requests to the appropriate
+LangGraph agent with persistent memory capabilities.
 
-API_KEY = ""
+Design Patterns Used:
+- Singleton: For the global agent instance
+- Factory: For agent creation
+- Strategy: For tool selection based on intent
+- Facade: For simplified external API
+"""
 
-def refresh_api_key():
-    with open("settings.json", "r") as f:
-        API_KEY = json.load(f)["openai_api_key"]
-    os.environ["OPENAI_API_KEY"] = API_KEY
+import os
+import json
+import asyncio
+from typing import Optional
+from pathlib import Path
 
-refresh_api_key()
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.store.memory import InMemoryStore
 
-encoder = encoders.OpenAIEncoder(
-    name="text-embedding-3-large", score_threshold=0.5, dimensions=256
-)
+from agent import GPTHomeAgent, AgentConfig
+from memory import MemoryManager
+from common import logger
 
-# Define routes
-alarm_route = Route(
-    name="alarm_reminder_action",
-    utterances=[
-        "set an alarm",
-        "wake me up",
-        "remind me in"
-    ]
-)
+# LangGraph store uses OpenAI SDK directly for embeddings, not LiteLLM
+# Set OPENAI_API_KEY from LITELLM_API_KEY at module load time
+_litellm_key = os.getenv("LITELLM_API_KEY", "")
+_embedding_model = os.getenv("EMBEDDING_MODEL", "openai:text-embedding-3-small")
+if _litellm_key and _embedding_model.startswith("openai:"):
+    os.environ["OPENAI_API_KEY"] = _litellm_key
+    logger.info("Set OPENAI_API_KEY from LITELLM_API_KEY for embeddings")
 
-spotify_route = Route(
-    name="spotify_action",
-    utterances=[
-        "play some music",
-        "next song",
-        "pause the music",
-        "play earth wind and fire on Spotify",
-        "play my playlist"
-    ]
-)
+_agent_instance: Optional[GPTHomeAgent] = None
+_memory_manager: Optional[MemoryManager] = None
+_checkpointer = None
+_store = None
+_connection_pool = None
 
-weather_route = Route(
-    name="open_weather_action",
-    utterances=[
-        "how's the weather today?",
-        "tell me the weather",
-        "what is the temperature",
-        "is it going to rain",
-        "what is the weather like in New York"
-    ]
-)
 
-lights_route = Route(
-    name="philips_hue_action",
-    utterances=[
-        "turn on the lights",
-        "switch off the lights",
-        "dim the lights",
-        "change the color of the lights",
-        "set the lights to red"
-    ]
-)
+def _load_settings() -> dict:
+    """Load settings from settings.json."""
+    settings_path = Path(__file__).parent / "settings.json"
+    if settings_path.exists():
+        with open(settings_path, "r") as f:
+            return json.load(f)
+    return {}
 
-calendar_route = Route(
-    name="caldav_action",
-    utterances=[
-        "schedule a meeting",
-        "what's on my calendar",
-        "add an event",
-        "what is left to do today"
-    ]
-)
 
-general_route = Route(
-    name="llm_action",
-    utterances=[
-        "how's it going",
-        "tell me a joke",
-        "what's the time",
-        "how are you",
-        "what is the meaning of life",
-        "what is the capital of France",
-        "what is the difference between Python 2 and Python 3",
-        "what is the best programming language",
-        "who was the first president of the United States",
-        "what is the largest mammal"
-    ]
-)
-
-routes = [alarm_route, spotify_route, weather_route, lights_route, calendar_route, general_route]
-
-# Initialize RouteLayer with the encoder and routes
-rl = RouteLayer(encoder=encoder, routes=routes)
-
-class ActionRouter:
-    def __init__(self):
-        self.route_layer = rl
-
-    def resolve(self, text):
-        logger.info(f"Resolving text: {text}")
+async def _initialize_persistence():
+    """Initialize database connections for checkpointing and memory store."""
+    global _checkpointer, _store, _connection_pool
+    
+    database_url = os.getenv("DATABASE_URL")
+    
+    # Embedding configuration - uses LangChain format with provider prefix
+    # Format: 'provider:model-name' e.g., 'openai:text-embedding-3-small'
+    embedding_model = os.getenv("EMBEDDING_MODEL", "openai:text-embedding-3-small")
+    embedding_dims = int(os.getenv("EMBEDDING_DIMS", "1536"))
+    
+    if database_url:
         try:
-            result = self.route_layer(text)
-            action_name = result.name if result else "llm_action"
-            logger.info(f"Resolved action: {action_name}")
-            return action_name
+            from psycopg_pool import AsyncConnectionPool
+            from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+            from langgraph.store.postgres import AsyncPostgresStore, PoolConfig
+            
+            # Create a connection pool that stays open for the app lifetime
+            _connection_pool = AsyncConnectionPool(
+                conninfo=database_url,
+                open=False,  # We'll open it manually
+                kwargs={"autocommit": True, "prepare_threshold": 0}
+            )
+            await _connection_pool.open()
+            logger.info("PostgreSQL connection pool opened")
+            
+            # Create checkpointer with the pool (not context manager)
+            _checkpointer = AsyncPostgresSaver(conn=_connection_pool)
+            await _checkpointer.setup()
+            logger.info("PostgreSQL checkpointer initialized")
+            
+            # Create store with pool_config to avoid context manager
+            # Use the context manager properly - enter it and keep reference
+            store_cm = AsyncPostgresStore.from_conn_string(
+                database_url,
+                pool_config=PoolConfig(min_size=1, max_size=10),
+                index={
+                    "dims": embedding_dims,
+                    "embed": embedding_model,
+                    "fields": ["content", "summary", "$"],
+                }
+            )
+            _store = await store_cm.__aenter__()
+            await _store.setup()
+            logger.info("PostgreSQL memory store initialized")
         except Exception as e:
-            logger.error(f"Error resolving text: {e}")
-            return "llm_action"
+            logger.warning(f"PostgreSQL unavailable, using in-memory storage: {e}")
+            _checkpointer = MemorySaver()
+            _store = InMemoryStore(
+                index={
+                    "dims": embedding_dims,
+                    "embed": embedding_model,
+                }
+            )
+    else:
+        logger.info("No DATABASE_URL configured, using in-memory storage")
+        _checkpointer = MemorySaver()
+        _store = InMemoryStore(
+            index={
+                "dims": embedding_dims,
+                "embed": embedding_model,
+            }
+        )
 
-class Action:
-    def __init__(self, action_name, text):
-        self.action_name = action_name
-        self.text = text
 
-    async def perform(self, **kwargs):
-        try:
-            action_func = globals()[self.action_name]
-            logger.info(f"Performing action: {self.action_name} with text: {self.text}")
-            return await action_func(self.text, **kwargs)
-        except KeyError:
-            logger.warning(f"Action {self.action_name} not found. Falling back to llm_action.")
-            action_func = globals()["llm_action"]
-            return await action_func(self.text, **kwargs)
-        except Exception as e:
-            logger.error(f"Error performing action {self.action_name}: {e}")
-            return "Action failed due to an error."
+async def _get_agent() -> GPTHomeAgent:
+    """Get or create the singleton agent instance."""
+    global _agent_instance, _checkpointer, _store
+    
+    if _agent_instance is None:
+        if _checkpointer is None or _store is None:
+            await _initialize_persistence()
+        
+        config = AgentConfig.from_settings()
+        
+        _agent_instance = GPTHomeAgent(
+            config=config,
+            checkpointer=_checkpointer,
+            store=_store
+        )
+        await _agent_instance.initialize()
+        logger.info("GPT Home agent initialized")
+    
+    return _agent_instance
 
-async def action_router(text: str, router=ActionRouter()):
-    refresh_api_key()
+
+async def _get_memory_manager() -> MemoryManager:
+    """Get or create the memory manager instance."""
+    global _memory_manager, _store
+    
+    if _memory_manager is None:
+        if _store is None:
+            await _initialize_persistence()
+        
+        settings = _load_settings()
+        model = settings.get("model", "gpt-4o-mini")
+        
+        _memory_manager = MemoryManager(
+            store=_store,
+            model=model
+        )
+    
+    return _memory_manager
+
+
+async def action_router(
+    text: str,
+    user_id: str = "default",
+    thread_id: Optional[str] = None
+) -> str:
+    """
+    Main entry point for processing user requests.
+    
+    Routes the text through the LangGraph agent which will:
+    1. Search relevant memories for context
+    2. Determine the appropriate tool(s) to use
+    3. Execute the action
+    4. Optionally save new memories
+    5. Return the response
+    
+    Args:
+        text: User's input text
+        user_id: Unique identifier for the user (for memory namespacing)
+        thread_id: Conversation thread ID (for checkpoint persistence)
+    
+    Returns:
+        Agent's response string
+    """
+    if thread_id is None:
+        thread_id = f"session_{user_id}"
+    
     try:
-        action_name = router.resolve(text)
-        act = Action(action_name, text)
-        return await act.perform()
+        agent = await _get_agent()
+        response = await agent.invoke(
+            text=text,
+            user_id=user_id,
+            thread_id=thread_id
+        )
+        
+        asyncio.create_task(_background_memory_processing(text, response, user_id))
+        
+        return response
+        
     except Exception as e:
         logger.error(f"Error in action_router: {e}")
-        return "Action routing failed due to an error."
+        return f"I'm sorry, something went wrong: {str(e)}"
+
+
+async def _background_memory_processing(
+    user_input: str,
+    response: str,
+    user_id: str
+):
+    """Background task to extract and store memories from the conversation."""
+    try:
+        memory_manager = await _get_memory_manager()
+        messages = [
+            {"role": "user", "content": user_input},
+            {"role": "assistant", "content": response}
+        ]
+        await memory_manager.process_conversation_background(messages, user_id)
+    except Exception as e:
+        logger.debug(f"Background memory processing failed: {e}")
+
+
+async def search_memories(query: str, user_id: str = "default", limit: int = 5) -> list:
+    """Search user memories for relevant context."""
+    try:
+        memory_manager = await _get_memory_manager()
+        return await memory_manager.search_memories(query, user_id, limit=limit)
+    except Exception as e:
+        logger.error(f"Memory search failed: {e}")
+        return []
+
+
+async def add_memory(content: str, user_id: str = "default") -> str:
+    """Manually add a memory for a user."""
+    try:
+        memory_manager = await _get_memory_manager()
+        return await memory_manager.add_semantic_memory(content, user_id)
+    except Exception as e:
+        logger.error(f"Failed to add memory: {e}")
+        return ""
+
+
+async def get_user_profile(user_id: str = "default") -> dict:
+    """Get the user's profile information."""
+    try:
+        memory_manager = await _get_memory_manager()
+        return await memory_manager.get_user_profile(user_id)
+    except Exception as e:
+        logger.error(f"Failed to get user profile: {e}")
+        return {}
+
+
+async def clear_user_memories(user_id: str = "default"):
+    """Clear all memories for a user."""
+    try:
+        memory_manager = await _get_memory_manager()
+        await memory_manager.clear_memories(user_id)
+    except Exception as e:
+        logger.error(f"Failed to clear memories: {e}")
+
+
+def reset_agent():
+    """Reset the agent instance (useful for testing or config changes)."""
+    global _agent_instance, _memory_manager
+    _agent_instance = None
+    _memory_manager = None

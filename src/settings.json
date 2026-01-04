@@ -1,13 +1,11 @@
 {
   "keyword": "computer",
   "model": "gpt-4o-mini",
-  "max_tokens": 100,
+  "embedding_model": "openai:text-embedding-3-small",
+  "max_tokens": 1024,
   "temperature": 0.7,
   "custom_instructions": "",
-  "speechEngine": "pyttsx3",
+  "speechEngine": "litellm",
   "dark_mode": "true",
-  "sayHeard": "true",
-  "default_zip_code": "",
-  "openai_api_key": "",
-  "litellm_api_key": ""
+  "sayHeard": "false"
 }

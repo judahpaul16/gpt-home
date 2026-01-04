@@ -112,10 +112,10 @@ function install() {
 }
 
 install chrony
-install nginx
 install containerd
 install docker
 install docker-buildx-plugin
+install docker-compose-plugin
 install alsa-utils
 sudo systemctl enable docker
 sudo systemctl start docker
@@ -128,7 +128,7 @@ EOF
 
 # Install Docker Buildx plugin
 mkdir -p $HOME/.docker/cli-plugins
-curl -Lo $HOME/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.14.0/buildx-v0.14.0.linux-arm64
+curl -Lo $HOME/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.19.3/buildx-v0.19.3.linux-arm64
 sudo chmod +x $HOME/.docker/cli-plugins/docker-buildx
 docker buildx version
 
@@ -148,52 +148,44 @@ sudo ufw allow 5353/udp
 sudo ufw allow 1234
 echo "y" | sudo ufw enable
 
-# Setup NGINX for reverse proxy
-echo "Setting up NGINX..."
-sudo mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
-sudo tee /etc/nginx/sites-available/gpt-home <<EOF
-server {
-    listen 80;
-    location / {
-        proxy_pass http://127.0.0.1:8000/;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    }
-}
-EOF
+# Determine docker-compose command (v2 plugin vs v1 standalone)
+if docker-compose version &>/dev/null; then
+    COMPOSE="docker-compose"
+elif docker-compose version &>/dev/null; then
+    COMPOSE="docker-compose"
+else
+    echo "Installing docker-compose..."
+    sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    sudo chmod +x /usr/local/bin/docker-compose
+    COMPOSE="docker-compose"
+fi
 
-# Remove gpt-home site symlink if it exists
-[ -L "/etc/nginx/sites-enabled/gpt-home" ] && sudo unlink /etc/nginx/sites-enabled/gpt-home
+# Parse flags
+NO_BUILD=false
+NO_CACHE=false
+PRUNE=false
 
-# Remove the default site if it exists
-[ -L "/etc/nginx/sites-enabled/default" ] && sudo unlink /etc/nginx/sites-enabled/default
+for arg in "$@"; do
+    case $arg in
+        --no-build) NO_BUILD=true ;;
+        --no-cache) NO_CACHE=true ;;
+        --prune) PRUNE=true ;;
+    esac
+done
 
-# Create a symlink to the gpt-home site and reload NGINX
-sudo ln -s /etc/nginx/sites-available/gpt-home /etc/nginx/sites-enabled
-sudo systemctl enable nginx
-sudo nginx -t && sudo systemctl restart nginx
-
-sudo systemctl status --no-pager nginx
-
-if [[ "$1" != "--no-build" ]]; then
+if [[ "$NO_BUILD" == "false" ]]; then
     [ -d ~/gpt-home ] && rm -rf ~/gpt-home
     git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
     cd ~/gpt-home
-    echo "Checking if the container 'gpt-home' is already running..."
-    if [ $(docker ps -q -f name=gpt-home) ]; then
-        echo "Stopping running container 'gpt-home'..."
-        docker stop gpt-home
-    fi
+    
+    echo "Stopping any running gpt-home services..."
+    $COMPOSE down 2>/dev/null || true
 
-    echo "Checking for existing container 'gpt-home'..."
-    if [ $(docker ps -aq -f status=exited -f name=gpt-home) ]; then
-        echo "Removing existing container 'gpt-home'..."
-        docker rm -f gpt-home
+    if [[ "$PRUNE" == "true" ]]; then
+        echo "Pruning Docker system..."
+        docker system prune -af
+        docker volume prune -f
     fi
-
-    echo "Pruning Docker system..."
-    docker system prune -f
 
     # Check if the buildx builder exists, if not create and use it
     if ! docker buildx ls | grep -q mybuilder; then
@@ -201,57 +193,33 @@ if [[ "$1" != "--no-build" ]]; then
         docker buildx inspect --bootstrap
     fi
 
-    # Building Docker image 'gpt-home' for ARMhf architecture
-    echo "Building Docker image 'gpt-home' for ARMhf..."
-    timeout 3600 docker buildx build --platform linux/arm64 -t gpt-home --load .
+    echo "Building and starting gpt-home with docker-compose..."
+    if [[ "$NO_CACHE" == "true" ]]; then
+        DOCKER_DEFAULT_PLATFORM=linux/arm64 $COMPOSE build --no-cache
+    else
+        DOCKER_DEFAULT_PLATFORM=linux/arm64 $COMPOSE build
+    fi
 
     if [ $? -ne 0 ]; then
         echo "Docker build failed. Exiting..."
         exit 1
     fi
 
-    echo "Container 'gpt-home' is now ready to run."
+    $COMPOSE up -d
 
-    echo "Running container 'gpt-home' from image 'gpt-home'..."
-    docker run --restart unless-stopped -d --name gpt-home \
-        --mount type=bind,source=/etc/asound.conf,target=/etc/asound.conf \
-        --privileged \
-        --net=host \
-        --tmpfs /run \
-        --tmpfs /run/lock \
-        -v ~/gpt-home:/app \
-        -v /dev/snd:/dev/snd \
-        -v /dev/shm:/dev/shm \
-        -v /usr/share/alsa:/usr/share/alsa \
-        -v /var/run/dbus:/var/run/dbus \
-        gpt-home
-
-    echo "Container 'gpt-home' is now running."
-
-    # Show status of the container
-    docker ps -a | grep gpt-home
-
-    sleep 10
-
-    # Show status of all programs managed by Supervisor
-    docker exec -i gpt-home supervisorctl status
+    echo "gpt-home services are now running."
+    $COMPOSE ps
 fi
 
-if [[ "$1" == "--no-build" ]]; then
-    docker ps -aq -f name=gpt-home | xargs -r docker rm -f
-    docker pull judahpaul/gpt-home
-    docker run --restart unless-stopped -d --name gpt-home \
-        --mount type=bind,source=/etc/asound.conf,target=/etc/asound.conf \
-        --privileged \
-        --net=host \
-        --tmpfs /run \
-        --tmpfs /run/lock \
-        -v /dev/snd:/dev/snd \
-        -v /dev/shm:/dev/shm \
-        -v /usr/share/alsa:/usr/share/alsa \
-        -v /var/run/dbus:/var/run/dbus \
-        judahpaul/gpt-home
-    docker ps -a | grep gpt-home
-    sleep 10
-    docker exec -i gpt-home supervisorctl status
+if [[ "$NO_BUILD" == "true" ]]; then
+    [ -d ~/gpt-home ] && rm -rf ~/gpt-home
+    git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
+    cd ~/gpt-home
+    
+    $COMPOSE down 2>/dev/null || true
+    echo "Pulling and starting gpt-home from Docker Hub..."
+    $COMPOSE pull
+    $COMPOSE up -d
+    
+    $COMPOSE ps
 fi

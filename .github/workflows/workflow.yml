@@ -28,11 +28,20 @@ jobs:
   docker:
     runs-on: [self-hosted, ARM64]
     timeout-minutes: 360
+    strategy:
+      matrix:
+        service:
+          - name: web
+            dockerfile: compose/web/Dockerfile
+          - name: app
+            dockerfile: compose/app/Dockerfile
+          - name: spotifyd
+            dockerfile: compose/spotifyd/Dockerfile
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # Fetch all history, including tags
+          fetch-depth: 0
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -60,14 +69,16 @@ jobs:
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
           echo "VERSION=${VERSION}"
 
-      - name: Build and push to Docker Hub and GHCR
+      - name: Build and push ${{ matrix.service.name }}
         env:
           VERSION: ${{ steps.get_version.outputs.VERSION }}
+          SERVICE: ${{ matrix.service.name }}
+          DOCKERFILE: ${{ matrix.service.dockerfile }}
         run: |
-          # Build the Docker image with multiple tags
           timeout 3600 docker buildx build --platform linux/arm64 --no-cache \
-            -t ${{ secrets.DOCKERHUB_USERNAME }}/gpt-home:$VERSION \
-            -t ghcr.io/${{ github.repository_owner }}/gpt-home:$VERSION \
-            -t ${{ secrets.DOCKERHUB_USERNAME }}/gpt-home:latest \
-            -t ghcr.io/${{ github.repository_owner }}/gpt-home:latest \
+            -f $DOCKERFILE \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/gpt-home-$SERVICE:$VERSION \
+            -t ghcr.io/${{ github.repository_owner }}/gpt-home-$SERVICE:$VERSION \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/gpt-home-$SERVICE:latest \
+            -t ghcr.io/${{ github.repository_owner }}/gpt-home-$SERVICE:latest \
             --push .

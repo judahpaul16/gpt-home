@@ -18,12 +18,19 @@
     "@types/node": "^16.18.50",
     "@types/react": "^18.2.21",
     "@types/react-dom": "^18.2.7",
+    "autoprefixer": "^10.4.23",
     "axios": "^1.5.0",
+    "clsx": "^2.1.1",
     "cross-env": "^7.0.3",
+    "framer-motion": "^12.23.26",
+    "lucide-react": "^0.562.0",
+    "postcss": "^8.5.6",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.16.0",
     "react-scripts": "5.0.1",
+    "tailwind-merge": "^3.4.0",
+    "tailwindcss": "^3.4.19",
     "typescript": "^4.9.5",
     "web-vitals": "^2.1.4"
   },
@@ -31,6 +38,8 @@
     "@babel/plugin-proposal-private-property-in-object": "^7.16.7"
   },
   "scripts": {
+    "prestart": "node scripts/generate-version.js",
+    "prebuild": "node scripts/generate-version.js",
     "start": "cross-env NODE_ENV=development react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
