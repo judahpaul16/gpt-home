@@ -30,15 +30,18 @@ This guide will explain how to build your own. It's pretty straight forward. You
 ✅ Philips Hue  
 ✅ OpenWeatherMap  
 ✅ Open-Meteo  
+✅ Alarms  
+✅ Reminders  
 
 </td>
 <td>
 
-✅ Alarms  
-✅ Reminders  
 ✅ Calendar (CalDAV)  
 ✅ LiteLLM  
-🔲 Home Assistant  
+✅ LangGraph  
+✅ Persistent Memory  
+🔲 Display Support  
+🔲 Zigbee2MQTT  
 
 </td>
 </tr>
@@ -76,21 +79,64 @@ This guide will explain how to build your own. It's pretty straight forward. You
 
 </table>
 
+> 📖 **Developer Documentation**: For in-depth technical documentation, architecture details, and API references, visit the [**GPT Home Wiki**](https://github.com/judahpaul16/gpt-home/wiki).
+
+## 🧠 Architecture
+
+GPT Home uses a **microservices architecture** with Docker Compose:
+
+| Service | Description | Port | Profile |
+|---------|-------------|------|---------|
+| `db` | PostgreSQL + pgvector for memory storage | 5432 (internal) | always |
+| `nginx` | Reverse proxy (routes API→app:8000, static→web:80) | **80** (exposed) | always |
+| `app` | Voice assistant + FastAPI backend | 8000 (internal) | always |
+| `web` | Pre-built React static files (nginx) | 80 (internal) | prod |
+| `web-dev` | React dev server with hot reload (alias: "web") | 80 (internal) | dev |
+| `spotifyd` | Spotify Connect + Avahi mDNS (gpt-home.local) | host network | always |
+
+> **Profiles:** Default is `prod` (set via `COMPOSE_PROFILES=prod` in `.env`). Use `COMPOSE_PROFILES=dev` for development with hot reload. Just run `docker-compose up -d` — no `--profile` flag needed.
+
+**Nginx Routing:**
+- `/api/*`, `/logs/*`, `/settings`, `/spotify-*`, `/connect-service`, etc. → `app:8000`
+- `/*` (everything else) → `web:80` (prod: static nginx, dev: React dev server)
+
+**Core Technologies:**
+- **LangGraph**: Orchestrates the AI agent workflow
+- **LangMem**: Manages long-term memory extraction and retrieval
+- **PostgreSQL + pgvector**: Stores conversation history and semantic memories
+- **LiteLLM**: Multi-provider LLM/TTS/STT support (100+ providers)
 
 ## 🚀 TL;DR
-1. Run the setup script with the `--no-build` flag to pull the latest image from DockerHub:
+
+### Production (Raspberry Pi)
 ```bash
 curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh | \
     bash -s -- --no-build
 ```
-2. ***Required for Semantic Routing:*** Update the `openai_api_key` field in `settings.json` with [your API key](https://platform.openai.com/settings/organization/api-keys) for the OpenAI and make sure you have at least a few dollars in your billing tab. You can also update this later in the web interface at `gpt-home.local/settings` or `[local_ip_address]/settings`.
+2. ***Required:*** Set your API key. GPT Home uses **LiteLLM** which supports 100+ providers (OpenAI, Anthropic, Google, Cohere, etc.):
 ```bash
-docker exec -it gpt-home bash -c "sed -i 's/\"openai_api_key\": \"[^\"]*\"/\"openai_api_key\": \"YOUR_API_KEY_HERE\"/' src/settings.json"
+echo "LITELLM_API_KEY=YOUR_API_KEY_HERE" >> ~/gpt-home/.env
+docker-compose restart
 ```
-3. ***Optional:*** If you want to use a model not provided by OpenAI, make sure to update the `litellm_api_key` field in `settings.json`. See the [LiteLLM docs](https://litellm.vercel.app/docs/providers) for a list of all supported providers. You can also update this later in the web interface at `gpt-home.local/settings` or `[local_ip_address]/settings`.
+
+> **Tip:** You can also set the API key via the web interface at `gpt-home.local/settings`. See [LiteLLM docs](https://docs.litellm.ai/docs/providers) for all supported providers.
+
+3. ***Optional:*** To view the logs and verify the assistant is running:
 ```bash
-docker exec -it gpt-home bash -c "sed -i 's/\"litellm_api_key\": \"[^\"]*\"/\"litellm_api_key\": \"YOUR_API_KEY_HERE\"/' src/settings.json"
+docker-compose logs -f
 ```
+
+### Development (Any Machine)
+```bash
+git clone https://github.com/judahpaul16/gpt-home.git
+cd gpt-home
+cp .env.example .env
+# Edit .env with your API keys
+nano .env
+# Start dev environment with hot reload
+COMPOSE_PROFILES=dev docker-compose up
+```
+Access at `http://localhost` (nginx routes to frontend and API).
 
 ## 🔌 Schematics
 ### ⚠️ Caution: Battery Connection
@@ -260,7 +306,7 @@ See the [wpa_supplicant example file](https://w1.fi/cgit/hostap/plain/wpa_suppli
 
 ## 🛠 System Dependencies
 
-Before running this project on your system, ensure your system clock is synchronized, your package lists are updated, and NGINX and Docker are installed. The setup script will take care of this for you but you can also do this manually.
+Before running this project on your system, ensure your system clock is synchronized, your package lists are updated, and Docker is installed. The setup script will take care of this for you but you can also do this manually.
 
 <details>
 <summary>👈 View Instructions</summary>
@@ -341,14 +387,7 @@ sudo dnf groupinstall -y "Development Tools"   # For RHEL/CentOS/Alma 9^
     ```
     then `sudo systemctl enable --now docker`
 
-2. **NGINX**: Required for reverse proxy for the web interface.  
-    ```bash
-    sudo apt-get install -y nginx   # For Debian/Ubuntu
-    sudo yum install -y nginx       # For RHEL/CentOS/Alma
-    sudo dnf install -y nginx       # For RHEL/CentOS/Alma 9^
-    sudo zypper install -y nginx    # For openSUSE
-    sudo pacman -S nginx            # For Arch Linux
-    ```
+> **Note:** NGINX is now containerized and runs automatically via Docker Compose.
 
 </p>
 </details>
@@ -356,78 +395,129 @@ sudo dnf groupinstall -y "Development Tools"   # For RHEL/CentOS/Alma 9^
 ---
 
 ## 🐳 Building the Docker Container
-***Note: Update the `openai_api_key` field in `settings.json` with [your API key](https://platform.openai.com/settings/organization/api-keys) for the OpenAI and make sure you have at least a few dollars in your billing tab. You can also update this later in the web interface at `gpt-home.local/settings` or `[local_ip_address]/settings`.***
+***Note: GPT Home uses LiteLLM which supports 100+ LLM providers. Set your `LITELLM_API_KEY` in the `.env` file or via the web interface at `gpt-home.local/settings`. See the [LiteLLM docs](https://docs.litellm.ai/docs/providers) for supported providers.***
 
-- ***Optionally,*** if you want to use a model not provided by OpenAI, make sure to update the `litellm_api_key` field in `settings.json`. See the [LiteLLM docs](https://litellm.vercel.app/docs/providers) for a list of all supported providers.
-
-***Optional: Add these aliases to your .bashrc file for easier management of the container.***
+***Optional: Add these aliases to your .bashrc file for easier management.***
 ```bash
-alias gpt-start="docker exec -it gpt-home supervisorctl start app"
-alias gpt-restart="docker exec -it gpt-home supervisorctl restart app"
-alias gpt-stop="docker exec -it gpt-home supervisorctl stop app"
-alias gpt-status="docker exec -it gpt-home supervisorctl status app"
-alias gpt-log="docker exec -it gpt-home tail -n 100 -f /app/src/events.log"
+# Set working directory
+alias gpt-home="cd ~/gpt-home"
 
-alias wi-start="docker exec -it gpt-home supervisorctl start web-interface"
-alias wi-restart="docker exec -it gpt-home supervisorctl restart web-interface && sudo systemctl restart nginx"
-alias wi-stop="docker exec -it gpt-home supervisorctl stop web-interface"
-alias wi-status="docker exec -it gpt-home supervisorctl status web-interface"
-alias wi-build="docker exec -it gpt-home bash -c 'cd /app/src/frontend && npm i && npm run build'"
-alias wi-log="tail -n 100 -f /var/log/nginx/access.log"
-alias wi-error="tail -n 100 -f /var/log/nginx/error.log"
+# Manage all services
+alias gpt-up="cd ~/gpt-home && docker-compose up -d"
+alias gpt-down="cd ~/gpt-home && docker-compose down"
+alias gpt-restart="cd ~/gpt-home && docker-compose restart"
+alias gpt-logs="cd ~/gpt-home && docker-compose logs -f"
+alias gpt-status="cd ~/gpt-home && docker-compose ps"
 
-alias spotifyd-start="docker exec -it gpt-home supervisorctl start spotifyd"
-alias spotifyd-restart="docker exec -it gpt-home supervisorctl restart spotifyd"
-alias spotifyd-stop="docker exec -it gpt-home supervisorctl stop spotifyd"
-alias spotifyd-status="docker exec -it gpt-home supervisorctl status spotifyd"
-alias spotifyd-log="docker exec -it gpt-home tail -n 100 -f /var/log/spotifyd.log"
+# Manage individual services
+alias gpt-app-logs="cd ~/gpt-home && docker-compose logs -f app"
+alias gpt-app-restart="cd ~/gpt-home && docker-compose restart app"
+alias gpt-app-shell="cd ~/gpt-home && docker-compose exec app bash"
+
+alias gpt-web-logs="cd ~/gpt-home && docker-compose logs -f web"
+alias gpt-web-restart="cd ~/gpt-home && docker-compose restart web"
+
+alias gpt-nginx-logs="cd ~/gpt-home && docker-compose logs -f nginx"
+alias gpt-nginx-restart="cd ~/gpt-home && docker-compose restart nginx"
+
+alias gpt-spotifyd-logs="cd ~/gpt-home && docker-compose logs -f spotifyd"
+alias gpt-spotifyd-restart="cd ~/gpt-home && docker-compose restart spotifyd"
+
+# Development mode (hot reload)
+alias gpt-dev="cd ~/gpt-home && COMPOSE_PROFILES=dev docker-compose up"
 ```
 Run `source ~/.bashrc` to apply the changes to your current terminal session.
 
-The setup script will take quite a while to run ***(900.0s+ to build and setup dependencies on my quad-core Raspberry Pi 4B w/ 1G RAM)***. It will install all the dependencies and build the Docker container. However, you can skip the build process by passing the `--no-build` flag to the script; it will install the dependencies, set up the firewall and NGINX, and pull the container from Docker Hub and run it.
+The setup script will take quite a while to run ***(900.0s+ to build and setup dependencies on my quad-core Raspberry Pi 4B w/ 1G RAM)***. It will install all the dependencies and build the Docker containers. However, you can skip the build process by passing the `--no-build` flag to the script; it will install the dependencies, set up the firewall, and pull the containers from Docker Hub and run them.
 
 ```bash
 curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh | \
     bash -s -- --no-build
 ```
 
-**Alternatively, for development purposes, running `setup.sh` without the `--no-build` flag mounts the project directory to the container by adding `-v ~/gpt-home:/app` to the `docker run` command. This allows you to make changes to the project files on your Raspberry Pi and see the changes reflected in the container without rebuilding the image. This is useful for testing changes to the codebase. Run directly with:**
+**Alternatively, for development purposes, running `setup.sh` without the `--no-build` flag builds all the service images locally. This is useful for testing changes to the codebase.**
 
 ```bash
 curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh | \
     bash -s
 ```
 
-You can also run the container interactively if you need to debug or test changes to the codebase with the `-it` (interactive terminal), `--entrypoint /bin/bash`, and `--rm` (remove on process exit) flags. This will drop you into a shell session inside the container. Alternatively, if the conatiner is already running:
+You can also access a shell inside a running container for debugging:
 
 ```bash
-docker exec -it gpt-home bash
+docker-compose exec app bash      # Voice assistant container
+docker-compose exec web bash      # Web server container
+docker-compose exec nginx sh      # NGINX container
 ```
 
-This will start the container and drop you into a shell session inside the container.
+**Explanation of Docker Compose Configuration**
 
-**Explanation of Docker Run Flags**
+The `docker-compose.yml` configures six services:
+
 ```yaml
---tmpfs /run:
-    Mounts a tmpfs at /run for transient runtime data.
---tmpfs /run/lock:
-    Mounts a tmpfs at /run/lock for lock files.
---privileged:
-    Grants extended privileges to the container
-    Necessary for accessing host audio devices.
---net=host:
-    Uses the host network stack directly.
-    May be necessary for avahi-daemon services.
--v /dev/snd:/dev/snd:
-    Provides access to the host's sound devices.
--v /dev/shm:/dev/shm:
-    Provides access to shared memory.
--v /usr/share/alsa:/usr/share/alsa:ro:
-    Maps the ALSA shared data as read-only.
--v /var/run/dbus:/var/run/dbus:
-    Provides access to the D-Bus system for inter-process communication.
---mount type=bind,source=/etc/asound.conf,target=/etc/asound.conf:
-    Binds the host's ALSA configuration to the container.
+services:
+  db:
+    # PostgreSQL with pgvector for persistent memory storage
+    image: pgvector/pgvector:0.8.1-pg18-trixie
+    volumes:
+      - app-postgres-data:/var/lib/postgresql/data
+
+  nginx:
+    # Reverse proxy - routes /api, /logs, /settings to app; static to web
+    image: nginx:alpine
+    ports: ["80:80"]
+    depends_on: [app]
+
+  app:
+    # Voice assistant (app.py) + FastAPI backend (backend.py) on :8000
+    build: compose/app
+    privileged: true
+    expose: ["8000"]
+    devices: ["/dev/snd:/dev/snd", "/dev/i2c-1:/dev/i2c-1"]
+
+  web:                  # Production (profile: prod)
+    # Multi-stage build: React static files served by nginx
+    build: compose/web
+    expose: ["80"]
+
+  web-dev:              # Development (profile: dev)
+    # React dev server with hot reload
+    build: compose/web/Dockerfile.dev
+    ports: ["3000:3000"]
+    volumes:
+      - ./src/frontend:/app  # Hot reload
+
+  spotifyd:
+    # Spotify Connect + Avahi mDNS
+    build: compose/spotifyd
+    network_mode: host  # Required for mDNS discovery
+```
+
+> **Profiles:** By default, `COMPOSE_PROFILES=prod` is set in `.env`, so `web` runs. For development with hot reload, use `COMPOSE_PROFILES=dev docker-compose up`.
+
+**Setup Script Flags**
+
+The `setup.sh` script supports the following flags:
+
+| Flag | Description |
+|------|-------------|
+| `--no-build` | Skip building and pull the pre-built image from Docker Hub instead |
+| `--no-cache` | Build without using Docker's cache (forces fresh build) |
+| `--prune` | Prune Docker system and volumes before building (cleans up disk space) |
+
+**Examples:**
+```bash
+# Default build (uses cache, no prune)
+./setup.sh
+
+# Pull from Docker Hub without building
+./setup.sh --no-build
+
+# Fresh build without cache
+./setup.sh --no-cache
+
+# Full cleanup and fresh build
+./setup.sh --prune --no-cache
 ```
 
 ### 🐚 setup.sh
@@ -552,10 +642,10 @@ function install() {
 }
 
 install chrony
-install nginx
 install containerd
 install docker
 install docker-buildx-plugin
+install docker-compose-plugin
 install alsa-utils
 sudo systemctl enable docker
 sudo systemctl start docker
@@ -568,7 +658,7 @@ EOF
 
 # Install Docker Buildx plugin
 mkdir -p $HOME/.docker/cli-plugins
-curl -Lo $HOME/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.14.0/buildx-v0.14.0.linux-arm64
+curl -Lo $HOME/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.19.3/buildx-v0.19.3.linux-arm64
 sudo chmod +x $HOME/.docker/cli-plugins/docker-buildx
 docker buildx version
 
@@ -585,54 +675,47 @@ fi
 sudo ufw allow ssh
 sudo ufw allow 80,443/tcp
 sudo ufw allow 5353/udp
+sudo ufw allow 1234
 echo "y" | sudo ufw enable
 
-# Setup NGINX for reverse proxy
-echo "Setting up NGINX..."
-sudo mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
-sudo tee /etc/nginx/sites-available/gpt-home <<EOF
-server {
-    listen 80;
-    location / {
-        proxy_pass http://127.0.0.1:8000/;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    }
-}
-EOF
+# Determine docker-compose command (v2 plugin vs v1 standalone)
+if docker-compose version &>/dev/null; then
+    COMPOSE="docker-compose"
+elif docker-compose version &>/dev/null; then
+    COMPOSE="docker-compose"
+else
+    echo "Installing docker-compose..."
+    sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    sudo chmod +x /usr/local/bin/docker-compose
+    COMPOSE="docker-compose"
+fi
 
-# Remove gpt-home site symlink if it exists
-[ -L "/etc/nginx/sites-enabled/gpt-home" ] && sudo unlink /etc/nginx/sites-enabled/gpt-home
+# Parse flags
+NO_BUILD=false
+NO_CACHE=false
+PRUNE=false
 
-# Remove the default site if it exists
-[ -L "/etc/nginx/sites-enabled/default" ] && sudo unlink /etc/nginx/sites-enabled/default
+for arg in "$@"; do
+    case $arg in
+        --no-build) NO_BUILD=true ;;
+        --no-cache) NO_CACHE=true ;;
+        --prune) PRUNE=true ;;
+    esac
+done
 
-# Create a symlink to the gpt-home site and reload NGINX
-sudo ln -s /etc/nginx/sites-available/gpt-home /etc/nginx/sites-enabled
-sudo systemctl enable nginx
-sudo nginx -t && sudo systemctl restart nginx
-
-sudo systemctl status --no-pager nginx
-
-if [[ "$1" != "--no-build" ]]; then
+if [[ "$NO_BUILD" == "false" ]]; then
     [ -d ~/gpt-home ] && rm -rf ~/gpt-home
     git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
     cd ~/gpt-home
-    echo "Checking if the container 'gpt-home' is already running..."
-    if [ $(docker ps -q -f name=gpt-home) ]; then
-        echo "Stopping running container 'gpt-home'..."
-        docker stop gpt-home
-    fi
+    
+    echo "Stopping any running gpt-home services..."
+    $COMPOSE down 2>/dev/null || true
 
-    echo "Checking for existing container 'gpt-home'..."
-    if [ $(docker ps -aq -f status=exited -f name=gpt-home) ]; then
-        echo "Removing existing container 'gpt-home'..."
-        docker rm -f gpt-home
+    if [[ "$PRUNE" == "true" ]]; then
+        echo "Pruning Docker system..."
+        docker system prune -af
+        docker volume prune -f
     fi
-
-    echo "Pruning Docker system..."
-    docker system prune -f
 
     # Check if the buildx builder exists, if not create and use it
     if ! docker buildx ls | grep -q mybuilder; then
@@ -640,59 +723,35 @@ if [[ "$1" != "--no-build" ]]; then
         docker buildx inspect --bootstrap
     fi
 
-    # Building Docker image 'gpt-home' for ARMhf architecture
-    echo "Building Docker image 'gpt-home' for ARMhf..."
-    timeout 3600 docker buildx build --platform linux/arm64 -t gpt-home --load .
+    echo "Building and starting gpt-home with docker-compose..."
+    if [[ "$NO_CACHE" == "true" ]]; then
+        DOCKER_DEFAULT_PLATFORM=linux/arm64 $COMPOSE build --no-cache
+    else
+        DOCKER_DEFAULT_PLATFORM=linux/arm64 $COMPOSE build
+    fi
 
     if [ $? -ne 0 ]; then
         echo "Docker build failed. Exiting..."
         exit 1
     fi
 
-    echo "Container 'gpt-home' is now ready to run."
+    $COMPOSE up -d
 
-    echo "Running container 'gpt-home' from image 'gpt-home'..."
-    docker run --restart unless-stopped -d --name gpt-home \
-        --mount type=bind,source=/etc/asound.conf,target=/etc/asound.conf \
-        --privileged \
-        --net=host \
-        --tmpfs /run \
-        --tmpfs /run/lock \
-        -v ~/gpt-home:/app \
-        -v /dev/snd:/dev/snd \
-        -v /dev/shm:/dev/shm \
-        -v /usr/share/alsa:/usr/share/alsa \
-        -v /var/run/dbus:/var/run/dbus \
-        gpt-home
-
-    echo "Container 'gpt-home' is now running."
-
-    # Show status of the container
-    docker ps -a | grep gpt-home
-
-    sleep 10
-
-    # Show status of all programs managed by Supervisor
-    docker exec -i gpt-home supervisorctl status
+    echo "gpt-home services are now running."
+    $COMPOSE ps
 fi
 
-if [[ "$1" == "--no-build" ]]; then
-    docker ps -aq -f name=gpt-home | xargs -r docker rm -f
-    docker pull judahpaul/gpt-home
-    docker run --restart unless-stopped -d --name gpt-home \
-        --mount type=bind,source=/etc/asound.conf,target=/etc/asound.conf \
-        --privileged \
-        --net=host \
-        --tmpfs /run \
-        --tmpfs /run/lock \
-        -v /dev/snd:/dev/snd \
-        -v /dev/shm:/dev/shm \
-        -v /usr/share/alsa:/usr/share/alsa \
-        -v /var/run/dbus:/var/run/dbus \
-        judahpaul/gpt-home
-    docker ps -a | grep gpt-home
-    sleep 10
-    docker exec -i gpt-home supervisorctl status
+if [[ "$NO_BUILD" == "true" ]]; then
+    [ -d ~/gpt-home ] && rm -rf ~/gpt-home
+    git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
+    cd ~/gpt-home
+    
+    $COMPOSE down 2>/dev/null || true
+    echo "Pulling and starting gpt-home from Docker Hub..."
+    $COMPOSE pull
+    $COMPOSE up -d
+    
+    $COMPOSE ps
 fi
 ```
 
@@ -796,6 +855,8 @@ chmod +x setup.sh
 - [OpenAI API Docs](https://platform.openai.com/docs/introduction)
 - [CalDAV API Docs](https://caldav.readthedocs.io/en/latest/)
 - [LiteLLM Docs](https://docs.litellm.ai/docs/)
+- [LangGraph Docs](https://langchain-ai.github.io/langgraph/)
+- [LangMem Docs](https://langchain-ai.github.io/langmem/)
 
 </td>
 <td>
