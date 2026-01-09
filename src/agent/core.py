@@ -116,7 +116,6 @@ class GPTHomeAgent(BaseAgent):
                         )
             except Exception:
                 pass
-        service_status = state.get("service_status", {})
         system_content = f"""You are a helpful AI assistant for GPT Home, a smart home voice assistant.
 You help users with various tasks including:
 - Weather information
@@ -124,12 +123,6 @@ You help users with various tasks including:
 - Smart home control via Philips Hue
 - Calendar and reminders via CalDAV
 - General questions and conversation
-
-## Service Configuration Status
-Spotify: {"AVAILABLE" if service_status.get("spotify") else "NOT CONFIGURED"}
-OpenWeather: {"AVAILABLE" if service_status.get("openweather") else "NOT CONFIGURED"}
-Philips Hue: {"AVAILABLE" if service_status.get("philipshue") else "NOT CONFIGURED"}
-CalDAV: {"AVAILABLE" if service_status.get("caldav") else "NOT CONFIGURED"}
 
 {self.config.custom_instructions}
 
@@ -166,10 +159,18 @@ Be concise but helpful in your responses as they will be spoken aloud."""
         }
 
         logger.debug(f"[GPTHomeAgent.invoke] Calling ainvoke with config: {config}")
+        logger.debug(
+            f"[GPTHomeAgent.invoke] Service Statuses: {kwargs.get('service_status', {})}"
+        )
+
         result = await self._agent.ainvoke(
             {
-                "messages": [{"role": "user", "content": text}],
-                "service_status": kwargs.get("service_status", {}),
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": f"{text}, Service Statuses: {kwargs.get('service_status', {})}",
+                    }
+                ],
             },
             config=config,
         )
