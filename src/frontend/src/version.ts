@@ -3,7 +3,7 @@
 
 export const VERSION_INFO = {
   version: '1.7.7',
-  lastCommit: '7456c5f',
-  commitDate: '2025-08-11 13:50:59 -0400',
-  buildTimestamp: '2026-01-04T10:25:39.705Z',
+  lastCommit: 'f74431e',
+  commitDate: '2026-01-04 07:46:50 -0500',
+  buildTimestamp: '2026-01-07T07:18:42.185Z',
 };

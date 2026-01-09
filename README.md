@@ -7,7 +7,7 @@
 [![Release](https://img.shields.io/github/v/release/judahpaul16/gpt-home?style=flat-square)](https://github.com/judahpaul16/gpt-home/tags)
 [![Docker Pulls](https://img.shields.io/docker/pulls/judahpaul/gpt-home?style=flat-square)](https://hub.docker.com/r/judahpaul/gpt-home)
 
-ChatGPT at home! Basically a better Google Nest Hub or Amazon Alexa home assistant. Built on the Raspberry Pi using the OpenAI API.
+ChatGPT at home! Basically a better Google Nest Hub or Amazon Alexa home assistant. Built on the Raspberry P iusing LiteLLM and LangGraph.
 
 ![My Build](screenshots/my_build.jpg)
 
@@ -40,7 +40,7 @@ This guide will explain how to build your own. It's pretty straight forward. You
 ✅ LiteLLM  
 ✅ LangGraph  
 ✅ Persistent Memory  
-🔲 Display Support  
+✅ Display Support  
 🔲 Zigbee2MQTT  
 
 </td>
@@ -88,23 +88,24 @@ GPT Home uses a **microservices architecture** with Docker Compose:
 | Service | Description | Port | Profile |
 |---------|-------------|------|---------|
 | `db` | PostgreSQL + pgvector for memory storage | 5432 (internal) | always |
-| `nginx` | Reverse proxy (routes API→app:8000, static→web:80) | **80** (exposed) | always |
-| `app` | Voice assistant + FastAPI backend | 8000 (internal) | always |
-| `web` | Pre-built React static files (nginx) | 80 (internal) | prod |
-| `web-dev` | React dev server with hot reload (alias: "web") | 80 (internal) | dev |
+| `nginx` | Reverse proxy (routes API→backend:8000, static→frontend:80) | **80** (exposed) | always |
+| `backend` | Voice assistant + FastAPI backend | 8000 (internal) | always |
+| `frontend` | Pre-built React static files (nginx) | 80 (internal) | prod |
+| `frontend-dev` | React dev server with hot reload (network alias: "frontend") | 80 (internal) | dev |
 | `spotifyd` | Spotify Connect + Avahi mDNS (gpt-home.local) | host network | always |
 
 > **Profiles:** Default is `prod` (set via `COMPOSE_PROFILES=prod` in `.env`). Use `COMPOSE_PROFILES=dev` for development with hot reload. Just run `docker-compose up -d` — no `--profile` flag needed.
 
 **Nginx Routing:**
-- `/api/*`, `/logs/*`, `/settings`, `/spotify-*`, `/connect-service`, etc. → `app:8000`
-- `/*` (everything else) → `web:80` (prod: static nginx, dev: React dev server)
+- `/api/*`, `/logs/*`, `/settings`, `/spotify-*`, `/connect-service`, etc. → `backend:8000`
+- `/*` (everything else) → `frontend:80` (prod: static nginx, dev: React dev server)
 
 **Core Technologies:**
 - **LangGraph**: Orchestrates the AI agent workflow
 - **LangMem**: Manages long-term memory extraction and retrieval
 - **PostgreSQL + pgvector**: Stores conversation history and semantic memories
 - **LiteLLM**: Multi-provider LLM/TTS/STT support (100+ providers)
+- **Display System**: Auto-detecting multi-display support (HDMI, SPI/TFT, I2C)
 
 ## 🚀 TL;DR
 
@@ -171,7 +172,9 @@ This is the list of parts I used to build my first GPT Home. You can use this as
 ---
 
 **Optional Components**  
-- **128x32 OLED Display**: [Link](https://www.amazon.com/dp/B08CDN5PSJ?_encoding=UTF8&psc=1&ref_=cm_sw_r_cp_ud_dp_VHXY426Y4QR6VHNAJ34D) - $13-$14
+- **128x32 I2C OLED Display**: [Link](https://www.amazon.com/dp/B08CDN5PSJ?_encoding=UTF8&psc=1&ref_=cm_sw_r_cp_ud_dp_VHXY426Y4QR6VHNAJ34D) - $13-$14
+- **3.5" TFT LCD Display (480x320)**: [Link](https://www.amazon.com/dp/B0BJDTL9J3) - $15-$20 (SPI, ILI9341)
+- **7" HDMI Touchscreen**: [Link](https://www.amazon.com/Hosyond-Display-1024%C3%97600-Capacitive-Raspberry/dp/B09XKC53NH) - $40-$60 (1024x600)
 - **Standoff Spacer Column M3x40mm**: [Link](https://www.amazon.com/dp/B07M7D8HMT?_encoding=UTF8&psc=1&ref_=cm_sw_r_cp_ud_dp_G9Y5DED2RVNWYEFCDGZJ) - $14
 - **M1.4 M1.7 M2 M2.5 M3 Screw Kit**: [Link](https://www.amazon.com/dp/B08KXS2MWG?_encoding=UTF8&psc=1&ref_=cm_sw_r_cp_ud_dp_Q9TVWARHCPKVKGDHFY5S) - $15
 - **Raspberry Pi UPS Power Supply with Battery**: [Link](https://www.amazon.com/dp/B0C1GFX5LW?_encoding=UTF8&psc=1&ref_=cm_sw_r_cp_ud_dp_Z9X3PJZ7ZB8PCX42WHA6) - $30
@@ -410,12 +413,12 @@ alias gpt-logs="cd ~/gpt-home && docker-compose logs -f"
 alias gpt-status="cd ~/gpt-home && docker-compose ps"
 
 # Manage individual services
-alias gpt-app-logs="cd ~/gpt-home && docker-compose logs -f app"
-alias gpt-app-restart="cd ~/gpt-home && docker-compose restart app"
-alias gpt-app-shell="cd ~/gpt-home && docker-compose exec app bash"
+alias gpt-backend-logs="cd ~/gpt-home && docker-compose logs -f backend"
+alias gpt-backend-restart="cd ~/gpt-home && docker-compose restart backend"
+alias gpt-backend-shell="cd ~/gpt-home && docker-compose exec backend bash"
 
-alias gpt-web-logs="cd ~/gpt-home && docker-compose logs -f web"
-alias gpt-web-restart="cd ~/gpt-home && docker-compose restart web"
+alias gpt-frontend-logs="cd ~/gpt-home && docker-compose logs -f frontend"
+alias gpt-frontend-restart="cd ~/gpt-home && docker-compose restart frontend"
 
 alias gpt-nginx-logs="cd ~/gpt-home && docker-compose logs -f nginx"
 alias gpt-nginx-restart="cd ~/gpt-home && docker-compose restart nginx"
@@ -445,9 +448,9 @@ curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setu
 You can also access a shell inside a running container for debugging:
 
 ```bash
-docker-compose exec app bash      # Voice assistant container
-docker-compose exec web bash      # Web server container
-docker-compose exec nginx sh      # NGINX container
+docker-compose exec backend bash   # Voice assistant container
+docker-compose exec frontend bash  # Web server container
+docker-compose exec nginx sh       # NGINX container
 ```
 
 **Explanation of Docker Compose Configuration**
@@ -460,40 +463,40 @@ services:
     # PostgreSQL with pgvector for persistent memory storage
     image: pgvector/pgvector:0.8.1-pg18-trixie
     volumes:
-      - app-postgres-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql/data
 
   nginx:
-    # Reverse proxy - routes /api, /logs, /settings to app; static to web
+    # Reverse proxy - routes /api, /logs, /settings to backend; static to frontend
     image: nginx:alpine
     ports: ["80:80"]
-    depends_on: [app]
+    depends_on: [backend]
 
-  app:
+  backend:
     # Voice assistant (app.py) + FastAPI backend (backend.py) on :8000
-    build: compose/app
+    image: judahpaul/gpt-home-backend:latest
     privileged: true
     expose: ["8000"]
-    devices: ["/dev/snd:/dev/snd", "/dev/i2c-1:/dev/i2c-1"]
+    devices: ["/dev/snd:/dev/snd", "/dev/i2c-1:/dev/i2c-1", "/dev/dri:/dev/dri"]
 
-  web:                  # Production (profile: prod)
+  frontend:             # Production (profile: prod)
     # Multi-stage build: React static files served by nginx
-    build: compose/web
+    image: judahpaul/gpt-home-frontend:latest
     expose: ["80"]
 
-  web-dev:              # Development (profile: dev)
+  frontend-dev:         # Development (profile: dev)
     # React dev server with hot reload
     build: compose/web/Dockerfile.dev
-    ports: ["3000:3000"]
+    expose: ["80"]
     volumes:
       - ./src/frontend:/app  # Hot reload
 
   spotifyd:
     # Spotify Connect + Avahi mDNS
-    build: compose/spotifyd
+    image: judahpaul/gpt-home-spotifyd:latest
     network_mode: host  # Required for mDNS discovery
 ```
 
-> **Profiles:** By default, `COMPOSE_PROFILES=prod` is set in `.env`, so `web` runs. For development with hot reload, use `COMPOSE_PROFILES=dev docker-compose up`.
+> **Profiles:** By default, `COMPOSE_PROFILES=prod` is set in `.env`, so `frontend` runs. For development with hot reload, use `COMPOSE_PROFILES=dev docker-compose up`.
 
 **Setup Script Flags**
 
@@ -647,6 +650,9 @@ install docker
 install docker-buildx-plugin
 install docker-compose-plugin
 install alsa-utils
+install libdrm2
+install libgbm1
+install mesa-utils
 sudo systemctl enable docker
 sudo systemctl start docker
 
@@ -655,6 +661,107 @@ sudo tee /etc/asound.conf > /dev/null <<EOF
 pcm.!default { type hw card Headphones device 0 }
 ctl.!default { type hw card Headphones }
 EOF
+
+# Configure Raspberry Pi HDMI display support
+echo "Configuring HDMI display support..."
+
+# Detect config.txt location (different on different Pi OS versions)
+CONFIG_TXT=""
+if [ -f /boot/firmware/config.txt ]; then
+    CONFIG_TXT="/boot/firmware/config.txt"
+elif [ -f /boot/config.txt ]; then
+    CONFIG_TXT="/boot/config.txt"
+fi
+
+if [ -n "$CONFIG_TXT" ]; then
+    echo "Found config at: $CONFIG_TXT"
+
+    # Backup config.txt if not already backed up
+    if [ ! -f "${CONFIG_TXT}.gpt-home-backup" ]; then
+        sudo cp "$CONFIG_TXT" "${CONFIG_TXT}.gpt-home-backup"
+        echo "Backed up $CONFIG_TXT"
+    fi
+
+    # Add GPT Home HDMI configuration header if not present
+    if ! grep -q "^# GPT Home HDMI configuration" "$CONFIG_TXT"; then
+        echo "" | sudo tee -a "$CONFIG_TXT" > /dev/null
+        echo "# GPT Home HDMI configuration" | sudo tee -a "$CONFIG_TXT" > /dev/null
+    fi
+
+    # Add HDMI force hotplug if not present (enables HDMI even without display at boot)
+    if ! grep -q "^hdmi_force_hotplug=1" "$CONFIG_TXT"; then
+        echo "Adding hdmi_force_hotplug=1 to $CONFIG_TXT"
+        echo "hdmi_force_hotplug=1" | sudo tee -a "$CONFIG_TXT" > /dev/null
+    fi
+
+    # Force HDMI mode (not DVI) - required for audio over HDMI and proper signal detection
+    if ! grep -q "^hdmi_drive=2" "$CONFIG_TXT"; then
+        echo "Adding hdmi_drive=2 to $CONFIG_TXT"
+        echo "hdmi_drive=2" | sudo tee -a "$CONFIG_TXT" > /dev/null
+    fi
+
+    # Ensure HDMI is not blanked
+    if ! grep -q "^hdmi_blanking=0" "$CONFIG_TXT"; then
+        echo "Adding hdmi_blanking=0 to $CONFIG_TXT"
+        echo "hdmi_blanking=0" | sudo tee -a "$CONFIG_TXT" > /dev/null
+    fi
+
+    # Use vc4-kms-v3d for full KMS support (required for /dev/dri to exist)
+    # Remove conflicting vc4-fkms-v3d overlay which doesn't create /dev/dri
+    echo "Configuring display overlay for KMS/DRM support..."
+    sudo sed -i '/dtoverlay=vc4-fkms-v3d/d' "$CONFIG_TXT"
+
+    if ! grep -q "^dtoverlay=vc4-kms-v3d" "$CONFIG_TXT"; then
+        echo "Adding dtoverlay=vc4-kms-v3d to $CONFIG_TXT"
+        echo "dtoverlay=vc4-kms-v3d" | sudo tee -a "$CONFIG_TXT" > /dev/null
+    fi
+
+    echo -e "${GREEN}HDMI configuration updated. Changes will take effect after reboot.${NC}"
+else
+    echo -e "${YELLOW}Could not find config.txt - HDMI configuration skipped.${NC}"
+fi
+
+# Try to power on HDMI now if tvservice is available
+if command -v tvservice >/dev/null 2>&1; then
+    echo "Attempting to power on HDMI output..."
+    sudo tvservice -p 2>/dev/null || true
+    sleep 1
+fi
+
+if [ -e /dev/fb0 ]; then
+    echo -e "${GREEN}Framebuffer detected at /dev/fb0 - display support available${NC}"
+else
+    echo -e "${YELLOW}No framebuffer detected yet. This is normal on Pi 5 with KMS driver.${NC}"
+    echo "Display will be initialized via DRM when HDMI is connected."
+fi
+
+# Check DRM device access
+echo "Checking DRM device access..."
+if [ -d /dev/dri ]; then
+    echo -e "${GREEN}DRM devices found:${NC}"
+    ls -la /dev/dri/
+    for card in /dev/dri/card*; do
+        if [ -e "$card" ]; then
+            if [ -r "$card" ] && [ -w "$card" ]; then
+                echo -e "${GREEN}  $card - accessible${NC}"
+            else
+                echo -e "${YELLOW}  $card - fixing permissions...${NC}"
+                sudo chmod 666 "$card"
+            fi
+        fi
+    done
+else
+    echo -e "${YELLOW}/dev/dri not found - DRM devices will be available after HDMI connection${NC}"
+fi
+
+# Add user to video and render groups for DRM access
+echo "Adding user to video and render groups for DRM access..."
+sudo usermod -aG video $(whoami) 2>/dev/null || true
+sudo usermod -aG render $(whoami) 2>/dev/null || true
+
+echo -e "${GREEN}DRM display configuration complete.${NC}"
+echo -e "${CYAN}The app renders directly to /dev/dri via SDL2 KMSDRM - no compositor needed.${NC}"
+echo -e "${CYAN}Just run: docker compose up -d${NC}"
 
 # Install Docker Buildx plugin
 mkdir -p $HOME/.docker/cli-plugins
@@ -707,7 +814,7 @@ if [[ "$NO_BUILD" == "false" ]]; then
     [ -d ~/gpt-home ] && rm -rf ~/gpt-home
     git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
     cd ~/gpt-home
-    
+
     echo "Stopping any running gpt-home services..."
     $COMPOSE down 2>/dev/null || true
 
@@ -745,12 +852,12 @@ if [[ "$NO_BUILD" == "true" ]]; then
     [ -d ~/gpt-home ] && rm -rf ~/gpt-home
     git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
     cd ~/gpt-home
-    
+
     $COMPOSE down 2>/dev/null || true
     echo "Pulling and starting gpt-home from Docker Hub..."
     $COMPOSE pull
     $COMPOSE up -d
-    
+
     $COMPOSE ps
 fi
 ```
@@ -802,6 +909,7 @@ chmod +x setup.sh
         <tr><td>Ubuntu 22.04</td><td>✅</td></tr>
         <tr><td>Ubuntu 23.04</td><td>✅ (EOL)</td></tr>
         <tr><td>Ubuntu 24.04</td><td>✅</td></tr>
+        <tr><td>Ubuntu 25.04</td><td>✅</td></tr>
         <tr><td>Debian Buster</td><td>✅</td></tr>
         <tr><td>Debian Bullseye</td><td>✅</td></tr>
         <tr><td>Alma Linux 8</td><td>✅</td></tr>

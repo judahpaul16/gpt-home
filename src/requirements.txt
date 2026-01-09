@@ -39,6 +39,7 @@ pyftdi==0.55.0
 pyparsing==3.1.1
 pyserial==3.5
 python-dotenv==1.0.0
+python-multipart==0.0.9
 pyttsx3==2.90
 pyusb==1.2.1
 requests>=2.32.5
@@ -65,7 +66,7 @@ mutagen==1.47.0
 numpy==1.26.4
 psycopg[binary]==3.2.4
 psycopg-pool==3.2.4
-SpeechRecognition==3.10.0
+SpeechRecognition>=3.11.0
 spidev==3.6
 spotipy==2.23.0
 starlette>=0.37.0
@@ -75,6 +76,11 @@ typing_extensions>=4.7
 uritemplate==4.1.1
 urllib3==1.26.16
 uvicorn==0.23.2
+websockets>=12.0
 yarl==1.9.2
 gTTS==2.5.4
-pygame==2.6.1
+pygame-ce==2.5.3
+pydub==0.25.1
+pyudev==0.24.1
+psutil==5.9.8
+webrtcvad==2.0.10

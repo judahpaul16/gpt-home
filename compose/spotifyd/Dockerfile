@@ -2,42 +2,31 @@ FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install dependencies for spotifyd and avahi
-RUN dpkg --add-architecture armhf && \
-    apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl tar \
-    avahi-daemon avahi-utils libnss-mdns dbus \
-    alsa-utils libasound2-dev \
-    libc6:armhf libdbus-1-3:armhf \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl \
+    alsa-utils libasound2t64 libasound2-plugins \
+    libpulse0 dbus \
+    && rm -rf /var/lib/apt/lists/*
 
-# Download and setup spotifyd binary
-RUN curl -L --retry 5 --retry-delay 10 --connect-timeout 60 --max-time 300 \
-    https://github.com/Spotifyd/spotifyd/releases/download/v0.4.1/spotifyd-linux-aarch64-default.tar.gz -o spotifyd.tar.gz && \
-    tar xzf spotifyd.tar.gz -C /usr/local/bin && chmod +x /usr/local/bin/spotifyd && \
-    rm spotifyd.tar.gz
+RUN curl -L \
+    https://github.com/Spotifyd/spotifyd/releases/download/v0.4.1/spotifyd-linux-aarch64-default.tar.gz \
+    | tar xz -C /usr/local/bin \
+    && chmod +x /usr/local/bin/spotifyd
 
-# Create Spotifyd configuration
-RUN mkdir -p /root/.config/spotifyd && { \
-    echo '[global]'; \
-    echo 'backend = "alsa"'; \
-    echo 'device_name = "GPT Home"'; \
-    echo 'bitrate = 320'; \
-    echo 'cache_path = "/root/.spotifyd/cache"'; \
-    echo 'disable_discovery = false'; \
-    echo 'zeroconf_port = 1234'; \
-    echo 'use_mpris = false'; \
-} > /root/.config/spotifyd/spotifyd.conf
+RUN mkdir -p /root/.config/spotifyd && cat > /root/.config/spotifyd/spotifyd.conf <<EOF
+[global]
+backend = "alsa"
+device_name = "GPT Home"
+bitrate = 320
+cache_path = "/root/.spotifyd/cache"
+disable_discovery = false
+zeroconf_port = 1234
+use_mpris = true
+dbus_type = "system"
+initial_volume = 90
+volume_controller = "softvol"
+autoplay = true
+enable_volume_normalisation = false
+EOF
 
-# Set up Avahi for mDNS
-RUN sed -i 's/#host-name=.*$/host-name=gpt-home/g' /etc/avahi/avahi-daemon.conf && \
-    dbus-uuidgen > /var/lib/dbus/machine-id
-
-COPY compose/spotifyd/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-# Expose Spotify Connect zeroconf port
-EXPOSE 1234
-
-CMD ["/entrypoint.sh"]
+CMD ["/usr/local/bin/spotifyd", "--no-daemon", "--verbose"]

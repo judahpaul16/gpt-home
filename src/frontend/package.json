@@ -1,66 +1,70 @@
 {
-  "name": "web_interface",
-  "version": "0.1.0",
-  "private": true,
-  "dependencies": {
-    "@babel/plugin-transform-private-property-in-object": "^7.16.7",
-    "@emotion/react": "^11.11.1",
-    "@emotion/styled": "^11.11.0",
-    "@fortawesome/fontawesome-free": "^6.7.2",
-    "@fortawesome/fontawesome-svg-core": "^6.7.2",
-    "@fortawesome/free-solid-svg-icons": "^6.7.2",
-    "@mui/icons-material": "^5.14.9",
-    "@mui/material": "^5.14.10",
-    "@testing-library/jest-dom": "^5.17.0",
-    "@testing-library/react": "^13.4.0",
-    "@testing-library/user-event": "^13.5.0",
-    "@types/jest": "^27.5.2",
-    "@types/node": "^16.18.50",
-    "@types/react": "^18.2.21",
-    "@types/react-dom": "^18.2.7",
-    "autoprefixer": "^10.4.23",
-    "axios": "^1.5.0",
-    "clsx": "^2.1.1",
-    "cross-env": "^7.0.3",
-    "framer-motion": "^12.23.26",
-    "lucide-react": "^0.562.0",
-    "postcss": "^8.5.6",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.16.0",
-    "react-scripts": "5.0.1",
-    "tailwind-merge": "^3.4.0",
-    "tailwindcss": "^3.4.19",
-    "typescript": "^4.9.5",
-    "web-vitals": "^2.1.4"
-  },
-  "devDependencies": {
-    "@babel/plugin-proposal-private-property-in-object": "^7.16.7"
-  },
-  "scripts": {
-    "prestart": "node scripts/generate-version.js",
-    "prebuild": "node scripts/generate-version.js",
-    "start": "cross-env NODE_ENV=development react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
-  }
+    "name": "web_interface",
+    "version": "0.1.0",
+    "private": true,
+    "dependencies": {
+        "@babel/plugin-transform-private-property-in-object": "^7.16.7",
+        "@emotion/react": "^11.11.1",
+        "@emotion/styled": "^11.11.0",
+        "@fortawesome/fontawesome-free": "^6.7.2",
+        "@fortawesome/fontawesome-svg-core": "^6.7.2",
+        "@fortawesome/free-solid-svg-icons": "^6.7.2",
+        "@mui/icons-material": "^5.14.9",
+        "@mui/material": "^5.14.10",
+        "@tanstack/react-query": "^5.51.1",
+        "@testing-library/jest-dom": "^5.17.0",
+        "@testing-library/react": "^13.4.0",
+        "@testing-library/user-event": "^13.5.0",
+        "@types/jest": "^27.5.2",
+        "@types/node": "^16.18.50",
+        "@types/react": "^18.2.21",
+        "@types/react-dom": "^18.2.7",
+        "@xterm/addon-attach": "^0.12.0",
+        "@xterm/addon-fit": "^0.11.0",
+        "@xterm/xterm": "^6.0.0",
+        "autoprefixer": "^10.4.23",
+        "axios": "^1.5.0",
+        "clsx": "^2.1.1",
+        "cross-env": "^7.0.3",
+        "framer-motion": "^12.23.26",
+        "lucide-react": "^0.562.0",
+        "postcss": "^8.5.6",
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0",
+        "react-router-dom": "^6.16.0",
+        "react-scripts": "5.0.1",
+        "tailwind-merge": "^3.4.0",
+        "tailwindcss": "^3.4.19",
+        "typescript": "^4.9.5",
+        "web-vitals": "^2.1.4"
+    },
+    "devDependencies": {
+        "@babel/plugin-proposal-private-property-in-object": "^7.16.7"
+    },
+    "scripts": {
+        "prestart": "node scripts/generate-version.js",
+        "prebuild": "node scripts/generate-version.js",
+        "start": "cross-env NODE_ENV=development react-scripts start",
+        "build": "react-scripts build",
+        "test": "react-scripts test",
+        "eject": "react-scripts eject"
+    },
+    "eslintConfig": {
+        "extends": [
+            "react-app",
+            "react-app/jest"
+        ]
+    },
+    "browserslist": {
+        "production": [
+            ">0.2%",
+            "not dead",
+            "not op_mini all"
+        ],
+        "development": [
+            "last 1 chrome version",
+            "last 1 firefox version",
+            "last 1 safari version"
+        ]
+    }
 }

@@ -1,84 +1,84 @@
 name: CI/CD Pipeline
 
 on:
-  release:
-    types:
-      - published
-  workflow_dispatch:
-    inputs:
-      logLevel:
-        description: 'Log level'
-        required: true
-        default: 'warning'
-        type: choice
-        options:
-        - info
-        - warning
-        - debug
-      tags:
-        description: 'Test scenario tags'
-        required: false
-        type: boolean
+    release:
+        types:
+            - published
+    workflow_dispatch:
+        inputs:
+            logLevel:
+                description: "Log level"
+                required: true
+                default: "warning"
+                type: choice
+                options:
+                    - info
+                    - warning
+                    - debug
+            tags:
+                description: "Test scenario tags"
+                required: false
+                type: boolean
 
 permissions:
-  contents: read
-  packages: write
+    contents: read
+    packages: write
 
 jobs:
-  docker:
-    runs-on: [self-hosted, ARM64]
-    timeout-minutes: 360
-    strategy:
-      matrix:
-        service:
-          - name: web
-            dockerfile: compose/web/Dockerfile
-          - name: app
-            dockerfile: compose/app/Dockerfile
-          - name: spotifyd
-            dockerfile: compose/spotifyd/Dockerfile
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
+    docker:
+        runs-on: [self-hosted, ARM64]
+        timeout-minutes: 360
+        strategy:
+            matrix:
+                service:
+                    - name: frontend
+                      dockerfile: compose/web/Dockerfile
+                    - name: backend
+                      dockerfile: compose/app/Dockerfile
+                    - name: spotifyd
+                      dockerfile: compose/spotifyd/Dockerfile
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v3
+              with:
+                  fetch-depth: 0
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+            - name: Set up QEMU
+              uses: docker/setup-qemu-action@v3
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+            - name: Login to Docker Hub
+              uses: docker/login-action@v3
+              with:
+                  username: ${{ secrets.DOCKERHUB_USERNAME }}
+                  password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GH_TOKEN }}
+            - name: Login to GitHub Container Registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.repository_owner }}
+                  password: ${{ secrets.GH_TOKEN }}
 
-      - name: Get the version
-        id: get_version
-        run: |
-          VERSION=$(git tag | sort --version-sort | tail -n1)
-          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
-          echo "VERSION=${VERSION}"
+            - name: Get the version
+              id: get_version
+              run: |
+                  VERSION=$(git tag | sort --version-sort | tail -n1)
+                  echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+                  echo "VERSION=${VERSION}"
 
-      - name: Build and push ${{ matrix.service.name }}
-        env:
-          VERSION: ${{ steps.get_version.outputs.VERSION }}
-          SERVICE: ${{ matrix.service.name }}
-          DOCKERFILE: ${{ matrix.service.dockerfile }}
-        run: |
-          timeout 3600 docker buildx build --platform linux/arm64 --no-cache \
-            -f $DOCKERFILE \
-            -t ${{ secrets.DOCKERHUB_USERNAME }}/gpt-home-$SERVICE:$VERSION \
-            -t ghcr.io/${{ github.repository_owner }}/gpt-home-$SERVICE:$VERSION \
-            -t ${{ secrets.DOCKERHUB_USERNAME }}/gpt-home-$SERVICE:latest \
-            -t ghcr.io/${{ github.repository_owner }}/gpt-home-$SERVICE:latest \
-            --push .
+            - name: Build and push ${{ matrix.service.name }}
+              env:
+                  VERSION: ${{ steps.get_version.outputs.VERSION }}
+                  SERVICE: ${{ matrix.service.name }}
+                  DOCKERFILE: ${{ matrix.service.dockerfile }}
+              run: |
+                  timeout 3600 docker buildx build --platform linux/arm64 --no-cache \
+                    -f $DOCKERFILE \
+                    -t ${{ secrets.DOCKERHUB_USERNAME }}/gpt-home-$SERVICE:$VERSION \
+                    -t ghcr.io/${{ github.repository_owner }}/gpt-home-$SERVICE:$VERSION \
+                    -t ${{ secrets.DOCKERHUB_USERNAME }}/gpt-home-$SERVICE:latest \
+                    -t ghcr.io/${{ github.repository_owner }}/gpt-home-$SERVICE:latest \
+                    --push .
