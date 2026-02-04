@@ -199,23 +199,19 @@ const InteractiveChart: React.FC<InteractiveChartProps> = ({
 
     const enabledMetrics = metrics.filter((m) => m.enabled);
 
-    const sharedRateMax = useMemo(() => {
-        const rateKeys = enabledMetrics
-            .filter(
-                (m) =>
-                    m.key.toString().startsWith("network") ||
-                    m.key.toString().startsWith("disk"),
-            )
-            .map((m) => m.key);
-        if (rateKeys.length === 0) return 0.001;
-        let max = 0.001;
-        for (const key of rateKeys) {
+    // Calculate individual max values for each metric (independent scaling)
+    const metricMaxValues = useMemo(() => {
+        const maxes: Record<string, number> = {};
+        for (const metric of enabledMetrics) {
+            let max = 0.001; // Minimum to avoid division by zero
             for (const h of history) {
-                const val = h[key] as number;
+                const val = h[metric.key] as number;
                 if (val > max) max = val;
             }
+            // Add 10% headroom for better visualization
+            maxes[metric.key] = max * 1.1;
         }
-        return max;
+        return maxes;
     }, [history, enabledMetrics]);
 
     const handleMouseMove = useCallback(
@@ -238,12 +234,8 @@ const InteractiveChart: React.FC<InteractiveChartProps> = ({
 
                 for (const metric of enabledMetrics) {
                     const value = point[metric.key] as number;
-                    const isRateMetric =
-                        metric.key.toString().startsWith("network") ||
-                        metric.key.toString().startsWith("disk");
-                    const metricMax = isRateMetric
-                        ? sharedRateMax
-                        : metric.max || 100;
+                    // Use individual dynamic scaling for each metric
+                    const metricMax = metricMaxValues[metric.key] || 1;
                     const metricY = height - (value / metricMax) * height;
                     const distance = Math.abs(y - metricY);
                     if (distance < closestDistance) {
@@ -262,7 +254,7 @@ const InteractiveChart: React.FC<InteractiveChartProps> = ({
                 });
             }
         },
-        [history, enabledMetrics, height, sharedRateMax],
+        [history, enabledMetrics, height, metricMaxValues],
     );
 
     const handleMouseLeave = useCallback(() => {
@@ -310,12 +302,8 @@ const InteractiveChart: React.FC<InteractiveChartProps> = ({
                 {enabledMetrics.map((metric) => {
                     const data = history.map((h) => h[metric.key] as number);
                     const divisor = data.length > 1 ? data.length - 1 : 1;
-                    const isRateMetric =
-                        metric.key.toString().startsWith("network") ||
-                        metric.key.toString().startsWith("disk");
-                    const metricMax = isRateMetric
-                        ? sharedRateMax
-                        : metric.max || 100;
+                    // Use individual dynamic scaling for each metric
+                    const metricMax = metricMaxValues[metric.key] || 1;
                     const points = data
                         .map((value, i) => {
                             const x = (i / divisor) * 100;

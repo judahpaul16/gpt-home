@@ -51,8 +51,6 @@ class AudioMetrics:
 @dataclass
 class ThresholdConfig:
     vad_threshold_db: float = -50.0
-    waveform_show_threshold: float = 0.003
-    waveform_hide_threshold: float = 0.001
     silence_rms_threshold: int = 200
     grace_frames: int = 10
 
@@ -327,9 +325,6 @@ class AudioActivityDetector:
         self._frames_since_activity = 0
         self._smoothed_amplitude = 0.0
 
-        self._waveform_values: Deque[float] = deque([0.0] * 32, maxlen=32)
-        self._waveform_lock = threading.Lock()
-
         self._initialized = True
 
     @classmethod
@@ -339,17 +334,11 @@ class AudioActivityDetector:
     def configure(
         self,
         vad_threshold_db: Optional[float] = None,
-        waveform_show_threshold: Optional[float] = None,
-        waveform_hide_threshold: Optional[float] = None,
         silence_rms_threshold: Optional[int] = None,
         grace_frames: Optional[int] = None,
     ) -> None:
         if vad_threshold_db is not None:
             self._config.vad_threshold_db = vad_threshold_db
-        if waveform_show_threshold is not None:
-            self._config.waveform_show_threshold = waveform_show_threshold
-        if waveform_hide_threshold is not None:
-            self._config.waveform_hide_threshold = waveform_hide_threshold
         if silence_rms_threshold is not None:
             self._config.silence_rms_threshold = silence_rms_threshold
         if grace_frames is not None:
@@ -410,56 +399,6 @@ class AudioActivityDetector:
         if self._current_activity_state != previous_state:
             self._notify_callbacks(self._current_activity_state, metrics)
 
-    def update_waveform(self, audio_chunk: sr.AudioData) -> List[float]:
-        try:
-            raw = audio_chunk.get_raw_data()
-            sample_width = audio_chunk.sample_width
-
-            if len(raw) < 64:
-                return list(self._waveform_values)
-
-            chunk_size = len(raw) // 32
-            new_values = []
-
-            for i in range(32):
-                start = i * chunk_size
-                end = start + chunk_size
-                chunk = raw[start:end]
-                try:
-                    rms = audioop.rms(chunk, sample_width)
-                    max_val = (1 << (8 * sample_width - 1)) - 1
-                    normalized = min(1.0, rms / (max_val * 0.35))
-                    new_values.append(normalized)
-                except Exception:
-                    new_values.append(0.0)
-
-            with self._waveform_lock:
-                for i, val in enumerate(new_values):
-                    self._waveform_values[i] = val
-                return list(self._waveform_values)
-
-        except Exception:
-            return list(self._waveform_values)
-
-    def get_waveform_values(self) -> List[float]:
-        with self._waveform_lock:
-            return list(self._waveform_values)
-
-    def clear_waveform(self) -> None:
-        with self._waveform_lock:
-            for i in range(32):
-                self._waveform_values[i] = 0.0
-
-    def should_show_waveform(self) -> bool:
-        with self._waveform_lock:
-            max_val = max(self._waveform_values)
-        return max_val >= self._config.waveform_show_threshold
-
-    def should_hide_waveform(self) -> bool:
-        with self._waveform_lock:
-            max_val = max(self._waveform_values)
-        return max_val < self._config.waveform_hide_threshold
-
     def is_silence(self, rms: float) -> bool:
         return rms < self._config.silence_rms_threshold
 
@@ -507,7 +446,7 @@ class AudioActivityDetector:
         Args:
             audio_data: Raw audio bytes
             sample_width: Bytes per sample (usually 2 for 16-bit audio)
-            sample_rate: Sample rate in Hz (must be 8000, 16000, 32000, or 48000)
+            sample_rate: Sample rate in Hz (will be resampled to 16000 if needed)
 
         Returns:
             True if voice is detected, False otherwise
@@ -517,6 +456,7 @@ class AudioActivityDetector:
             return metrics.has_activity
 
         try:
+            # Convert to 16-bit if needed
             if sample_width != 2:
                 audio_data = audioop.lin2lin(audio_data, sample_width, 2)
 

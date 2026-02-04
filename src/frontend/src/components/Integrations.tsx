@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { motion } from "framer-motion";
+import axios from "axios";
 import Integration from "./Integration";
 import { Icons } from "./Icons";
 import { useServiceStatuses } from "../hooks/useApi";
@@ -31,19 +32,59 @@ const serviceColors: { [key: string]: string } = {
     CalDAV: "from-primary-500 to-cyan-500",
 };
 
+interface SpotifyAuthStatus {
+    has_credentials: boolean;
+    needs_auth?: boolean;
+}
+
 const Integrations: React.FC<IntegrationsProps> = ({
     setStatus,
     toggleStatus,
     toggleOverlay,
     integrations,
 }) => {
+    const [spotifyAuthStatus, setSpotifyAuthStatus] =
+        useState<SpotifyAuthStatus | null>(null);
+
+    // Fetch Spotify auth status
+    const fetchSpotifyAuthStatus = useCallback(async () => {
+        try {
+            const response = await axios.get("/api/spotify/auth-status");
+            setSpotifyAuthStatus(response.data);
+        } catch (error) {
+            console.error("Failed to fetch Spotify auth status:", error);
+        }
+    }, []);
+
+    // Poll for auth status when Spotify is connected but no credentials yet
+    useEffect(() => {
+        // Only fetch if Spotify is connected
+        if (!integrations.Spotify.status) {
+            return;
+        }
+
+        fetchSpotifyAuthStatus();
+
+        // Poll every 3 seconds if connected but waiting for credentials
+        const interval = setInterval(() => {
+            fetchSpotifyAuthStatus();
+        }, 3000);
+
+        return () => clearInterval(interval);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [integrations.Spotify.status]);
+
     const usage: { [key: string]: string[] } = {
         Spotify: [
             "Play.....on Spotify",
             "Play / Pause / Stop",
             "Next Song / Go Back",
         ],
-        OpenWeather: ["How's the weather?", "What's the temperature in...."],
+        OpenWeather: [
+            "How's the weather?",
+            "What's the temperature in Dallas?",
+            "Will it rain this weekend?",
+        ],
         PhilipsHue: [
             "Dim the lights to...",
             "Turn on / off....lights",
@@ -58,7 +99,7 @@ const Integrations: React.FC<IntegrationsProps> = ({
 
     const requiredFields: { [key: string]: string[] } = useMemo(
         () => ({
-            Spotify: ["CLIENT ID", "CLIENT SECRET", "USERNAME", "PASSWORD"],
+            Spotify: ["CLIENT ID", "CLIENT SECRET"],
             OpenWeather: ["API KEY"],
             PhilipsHue: ["BRIDGE IP ADDRESS"],
             CalDAV: ["URL", "USERNAME", "PASSWORD"],
@@ -215,6 +256,16 @@ const Integrations: React.FC<IntegrationsProps> = ({
                                     requiredFields={requiredFields}
                                     toggleStatus={toggleStatus}
                                     setShowOverlay={toggleOverlay}
+                                    spotifyAuthStatus={
+                                        name === "Spotify"
+                                            ? spotifyAuthStatus
+                                            : undefined
+                                    }
+                                    onSpotifyConnected={
+                                        name === "Spotify"
+                                            ? fetchSpotifyAuthStatus
+                                            : undefined
+                                    }
                                 />
                             </div>
                         </motion.div>

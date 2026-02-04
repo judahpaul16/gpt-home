@@ -109,8 +109,9 @@ const EventLogs: React.FC = () => {
     const [logs, setLogs] = useState<Log[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const logContainerRef = useRef<HTMLDivElement>(null);
-    const [userHasScrolled, setUserHasScrolled] = useState(false);
-    const userHasScrolledRef = useRef(false);
+    const isAtBottomRef = useRef(true);
+    // Track if we should show the scroll button (user has scrolled away from bottom)
+    const [showScrollButton, setShowScrollButton] = useState(false);
     const [initialLogCount, setInitialLogCount] = useState<number | null>(null);
     const eventSourceRef = useRef<EventSource | null>(null);
     const { confirmConfig, showConfirm, closeConfirm } = useConfirm();
@@ -125,12 +126,23 @@ const EventLogs: React.FC = () => {
         debug: false,
     });
 
+    // Check if currently at bottom of scroll container
+    const checkIfAtBottom = useCallback(() => {
+        const container = logContainerRef.current;
+        if (!container) return true;
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+        return distanceToBottom < 20;
+    }, []);
+
     const scrollToBottom = useCallback(() => {
         if (logContainerRef.current) {
-            logContainerRef.current.scrollTop =
-                logContainerRef.current.scrollHeight;
-            setUserHasScrolled(false);
-            userHasScrolledRef.current = false;
+            logContainerRef.current.scrollTo({
+                top: logContainerRef.current.scrollHeight,
+                behavior: "smooth",
+            });
+            isAtBottomRef.current = true;
+            setShowScrollButton(false);
         }
     }, []);
 
@@ -183,6 +195,22 @@ const EventLogs: React.FC = () => {
         fetchAllLogs();
     }, []);
 
+    // Scroll to bottom after initial logs are loaded
+    const logsLength = logs.length;
+    useEffect(() => {
+        if (!isLoading && logsLength > 0 && logContainerRef.current) {
+            setTimeout(() => {
+                if (logContainerRef.current) {
+                    logContainerRef.current.scrollTop =
+                        logContainerRef.current.scrollHeight;
+                    const atBottom = checkIfAtBottom();
+                    isAtBottomRef.current = atBottom;
+                    setShowScrollButton(!atBottom);
+                }
+            }, 100);
+        }
+    }, [isLoading, logsLength, checkIfAtBottom]);
+
     // SSE connection for live log updates
     useEffect(() => {
         if (initialLogCount === null) return;
@@ -234,10 +262,8 @@ const EventLogs: React.FC = () => {
 
                     setLogs((prevLogs) => [...prevLogs, newLog]);
 
-                    if (
-                        !userHasScrolledRef.current &&
-                        logContainerRef.current
-                    ) {
+                    // Only auto-scroll if user is already at the bottom
+                    if (isAtBottomRef.current && logContainerRef.current) {
                         setTimeout(() => {
                             if (logContainerRef.current) {
                                 logContainerRef.current.scrollTop =
@@ -288,24 +314,36 @@ const EventLogs: React.FC = () => {
         };
     }, [initialLogCount]);
 
-    // Handle scroll
     useEffect(() => {
         const handleScroll = () => {
-            if (logContainerRef.current) {
-                const { scrollTop, scrollHeight, clientHeight } =
-                    logContainerRef.current;
-                const isAtBottom =
-                    Math.abs(scrollHeight - scrollTop - clientHeight) < 10;
-                const hasScrolled = !isAtBottom;
-                setUserHasScrolled(hasScrolled);
-                userHasScrolledRef.current = hasScrolled;
+            const container = logContainerRef.current;
+            if (container) {
+                const { scrollTop, scrollHeight, clientHeight } = container;
+                const distanceToBottom =
+                    scrollHeight - scrollTop - clientHeight;
+                const atBottom = distanceToBottom < 20;
+
+                // Update ref for auto-scroll behavior
+                isAtBottomRef.current = atBottom;
+
+                // Show scroll button when not at bottom
+                setShowScrollButton(!atBottom);
             }
         };
 
+        // Wait for loading to complete and ref to be available
+        if (isLoading) return;
+
         const logRef = logContainerRef.current;
-        logRef?.addEventListener("scroll", handleScroll);
-        return () => logRef?.removeEventListener("scroll", handleScroll);
-    }, []);
+        if (!logRef) return;
+
+        logRef.addEventListener("scroll", handleScroll, { passive: true });
+
+        // Check initial scroll position after mount
+        handleScroll();
+
+        return () => logRef.removeEventListener("scroll", handleScroll);
+    }, [isLoading]);
 
     const toggleFilter = (type: string) => {
         setActiveFilters({ ...activeFilters, [type]: !activeFilters[type] });
@@ -425,7 +463,7 @@ const EventLogs: React.FC = () => {
                 </div>
 
                 {/* Log container */}
-                <div className="card overflow-hidden relative">
+                <div className="card relative">
                     {isLoading ? (
                         <div className="flex items-center justify-center h-96">
                             <Spinner size="lg" />
@@ -493,16 +531,21 @@ const EventLogs: React.FC = () => {
 
                     {/* Scroll to latest button */}
                     <AnimatePresence>
-                        {userHasScrolled && filteredLogs.length > 0 && (
+                        {showScrollButton && filteredLogs.length > 0 && (
                             <motion.button
-                                initial={{ opacity: 0, scale: 0.9 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.9 }}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 20 }}
+                                transition={{
+                                    type: "spring",
+                                    stiffness: 300,
+                                    damping: 30,
+                                }}
                                 onClick={scrollToBottom}
-                                className="absolute bottom-6 right-6 bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-full flex items-center gap-2 shadow-lg transition-colors"
+                                className="absolute bottom-6 right-6 z-10 bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-full flex items-center gap-2 shadow-lg transition-colors"
                             >
                                 <Icons.ArrowDown className="w-4 h-4" />
-                                Latest
+                                Scroll to Latest
                             </motion.button>
                         )}
                     </AnimatePresence>

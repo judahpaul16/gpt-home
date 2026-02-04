@@ -92,9 +92,9 @@ GPT Home uses a **microservices architecture** with Docker Compose:
 | `backend` | Voice assistant + FastAPI backend | 8000 (internal) | always |
 | `frontend` | Pre-built React static files (nginx) | 80 (internal) | prod |
 | `frontend-dev` | React dev server with hot reload (network alias: "frontend") | 80 (internal) | dev |
-| `spotifyd` | Spotify Connect + Avahi mDNS (gpt-home.local) | host network | always |
+| `spotify` | Spotify Connect + Avahi mDNS (gpt-home.local) | host network | always |
 
-> **Profiles:** Default is `prod` (set via `COMPOSE_PROFILES=prod` in `.env`). Use `COMPOSE_PROFILES=dev` for development with hot reload. Just run `docker-compose up -d` — no `--profile` flag needed.
+> **Profiles:** Default is `prod` (set via `COMPOSE_PROFILES=prod` in `.env`). Use `COMPOSE_PROFILES=dev` for development with hot reload. Just run `docker compose up -d` — no `--profile` flag needed.
 
 **Nginx Routing:**
 - `/api/*`, `/logs/*`, `/settings`, `/spotify-*`, `/connect-service`, etc. → `backend:8000`
@@ -117,14 +117,14 @@ curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setu
 2. ***Required:*** Set your API key. GPT Home uses **LiteLLM** which supports 100+ providers (OpenAI, Anthropic, Google, Cohere, etc.):
 ```bash
 echo "LITELLM_API_KEY=YOUR_API_KEY_HERE" >> ~/gpt-home/.env
-docker-compose restart
+docker compose restart
 ```
 
 > **Tip:** You can also set the API key via the web interface at `gpt-home.local/settings`. See [LiteLLM docs](https://docs.litellm.ai/docs/providers) for all supported providers.
 
 3. ***Optional:*** To view the logs and verify the assistant is running:
 ```bash
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ### Development (Any Machine)
@@ -135,7 +135,7 @@ cp .env.example .env
 # Edit .env with your API keys
 nano .env
 # Start dev environment with hot reload
-COMPOSE_PROFILES=dev docker-compose up
+COMPOSE_PROFILES=dev docker compose up
 ```
 Access at `http://localhost` (nginx routes to frontend and API).
 
@@ -406,28 +406,28 @@ sudo dnf groupinstall -y "Development Tools"   # For RHEL/CentOS/Alma 9^
 alias gpt-home="cd ~/gpt-home"
 
 # Manage all services
-alias gpt-up="cd ~/gpt-home && docker-compose up -d"
-alias gpt-down="cd ~/gpt-home && docker-compose down"
-alias gpt-restart="cd ~/gpt-home && docker-compose restart"
-alias gpt-logs="cd ~/gpt-home && docker-compose logs -f"
-alias gpt-status="cd ~/gpt-home && docker-compose ps"
+alias gpt-up="cd ~/gpt-home && docker compose up -d"
+alias gpt-down="cd ~/gpt-home && docker compose down"
+alias gpt-restart="cd ~/gpt-home && docker compose restart"
+alias gpt-logs="cd ~/gpt-home && docker compose logs -f"
+alias gpt-status="cd ~/gpt-home && docker compose ps"
 
 # Manage individual services
-alias gpt-backend-logs="cd ~/gpt-home && docker-compose logs -f backend"
-alias gpt-backend-restart="cd ~/gpt-home && docker-compose restart backend"
-alias gpt-backend-shell="cd ~/gpt-home && docker-compose exec backend bash"
+alias gpt-backend-logs="cd ~/gpt-home && docker compose logs -f backend"
+alias gpt-backend-restart="cd ~/gpt-home && docker compose restart backend"
+alias gpt-backend-shell="cd ~/gpt-home && docker compose exec backend bash"
 
-alias gpt-frontend-logs="cd ~/gpt-home && docker-compose logs -f frontend"
-alias gpt-frontend-restart="cd ~/gpt-home && docker-compose restart frontend"
+alias gpt-frontend-logs="cd ~/gpt-home && docker compose logs -f frontend"
+alias gpt-frontend-restart="cd ~/gpt-home && docker compose restart frontend"
 
-alias gpt-nginx-logs="cd ~/gpt-home && docker-compose logs -f nginx"
-alias gpt-nginx-restart="cd ~/gpt-home && docker-compose restart nginx"
+alias gpt-nginx-logs="cd ~/gpt-home && docker compose logs -f nginx"
+alias gpt-nginx-restart="cd ~/gpt-home && docker compose restart nginx"
 
-alias gpt-spotifyd-logs="cd ~/gpt-home && docker-compose logs -f spotifyd"
-alias gpt-spotifyd-restart="cd ~/gpt-home && docker-compose restart spotifyd"
+alias gpt-spotify-logs="cd ~/gpt-home && docker compose logs -f spotify"
+alias gpt-spotify-restart="cd ~/gpt-home && docker compose restart spotify"
 
 # Development mode (hot reload)
-alias gpt-dev="cd ~/gpt-home && COMPOSE_PROFILES=dev docker-compose up"
+alias gpt-dev="cd ~/gpt-home && COMPOSE_PROFILES=dev docker compose up"
 ```
 Run `source ~/.bashrc` to apply the changes to your current terminal session.
 
@@ -448,9 +448,9 @@ curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setu
 You can also access a shell inside a running container for debugging:
 
 ```bash
-docker-compose exec backend bash   # Voice assistant container
-docker-compose exec frontend bash  # Web server container
-docker-compose exec nginx sh       # NGINX container
+docker compose exec backend bash   # Voice assistant container
+docker compose exec frontend bash  # Web server container
+docker compose exec nginx sh       # NGINX container
 ```
 
 **Explanation of Docker Compose Configuration**
@@ -490,13 +490,13 @@ services:
     volumes:
       - ./src/frontend:/app  # Hot reload
 
-  spotifyd:
+  spotify:
     # Spotify Connect + Avahi mDNS
-    image: judahpaul/gpt-home-spotifyd:latest
+    image: judahpaul/gpt-home-spotify:latest
     network_mode: host  # Required for mDNS discovery
 ```
 
-> **Profiles:** By default, `COMPOSE_PROFILES=prod` is set in `.env`, so `frontend` runs. For development with hot reload, use `COMPOSE_PROFILES=dev docker-compose up`.
+> **Profiles:** By default, `COMPOSE_PROFILES=prod` is set in `.env`, so `frontend` runs. For development with hot reload, use `COMPOSE_PROFILES=dev docker compose up`.
 
 **Setup Script Flags**
 
@@ -662,6 +662,32 @@ pcm.!default { type hw card Headphones device 0 }
 ctl.!default { type hw card Headphones }
 EOF
 
+# Set System dbus policy for spotifyd MPRIS control
+# Use /etc/dbus-1/system.d/ for local configuration (not /usr/share which is for packages)
+# Note: spotifyd registers as org.mpris.MediaPlayer2.spotifyd.instance1 (with instance suffix)
+sudo tee /etc/dbus-1/system.d/spotifyd.conf > /dev/null <<EOF
+<!DOCTYPE busconfig PUBLIC
+          "-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN"
+          "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+<busconfig>
+  <!-- Allow root to own the spotifyd interfaces (spotifyd runs as root in container) -->
+  <policy user="root">
+    <allow own_prefix="org.mpris.MediaPlayer2.spotifyd"/>
+    <allow own_prefix="rs.spotifyd"/>
+  </policy>
+
+  <!-- Allow anyone to call methods on spotifyd (backend container needs this) -->
+  <policy context="default">
+    <allow send_destination_prefix="org.mpris.MediaPlayer2.spotifyd"/>
+    <allow send_destination_prefix="rs.spotifyd"/>
+    <allow receive_sender="org.mpris.MediaPlayer2.spotifyd"/>
+    <allow receive_sender="rs.spotifyd"/>
+  </policy>
+</busconfig>
+EOF
+
+sudo systemctl reload dbus
+
 # Configure Raspberry Pi HDMI display support
 echo "Configuring HDMI display support..."
 
@@ -760,8 +786,113 @@ sudo usermod -aG video $(whoami) 2>/dev/null || true
 sudo usermod -aG render $(whoami) 2>/dev/null || true
 
 echo -e "${GREEN}DRM display configuration complete.${NC}"
-echo -e "${CYAN}The app renders directly to /dev/dri via SDL2 KMSDRM - no compositor needed.${NC}"
-echo -e "${CYAN}Just run: docker compose up -d${NC}"
+
+# Configure SPI TFT display support (3.5" LCD displays)
+echo ""
+echo "Checking for SPI TFT display..."
+
+# Detect if a TFT display overlay is already configured
+TFT_CONFIGURED=false
+if [ -n "$CONFIG_TXT" ]; then
+    if grep -qE "^dtoverlay=(tft35a|waveshare35a|piscreen|pitft35)" "$CONFIG_TXT" 2>/dev/null; then
+        TFT_CONFIGURED=true
+        echo -e "${GREEN}SPI TFT display overlay already configured in config.txt${NC}"
+    fi
+fi
+
+# Check for /dev/fb1 (typical for SPI TFT displays)
+if [ -e /dev/fb1 ]; then
+    echo -e "${GREEN}SPI TFT framebuffer detected at /dev/fb1${NC}"
+    TFT_DETECTED=true
+else
+    TFT_DETECTED=false
+fi
+
+# Function to install SPI TFT display drivers
+install_tft_driver() {
+    local display_type=$1
+    echo "Installing $display_type TFT display driver..."
+
+    # Enable SPI if not already enabled
+    if [ -n "$CONFIG_TXT" ]; then
+        if ! grep -q "^dtparam=spi=on" "$CONFIG_TXT"; then
+            echo "Enabling SPI..."
+            echo "dtparam=spi=on" | sudo tee -a "$CONFIG_TXT" > /dev/null
+        fi
+
+        # Add TFT display header if not present
+        if ! grep -q "^# GPT Home TFT display configuration" "$CONFIG_TXT"; then
+            echo "" | sudo tee -a "$CONFIG_TXT" > /dev/null
+            echo "# GPT Home TFT display configuration" | sudo tee -a "$CONFIG_TXT" > /dev/null
+        fi
+    fi
+
+    # Clone LCD-show repository for driver installation
+    if [ ! -d /tmp/LCD-show ]; then
+        echo "Downloading TFT display drivers..."
+        git clone https://github.com/goodtft/LCD-show.git /tmp/LCD-show 2>/dev/null || {
+            echo -e "${YELLOW}Could not download TFT drivers. Manual installation may be required.${NC}"
+            return 1
+        }
+    fi
+
+    # Copy the overlay file
+    if [ -f /tmp/LCD-show/usr/tft35a-overlay.dtb ]; then
+        OVERLAYS_DIR=""
+        if [ -d /boot/firmware/overlays ]; then
+            OVERLAYS_DIR="/boot/firmware/overlays"
+        elif [ -d /boot/overlays ]; then
+            OVERLAYS_DIR="/boot/overlays"
+        fi
+
+        if [ -n "$OVERLAYS_DIR" ]; then
+            echo "Installing TFT overlay to $OVERLAYS_DIR..."
+            sudo cp /tmp/LCD-show/usr/tft35a-overlay.dtb "$OVERLAYS_DIR/tft35a.dtbo"
+
+            # Add overlay to config.txt
+            if [ -n "$CONFIG_TXT" ] && ! grep -q "^dtoverlay=tft35a" "$CONFIG_TXT"; then
+                echo "dtoverlay=tft35a:rotate=90" | sudo tee -a "$CONFIG_TXT" > /dev/null
+                echo -e "${GREEN}TFT display overlay configured${NC}"
+            fi
+        fi
+    fi
+
+    # Clean up
+    rm -rf /tmp/LCD-show
+
+    echo -e "${GREEN}TFT driver installation complete. Reboot required to activate.${NC}"
+    return 0
+}
+
+# Auto-detect common SPI TFT displays by checking for connected SPI devices
+detect_spi_tft() {
+    # Check if SPI is available
+    if [ ! -d /sys/class/spi_master ]; then
+        return 1
+    fi
+
+    # Check for common TFT display chip IDs via SPI
+    # ILI9486, ILI9341, ST7789 are common controllers
+    for spi in /sys/class/spi_master/spi*/; do
+        if [ -d "$spi" ]; then
+            echo "SPI bus detected: $(basename $spi)"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Auto-install TFT drivers if SPI hardware is detected but not configured
+if [ "$TFT_CONFIGURED" = false ] && detect_spi_tft; then
+    echo -e "${CYAN}SPI bus detected - installing TFT display drivers automatically...${NC}"
+    install_tft_driver "3.5inch"
+    echo -e "${YELLOW}TFT display configured. Reboot required to activate.${NC}"
+fi
+
+# Ensure framebuffer permissions for TFT displays
+if [ -e /dev/fb1 ]; then
+    sudo chmod 666 /dev/fb1 2>/dev/null || true
+fi
 
 # Install Docker Buildx plugin
 mkdir -p $HOME/.docker/cli-plugins
@@ -785,16 +916,12 @@ sudo ufw allow 5353/udp
 sudo ufw allow 1234
 echo "y" | sudo ufw enable
 
-# Determine docker-compose command (v2 plugin vs v1 standalone)
-if docker-compose version &>/dev/null; then
-    COMPOSE="docker-compose"
-elif docker-compose version &>/dev/null; then
-    COMPOSE="docker-compose"
+# Use docker compose (v2 plugin installed with docker-compose-plugin)
+if docker compose version &>/dev/null; then
+    COMPOSE="docker compose"
 else
-    echo "Installing docker-compose..."
-    sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-    sudo chmod +x /usr/local/bin/docker-compose
-    COMPOSE="docker-compose"
+    echo "ERROR: Docker Compose plugin not available. Re-run script to install Docker properly."
+    exit 1
 fi
 
 # Parse flags
@@ -830,7 +957,7 @@ if [[ "$NO_BUILD" == "false" ]]; then
         docker buildx inspect --bootstrap
     fi
 
-    echo "Building and starting gpt-home with docker-compose..."
+    echo "Building and starting gpt-home with docker compose..."
     if [[ "$NO_CACHE" == "true" ]]; then
         DOCKER_DEFAULT_PLATFORM=linux/arm64 $COMPOSE build --no-cache
     else

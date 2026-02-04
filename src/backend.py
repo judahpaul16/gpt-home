@@ -18,6 +18,7 @@ import traceback
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import dbus
 import litellm
 import psutil
 import psycopg
@@ -86,43 +87,6 @@ async def get_db_pool() -> psycopg_pool.AsyncConnectionPool:
     return _db_pool
 
 
-async def _init_tables():
-    """Initialize gallery_images table if it doesn't exist."""
-    pool = await get_db_pool()
-    async with pool.connection() as conn:
-        await conn.execute("""
-                    CREATE TABLE IF NOT EXISTS gallery_images (
-                        id SERIAL PRIMARY KEY,
-                        filename VARCHAR(255) UNIQUE NOT NULL,
-                        data BYTEA NOT NULL,
-                        mime_type VARCHAR(100) NOT NULL,
-                        size INTEGER NOT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                """)
-
-        await conn.execute("""
-                    CREATE TABLE IF NOT EXISTS app_settings (
-                        key TEXT PRIMARY KEY,
-                        value TEXT NOT NULL,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                """)
-
-        await conn.execute("""
-                    CREATE TABLE IF NOT EXISTS integrations (
-                        id SERIAL PRIMARY KEY,
-                        name TEXT UNIQUE NOT NULL,
-                        fields JSONB NOT NULL DEFAULT '{}'::jsonb,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                """)
-        await conn.commit()
-
-
-init = _init_tables()
-
 # Suppress verbose LiteLLM callback logging (success_handler spam)
 litellm.suppress_debug_info = True
 litellm.set_verbose = False
@@ -138,144 +102,63 @@ ROOT_DIR = SOURCE_DIR.parent
 ENV_FILE_PATH = ROOT_DIR / ".env"
 FRONTEND_ENV_PATH = SOURCE_DIR / "frontend" / ".env"
 
-SPOTIFYD_DBUS_DEST = "org.mpris.MediaPlayer2.spotifyd"
-SPOTIFYD_DBUS_PATH = "/org/mpris/MediaPlayer2"
-SPOTIFYD_DBUS_PLAYER_IFACE = "org.mpris.MediaPlayer2.Player"
+
+def _run_host_command(cmd: list, timeout: int = 5) -> str:
+    """Run a command on the host system via nsenter."""
+    try:
+        full_cmd = [
+            "nsenter",
+            "--target",
+            "1",
+            "--mount",
+            "--uts",
+            "--ipc",
+            "--net",
+            "--pid",
+            "--",
+        ] + cmd
+        result = subprocess.run(
+            full_cmd, capture_output=True, text=True, timeout=timeout
+        )
+        return result.stdout.strip() if result.returncode == 0 else ""
+    except Exception:
+        return ""
 
 
-app = FastAPI()
-
-
-# Docker container restart helpers (replaces legacy supervisorctl)
 def restart_app_container():
     """Restart the GPT Home backend container via Docker."""
     try:
-        # Try with -1 suffix first (docker-compose v2 naming)
-        result = subprocess.run(
-            ["docker", "restart", "gpt-home-backend-1"],
-            capture_output=True,
-            text=True,
-            timeout=30,
+        _run_host_command(
+            [
+                "docker",
+                "restart",
+                "gpt-home-backend-1",
+            ]
         )
-        if result.returncode != 0:
-            # Fallback to without suffix
-            subprocess.run(
-                ["docker", "restart", "gpt-home-backend-1"],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
     except Exception as e:
         logger.warning(f"Failed to restart backend container: {e}")
 
 
-def _update_spotifyd_config(username: str, password: str):
-    """Update spotifyd configuration with Spotify credentials."""
-    config_content = f"""[global]
-backend = "alsa"
-device_name = "GPT Home"
-bitrate = 320
-cache_path = "/root/.spotifyd/cache"
-disable_discovery = false
-zeroconf_port = 1234
-use_mpris = true
-dbus_type = "system"
-initial_volume = 90
-volume_controller = "softvol"
-autoplay = true
-enable_volume_normalisation = false
-username = "{username}"
-password = "{password}"
-"""
-    subprocess.run(
-        [
-            "sh",
-            "-c",
-            f"echo '{config_content}' > /root/.config/spotifyd/spotifyd.conf",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
+def restart_spotifyd():
+    """Force restart spotify container."""
+    _run_host_command(["docker", "restart", "gpt-home-spotify-1"])
 
 
-def restart_spotifyd_container():
-    """Restart the spotifyd container via Docker."""
-    try:
-        result = subprocess.run(
-            ["docker", "restart", "gpt-home-spotifyd-1"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if result.returncode != 0:
-            subprocess.run(
-                ["docker", "restart", "gpt-home-spotifyd-1"],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-    except Exception as e:
-        logger.warning(f"Failed to restart spotifyd container: {e}")
+def stop_spotifyd():
+    """Stop spotify container."""
+    _run_host_command(["docker", "stop", "gpt-home-spotify-1"])
 
 
-def stop_spotifyd_container():
-    """Stop the spotifyd container via Docker."""
-    try:
-        subprocess.run(
-            ["docker", "stop", "gpt-home-spotifyd-1"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-    except Exception:
-        try:
-            subprocess.run(
-                ["docker", "stop", "gpt-home-spotifyd-1"],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-        except Exception as e:
-            logger.warning(f"Failed to stop spotifyd container: {e}")
+def start_spotifyd():
+    """Start spotify container."""
+    _run_host_command(["docker", "start", "gpt-home-spotify-1"])
 
 
-def start_spotifyd_container():
-    """Start the spotifyd container via Docker."""
-    try:
-        subprocess.run(
-            ["docker", "start", "gpt-home-spotifyd-1"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-    except Exception:
-        try:
-            subprocess.run(
-                ["docker", "start", "gpt-home-spotifyd-1"],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-        except Exception as e:
-            logger.warning(f"Failed to start spotifyd container: {e}")
+app = FastAPI()
 
-
-@app.post("/get-local-ip")
-def get_local_ip():
-    ip = "gpt-home.local"
-    try:
-        result = subprocess.run(
-            ["docker", "exec", "gpt-home-spotifyd-1", "hostname", "-I"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            ip = result.stdout.strip().split()[0]
-    except Exception:
-        pass
-    return JSONResponse(content={"ip": ip})
+# Cache for available models (fetched from GitHub)
+_models_cache: Dict[str, Any] = {"models": [], "timestamp": 0}
+_MODELS_CACHE_TTL = 3600  # 1 hour
 
 
 @app.post("/api/settings/dark-mode")
@@ -314,13 +197,17 @@ async def toggle_dark_mode(request: Request):
 
 ## Event Logs ##
 
+_MAX_LOG_LINES = 1000
+
 
 @app.post("/logs")
 def logs(request: Request):
     if log_file_path.exists() and log_file_path.is_file():
         with log_file_path.open("r") as f:
-            log_data = f.read()
-        return JSONResponse(content={"log_data": log_data.replace("`", "")})
+            lines = f.readlines()
+        lines = lines[-_MAX_LOG_LINES:] if len(lines) > _MAX_LOG_LINES else lines
+        log_data = "".join(lines).replace("`", "")
+        return JSONResponse(content={"log_data": log_data})
     else:
         return Response(
             status_code=status.HTTP_404_NOT_FOUND, content="Log file not found"
@@ -583,12 +470,12 @@ async def gpt_restart(request: Request):
 
 @app.post("/spotifyRestart")
 async def spotify_restart(request: Request):
-    """Restart the spotifyd container."""
+    """Restart the spotify container."""
     try:
-        restart_spotifyd_container()
+        restart_spotifyd()
         return JSONResponse(content={"success": True})
     except Exception as e:
-        logger.error(f"Failed to restart spotifyd: {e}")
+        logger.error(f"Failed to restart spotify: {e}")
         return JSONResponse(
             content={"success": False, "error": str(e)}, status_code=500
         )
@@ -706,6 +593,15 @@ async def speech_capabilities():
 
 @app.post("/availableModels")
 async def available_models():
+    global _models_cache
+    now = time.time()
+
+    if (
+        _models_cache["models"]
+        and (now - _models_cache["timestamp"]) < _MODELS_CACHE_TTL
+    ):
+        return JSONResponse(content={"models": _models_cache["models"]})
+
     try:
         import aiohttp
 
@@ -717,14 +613,21 @@ async def available_models():
                 if response.status == 200:
                     model_list = await response.json(content_type=None)
                     supported_models = [model for model in model_list.keys()]
+                    _models_cache = {"models": supported_models, "timestamp": now}
                     return JSONResponse(content={"models": supported_models})
                 else:
+                    if _models_cache["models"]:
+                        return JSONResponse(content={"models": _models_cache["models"]})
                     return JSONResponse(content={"models": []})
     except asyncio.TimeoutError:
         logger.warning("Timeout fetching available models from LiteLLM")
+        if _models_cache["models"]:
+            return JSONResponse(content={"models": _models_cache["models"]})
         return JSONResponse(content={"models": []})
     except Exception as e:
         logger.warning(f"Error fetching available models: {e}")
+        if _models_cache["models"]:
+            return JSONResponse(content={"models": _models_cache["models"]})
         return JSONResponse(content={"models": []})
 
 
@@ -939,69 +842,9 @@ async def _initialize_mic_gain():
 _voice_assistant_task = None
 
 
-def ensure_dbus_policy():
-    """Inject D-Bus policy into the host to fix ServiceUnknown errors."""
-    policy_path = "/etc/dbus-1/system.d/spotifyd.conf"
-    # Use a heredoc to prevent shell mangling of the XML
-    policy_content = """<busconfig>
-  <policy user="root">
-    <allow own="org.mpris.MediaPlayer2.spotifyd"/>
-    <allow send_destination="org.mpris.MediaPlayer2.spotifyd"/>
-  </policy>
-  <policy context="default">
-    <allow send_destination="org.mpris.MediaPlayer2.spotifyd"/>
-  </policy>
-</busconfig>"""
-
-    try:
-        # Write the policy file to the host filesystem
-        subprocess.run(
-            [
-                "nsenter",
-                "--target",
-                "1",
-                "--mount",
-                "--",
-                "sh",
-                "-c",
-                f"cat <<EOF > {policy_path}\n{policy_content}\nEOF",
-            ],
-            check=True,
-        )
-
-        # Force the host D-Bus to reload its configuration
-        subprocess.run(
-            [
-                "nsenter",
-                "--target",
-                "1",
-                "--mount",
-                "--",
-                "dbus-send",
-                "--system",
-                "--type=method_call",
-                "--dest=org.freedesktop.DBus",
-                "/org/freedesktop/DBus",
-                "org.freedesktop.DBus.ReloadConfig",
-            ],
-            check=True,
-        )
-
-        logger.info("Successfully injected D-Bus policy for spotifyd")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to inject D-Bus policy: {e}")
-        return False
-
-
 @app.on_event("startup")
 async def startup_event():
-    ensure_dbus_policy()
-
     global _display_monitor_task, _voice_assistant_task
-
-    # hashed password is now stored in the database (app_settings table).
-    # No file should be created on startup.
 
     # Initialize database and migrate gallery images
     try:
@@ -1140,67 +983,63 @@ async def get_hashed_password():
 
 @app.post("/setHashedPassword")
 async def set_hashed_password(request: Request):
+    """
+    Update the system password.
+    Fixes: RuntimeError (double json call) and Logic/Ordering errors.
+    """
     try:
-        incoming_data = await request.json()
-        new_hashed_password = incoming_data["hashedPassword"]
+        # 1. Consume the request body ONLY ONCE
+        data = await request.json()
+        old_password = data.get("oldPassword")
+        new_password = data.get("newPassword")
 
-        # Store hashed password in the database
+        if not new_password:
+            return JSONResponse(
+                status_code=400, content={"message": "New password required"}
+            )
+
         pool = await get_db_pool()
         async with pool.connection() as conn:
-            await conn.execute(
-                """
-                    INSERT INTO app_settings (key, value, updated_at)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP)
-                    ON CONFLICT (key)
-                    DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
-                """,
-                ("hashed_password", new_hashed_password),
-            )
-            await conn.commit()
+            async with conn.cursor() as cur:
+                # 2. VERIFY PHASE: Fetch the existing password first
+                await cur.execute(
+                    "SELECT value FROM app_settings WHERE key = %s",
+                    ("hashed_password",),
+                )
+                row = await cur.fetchone()
+                stored_hash = row[0] if row else None
 
-        incoming_data = await request.json()
+                # 3. Handle initial setup vs. password change logic
+                if stored_hash:
+                    # If a password exists, the 'old_password' must match its hash
+                    if generate_hashed_password(old_password) != stored_hash:
+                        return JSONResponse(
+                            status_code=401,
+                            content={
+                                "success": False,
+                                "message": "Incorrect current password",
+                            },
+                        )
 
-        old_password = incoming_data["oldPassword"]
-
-        new_password = incoming_data["newPassword"]
-
-        # Fetch stored hashed password from database
-        pool = await get_db_pool()
-        async with pool.connection() as conn:
-            cur = await conn.execute(
-                "SELECT value FROM app_settings WHERE key = %s",
-                ("hashed_password",),
-            )
-            row = await cur.fetchone()
-            stored_hashed_password = row[0] if row else ""
-
-        provided_hashed_password = generate_hashed_password(old_password)
-
-        if provided_hashed_password == stored_hashed_password:
-            new_hashed_password = generate_hashed_password(new_password)
-
-            # Store the new hashed password in database
-
-            pool = await get_db_pool()
-            async with pool.connection() as conn:
-                await conn.execute(
+                # 4. UPDATE PHASE: Commit the new password only after verification
+                new_hash = generate_hashed_password(new_password)
+                await cur.execute(
                     """
                     INSERT INTO app_settings (key, value, updated_at)
                     VALUES (%s, %s, CURRENT_TIMESTAMP)
-                    ON CONFLICT (key)
-                    DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
+                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
                     """,
-                    ("hashed_password", new_hashed_password),
+                    ("hashed_password", new_hash),
                 )
                 await conn.commit()
 
-            return JSONResponse(content={"success": True})
-        else:
-            return HTTPException(status_code=401, detail="Incorrect password")
-    except Exception as e:
         return JSONResponse(
-            content={"error": str(e), "traceback": traceback.format_exc()}
+            content={"success": True, "message": "Password updated successfully"}
         )
+
+    except Exception as e:
+        logger.error(f"Password update error: {traceback.format_exc()}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 ## Integrations ##
@@ -1231,8 +1070,6 @@ async def connect_service(request: Request):
         if name == "spotify":
             spotify_client_id = fields.get("CLIENT ID")
             spotify_client_secret = fields.get("CLIENT SECRET")
-            spotify_username = fields.get("USERNAME")
-            spotify_password = fields.get("PASSWORD")
 
             if spotify_client_id and spotify_client_secret:
                 try:
@@ -1252,15 +1089,6 @@ async def connect_service(request: Request):
                         content={"error": f"Invalid Spotify credentials: {e}"},
                         status_code=400,
                     )
-
-            # Configure spotifyd if username/password present
-            if spotify_username and spotify_password:
-                try:
-                    _update_spotifyd_config(spotify_username, spotify_password)
-                    restart_spotifyd_container()
-                    logger.success("Spotifyd configured with credentials")
-                except Exception as e:
-                    logger.warning(f"Failed to configure spotifyd: {e}")
 
         # If Philips Hue bridge IP was provided, attempt to establish username
         if name == "philipshue" and "BRIDGE IP ADDRESS" in fields:
@@ -1287,6 +1115,12 @@ async def disconnect_service(request: Request):
         pool = await get_db_pool()
         async with pool.connection() as conn:
             await conn.execute("DELETE FROM integrations WHERE name = %s", (name,))
+            # For Spotify, also clear the OAuth user tokens
+            if name == "spotify":
+                await conn.execute(
+                    "DELETE FROM integrations WHERE name = %s", ("spotify_user_token",)
+                )
+                logger.info("Cleared Spotify OAuth tokens on disconnect")
             await conn.commit()
 
         return JSONResponse(content={"success": True})
@@ -1335,272 +1169,758 @@ async def get_client_credentials_token():
         return None
 
 
-def _run_dbus_command(
-    method: str, args: list = None, retry_on_fail: bool = True
-) -> tuple[bool, str]:
-    """Run a D-Bus command to control spotifyd via MPRIS.
-
-    If the command fails due to spotifyd not being available and retry_on_fail is True,
-    attempts to restart spotifyd and retry once.
-    """
-
-    def _exec_dbus():
-        cmd = [
-            "dbus-send",
-            "--system",
-            "--print-reply",
-            f"--dest={SPOTIFYD_DBUS_DEST}",
-            SPOTIFYD_DBUS_PATH,
-            f"{SPOTIFYD_DBUS_PLAYER_IFACE}.{method}",
-        ]
-        if args:
-            cmd.extend(args)
-        env = os.environ.copy()
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=10, env=env)
-
-    try:
-        result = _exec_dbus()
-        if result.returncode == 0:
-            return True, result.stdout
-
-        error_msg = result.stderr
-
-        if retry_on_fail and "ServiceUnknown" in error_msg:
-            logger.warning("spotifyd not available on D-Bus, attempting restart...")
-            try:
-                restart_spotifyd_container()
-                import time
-
-                for attempt, delay in enumerate([3, 5, 7], 1):
-                    time.sleep(delay)
-                    result = _exec_dbus()
-                    if result.returncode == 0:
-                        logger.info(f"spotifyd ready after {attempt} attempt(s)")
-                        return True, result.stdout
-
-                logger.warning(f"D-Bus command failed after retries: {result.stderr}")
-            except Exception as e:
-                logger.error(f"Failed to restart spotifyd: {e}")
-
-        logger.warning(f"D-Bus command failed: {error_msg}")
-        return False, error_msg
-    except subprocess.TimeoutExpired:
-        return False, "D-Bus command timed out"
-    except Exception as e:
-        logger.error(f"D-Bus error: {e}")
-        return False, str(e)
-
-
-def mpris_play():
-    """Resume playback via D-Bus MPRIS."""
-    return _run_dbus_command("Play")
-
-
-def mpris_pause():
-    """Pause playback via D-Bus MPRIS."""
-    return _run_dbus_command("Pause")
-
-
-def mpris_play_pause():
-    """Toggle play/pause via D-Bus MPRIS."""
-    return _run_dbus_command("PlayPause")
-
-
-def mpris_next():
-    """Skip to next track via D-Bus MPRIS."""
-    return _run_dbus_command("Next")
-
-
-def mpris_previous():
-    """Go to previous track via D-Bus MPRIS."""
-    return _run_dbus_command("Previous")
-
-
-def mpris_stop():
-    """Stop playback via D-Bus MPRIS."""
-    return _run_dbus_command("Stop")
-
-
-def mpris_open_uri(spotify_uri: str):
-    """Open a Spotify URI via D-Bus MPRIS."""
-    return _run_dbus_command("OpenUri", [f"string:{spotify_uri}"])
-
-
-def _run_dbus_command_set_property(prop: str, value: str) -> tuple[bool, str]:
-    """Set a D-Bus property on spotifyd via MPRIS."""
-    try:
-        cmd = [
-            "dbus-send",
-            "--system",
-            "--print-reply",
-            f"--dest={SPOTIFYD_DBUS_DEST}",
-            SPOTIFYD_DBUS_PATH,
-            "org.freedesktop.DBus.Properties.Set",
-            f"string:{SPOTIFYD_DBUS_PLAYER_IFACE}",
-            f"string:{prop}",
-            f"variant:{value}",
-        ]
-
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        if result.returncode == 0:
-            return True, result.stdout
-        else:
-            logger.warning(f"D-Bus set property failed: {result.stderr}")
-            return False, result.stderr
-    except subprocess.TimeoutExpired:
-        return False, "D-Bus command timed out"
-    except Exception as e:
-        logger.error(f"D-Bus error: {e}")
-        return False, str(e)
-
-
 # Spotify playback state cache
 _spotify_playback_cache: Dict[str, Any] = {}
 _spotify_last_check: float = 0
 _spotify_monitor_task: Optional[asyncio.Task] = None
 
+# Path to credentials.json populated by spotifyd via zeroconf
+SPOTIFY_CREDENTIALS_PATH = Path("/root/.spotifyd/cache/zeroconf/credentials.json")
 
-def _get_mpris_metadata() -> Optional[Dict[str, Any]]:
-    """Get playback metadata from spotifyd via D-Bus MPRIS."""
+# D-Bus MPRIS interface for spotifyd control
+SPOTIFYD_DBUS_PREFIX = "org.mpris.MediaPlayer2.spotifyd"
+MPRIS_PLAYER_INTERFACE = "org.mpris.MediaPlayer2.Player"
+MPRIS_OBJECT_PATH = "/org/mpris/MediaPlayer2"
+DBUS_PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
+
+
+SPOTIFYD_SYSTEM_BUS_NAME = "rs.spotifyd.instance1"
+SPOTIFYD_DBUS_PREFIX = "org.mpris.MediaPlayer2.spotifyd"
+MPRIS_OBJECT_PATH = "/org/mpris/MediaPlayer2"
+
+# Spotify OAuth broker configuration
+# The broker handles OAuth redirects and token exchange for headless devices
+SPOTIFY_BROKER_URL = "https://gpt-home.judahpaul.com"
+SPOTIFY_SCOPES = (
+    "user-read-playback-state user-modify-playback-state user-read-currently-playing"
+)
+
+# Device ID for broker-based authorization
+_device_id: Optional[str] = None
+
+
+async def _get_spotify_client_id() -> Optional[str]:
+    """Get Spotify CLIENT ID from database integrations."""
     try:
-        # Get Metadata property
-        cmd = [
-            "dbus-send",
-            "--system",
-            "--print-reply",
-            f"--dest={SPOTIFYD_DBUS_DEST}",
-            SPOTIFYD_DBUS_PATH,
-            "org.freedesktop.DBus.Properties.Get",
-            f"string:{SPOTIFYD_DBUS_PLAYER_IFACE}",
-            "string:Metadata",
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-        if result.returncode != 0:
-            return None
+        pool = await get_db_pool()
+        async with pool.connection() as conn:
+            cur = await conn.execute(
+                "SELECT fields::text FROM integrations WHERE name = %s", ("spotify",)
+            )
+            row = await cur.fetchone()
+        if row and row[0]:
+            data = json.loads(row[0])
+            return data.get("CLIENT ID")
+    except Exception as e:
+        logger.debug(f"Error getting Spotify client ID: {e}")
+    return None
 
-        metadata_output = result.stdout
 
-        # Get PlaybackStatus property
-        cmd_status = [
-            "dbus-send",
-            "--system",
-            "--print-reply",
-            f"--dest={SPOTIFYD_DBUS_DEST}",
-            SPOTIFYD_DBUS_PATH,
-            "org.freedesktop.DBus.Properties.Get",
-            f"string:{SPOTIFYD_DBUS_PLAYER_IFACE}",
-            "string:PlaybackStatus",
-        ]
-        status_result = subprocess.run(
-            cmd_status, capture_output=True, text=True, timeout=5
+async def _get_spotify_client_secret() -> Optional[str]:
+    """Get Spotify CLIENT SECRET from database integrations."""
+    try:
+        pool = await get_db_pool()
+        async with pool.connection() as conn:
+            cur = await conn.execute(
+                "SELECT fields::text FROM integrations WHERE name = %s", ("spotify",)
+            )
+            row = await cur.fetchone()
+        if row and row[0]:
+            data = json.loads(row[0])
+            return data.get("CLIENT SECRET")
+    except Exception as e:
+        logger.debug(f"Error getting Spotify client secret: {e}")
+    return None
+
+
+def _get_device_id() -> str:
+    """Get or generate a unique device ID for this GPT Home instance."""
+    global _device_id
+    if _device_id:
+        return _device_id
+
+    # Try to load from file
+    device_id_file = Path("/app/.device_id")
+    if device_id_file.exists():
+        _device_id = device_id_file.read_text().strip()
+        return _device_id
+
+    # Generate new device ID based on machine-specific info
+    import secrets
+
+    try:
+        # Use MAC address + random for uniqueness
+        mac = (
+            subprocess.check_output(
+                "cat /sys/class/net/$(ip route show default | awk '/default/ {print $5}')/address 2>/dev/null || echo 'unknown'",
+                shell=True,
+            )
+            .decode()
+            .strip()
+        )
+        _device_id = hashlib.sha256(
+            f"{mac}-{secrets.token_hex(8)}".encode()
+        ).hexdigest()[:32]
+    except Exception:
+        _device_id = secrets.token_hex(16)
+
+    # Save for persistence
+    try:
+        device_id_file.write_text(_device_id)
+    except Exception:
+        pass
+
+    return _device_id
+
+
+async def _store_spotify_user_token(
+    access_token: str, refresh_token: str, expires_in: int
+):
+    """Store Spotify user OAuth tokens in database."""
+    try:
+        pool = await get_db_pool()
+        async with pool.connection() as conn:
+            token_data = {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "expires_at": int(time.time()) + expires_in,
+            }
+            await conn.execute(
+                """
+                INSERT INTO app_settings (key, value, updated_at)
+                VALUES (%s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (key)
+                DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
+                """,
+                ("spotify_user_token", json.dumps(token_data)),
+            )
+            await conn.commit()
+        logger.info("Spotify user token stored successfully")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to store Spotify user token: {e}")
+        return False
+
+
+async def _get_spotify_user_token() -> Optional[Dict[str, Any]]:
+    """Get stored Spotify user OAuth tokens from database."""
+    try:
+        pool = await get_db_pool()
+        async with pool.connection() as conn:
+            cur = await conn.execute(
+                "SELECT value FROM app_settings WHERE key = %s",
+                ("spotify_user_token",),
+            )
+            row = await cur.fetchone()
+        if row and row[0]:
+            return json.loads(row[0])
+    except Exception as e:
+        logger.debug(f"Error getting Spotify user token: {e}")
+    return None
+
+
+async def _refresh_spotify_token() -> Optional[str]:
+    """Refresh the Spotify access token directly with Spotify API."""
+    token_data = await _get_spotify_user_token()
+    if not token_data or not token_data.get("refresh_token"):
+        return None
+
+    client_id = await _get_spotify_client_id()
+    client_secret = await _get_spotify_client_secret()
+
+    if not client_id or not client_secret:
+        logger.error("Cannot refresh token: Spotify credentials not configured")
+        return None
+
+    try:
+        import base64
+
+        auth_header = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+
+        response = requests.post(
+            "https://accounts.spotify.com/api/token",
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": token_data["refresh_token"],
+            },
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Authorization": f"Basic {auth_header}",
+            },
+            timeout=10,
         )
 
-        is_playing = False
-        if status_result.returncode == 0 and "Playing" in status_result.stdout:
-            is_playing = True
+        if response.status_code != 200:
+            # Log detailed error for debugging
+            logger.error(
+                f"Spotify token refresh failed: {response.status_code} - {response.text}"
+            )
+            # If refresh token is invalid, clear stored tokens to force re-auth
+            if response.status_code == 400:
+                error_data = response.json() if response.text else {}
+                if error_data.get("error") == "invalid_grant":
+                    logger.warning(
+                        "Refresh token is invalid/expired, clearing stored tokens"
+                    )
+                    await _store_spotify_user_token("", "", 0)
+            response.raise_for_status()
 
-        if not is_playing:
+        data = response.json()
+
+        # Store the new tokens
+        await _store_spotify_user_token(
+            data["access_token"],
+            data.get("refresh_token", token_data["refresh_token"]),
+            data.get("expires_in", 3600),
+        )
+        return data["access_token"]
+    except Exception as e:
+        logger.error(f"Failed to refresh Spotify token: {e}")
+        return None
+
+
+async def get_spotify_user_client() -> Optional[spotipy.Spotify]:
+    """Get a Spotify client with user authorization for playback control."""
+    token_data = await _get_spotify_user_token()
+    if not token_data:
+        return None
+
+    # Check if token is expired or about to expire (within 60 seconds)
+    if token_data.get("expires_at", 0) < time.time() + 60:
+        access_token = await _refresh_spotify_token()
+        if not access_token:
             return None
+    else:
+        access_token = token_data.get("access_token")
 
-        # Parse metadata from D-Bus output (basic parsing)
-        track_name = "Unknown Track"
-        artist_name = "Unknown Artist"
-        album_name = "Unknown Album"
-        album_art_url = None
-        duration_ms = 0
+    if not access_token:
+        return None
 
-        # Extract xesam:title
-        if "xesam:title" in metadata_output:
-            title_match = metadata_output.split("xesam:title")
-            if len(title_match) > 1:
-                # Look for string value after the key
-                import re
+    return spotipy.Spotify(auth=access_token)
 
-                title_search = re.search(r'string\s+"([^"]*)"', title_match[1][:200])
-                if title_search:
-                    track_name = title_search.group(1)
 
-        # Extract xesam:artist
-        if "xesam:artist" in metadata_output:
-            artist_match = metadata_output.split("xesam:artist")
-            if len(artist_match) > 1:
-                import re
+def _find_spotifyd_dbus_name():
+    try:
+        bus = dbus.SystemBus()
+        dbus_obj = bus.get_object("org.freedesktop.DBus", "/org/freedesktop/DBus")
+        dbus_iface = dbus.Interface(dbus_obj, "org.freedesktop.DBus")
+        names = dbus_iface.ListNames()
 
-                artist_search = re.search(r'string\s+"([^"]*)"', artist_match[1][:200])
-                if artist_search:
-                    artist_name = artist_search.group(1)
+        for name in names:
+            if name.startswith(
+                SPOTIFYD_DBUS_PREFIX
+            ):  # "org.mpris.MediaPlayer2.spotifyd"
+                return str(name), bus
 
-        # Extract xesam:album
-        if "xesam:album" in metadata_output:
-            album_match = metadata_output.split("xesam:album")
-            if len(album_match) > 1:
-                import re
+        # Fallback to Session Bus
+        try:
+            session_bus = dbus.SessionBus()
+            for name in session_bus.list_names():
+                if name.startswith(SPOTIFYD_DBUS_PREFIX):
+                    return str(name), session_bus
+        except Exception:
+            pass
 
-                album_search = re.search(r'string\s+"([^"]*)"', album_match[1][:200])
-                if album_search:
-                    album_name = album_search.group(1)
+        return None, bus  # Return None so activation code runs
+    except Exception as e:
+        logger.debug(f"Could not list D-Bus names: {e}")
+        return None, None
 
-        # Extract mpris:artUrl
-        if "mpris:artUrl" in metadata_output:
-            art_match = metadata_output.split("mpris:artUrl")
-            if len(art_match) > 1:
-                import re
 
-                art_search = re.search(r'string\s+"([^"]*)"', art_match[1][:500])
-                if art_search:
-                    album_art_url = art_search.group(1)
+async def _get_dbus_player():
+    """Get D-Bus player for MPRIS control (if spotifyd is registered)."""
+    try:
+        service_name, bus = _find_spotifyd_dbus_name()
 
-        # Extract mpris:length (in microseconds)
-        if "mpris:length" in metadata_output:
-            length_match = metadata_output.split("mpris:length")
-            if len(length_match) > 1:
-                import re
+        if not service_name or not bus:
+            return None, None
 
-                length_search = re.search(r"int64\s+(\d+)", length_match[1][:100])
-                if length_search:
-                    duration_ms = int(length_search.group(1)) // 1000
+        player = bus.get_object(service_name, MPRIS_OBJECT_PATH)
+        return player, bus
+    except Exception as e:
+        logger.debug(f"D-Bus path not ready: {e}")
+        return None, None
+
+
+async def _mpris_play():
+    """Send Play command via D-Bus MPRIS."""
+    player, _ = await _get_dbus_player()
+    if player:
+        try:
+            # First try to transfer playback to spotifyd to make it active
+            _spotifyd_transfer_playback()
+
+            iface = dbus.Interface(player, MPRIS_PLAYER_INTERFACE)
+            iface.Play()
+            logger.debug("MPRIS Play() command sent successfully")
+            return True
+        except Exception as e:
+            logger.error(f"MPRIS Play() failed: {e}")
+            return False
+    logger.debug("MPRIS Play() - no player available")
+    return False
+
+
+async def _mpris_pause():
+    """Send Pause command via D-Bus MPRIS."""
+    player, _ = await _get_dbus_player()
+    if player:
+        iface = dbus.Interface(player, MPRIS_PLAYER_INTERFACE)
+        iface.Pause()
+        return True
+    return False
+
+
+async def _mpris_play_pause():
+    """Toggle play/pause via D-Bus MPRIS."""
+    player, _ = await _get_dbus_player()
+    if player:
+        iface = dbus.Interface(player, MPRIS_PLAYER_INTERFACE)
+        iface.PlayPause()
+        return True
+    return False
+
+
+async def _mpris_next():
+    """Skip to next track via D-Bus MPRIS."""
+    player, _ = await _get_dbus_player()
+    if player:
+        iface = dbus.Interface(player, MPRIS_PLAYER_INTERFACE)
+        iface.Next()
+        return True
+    return False
+
+
+async def _mpris_previous():
+    """Go to previous track via D-Bus MPRIS."""
+    player, _ = await _get_dbus_player()
+    if player:
+        iface = dbus.Interface(player, MPRIS_PLAYER_INTERFACE)
+        iface.Previous()
+        return True
+    return False
+
+
+async def _mpris_open_uri(uri: str):
+    """Open a Spotify URI via D-Bus MPRIS."""
+    player, _ = await _get_dbus_player()
+    if player:
+        try:
+            iface = dbus.Interface(player, MPRIS_PLAYER_INTERFACE)
+            logger.debug(f"MPRIS OpenUri({uri}) sending...")
+            iface.OpenUri(uri)
+            logger.debug(f"MPRIS OpenUri({uri}) sent successfully")
+            return True
+        except Exception as e:
+            logger.error(f"MPRIS OpenUri({uri}) failed: {e}")
+            return False
+    logger.debug("MPRIS OpenUri() - no player available")
+    return False
+
+
+async def _mpris_set_volume(volume_pct: int):
+    """Set volume (0-100) via D-Bus MPRIS."""
+    player, _ = await _get_dbus_player()
+    if player:
+        props = dbus.Interface(player, DBUS_PROPERTIES_INTERFACE)
+        # MPRIS volume is 0.0 to 1.0
+        props.Set(MPRIS_PLAYER_INTERFACE, "Volume", dbus.Double(volume_pct / 100.0))
+        return True
+    return False
+
+
+async def _mpris_get_playback_status() -> Optional[Dict[str, Any]]:
+    """Get current playback status via D-Bus MPRIS."""
+    player, _ = await _get_dbus_player()
+    if not player:
+        return None
+
+    try:
+        props = dbus.Interface(player, DBUS_PROPERTIES_INTERFACE)
+
+        # Get PlaybackStatus first - this is the most reliable indicator
+        status = str(props.Get(MPRIS_PLAYER_INTERFACE, "PlaybackStatus"))
+
+        # Get metadata (may be empty if just started)
+        try:
+            metadata = props.Get(MPRIS_PLAYER_INTERFACE, "Metadata")
+        except Exception:
+            metadata = {}
+
+        # Position may not be available immediately after playback starts
+        try:
+            position = int(
+                props.Get(MPRIS_PLAYER_INTERFACE, "Position")
+            )  # microseconds
+        except Exception:
+            position = 0
+
+        # Volume may not be available
+        try:
+            volume = float(props.Get(MPRIS_PLAYER_INTERFACE, "Volume"))
+        except Exception:
+            volume = 1.0  # Default to 100%
+
+        # Extract metadata
+        track_id = str(metadata.get("mpris:trackid", ""))
+        title = str(metadata.get("xesam:title", "Unknown"))
+        artists = metadata.get("xesam:artist", ["Unknown"])
+        artist = str(artists[0]) if artists else "Unknown"
+        album = str(metadata.get("xesam:album", ""))
+        art_url = str(metadata.get("mpris:artUrl", ""))
+        duration_us = int(metadata.get("mpris:length", 0))  # microseconds
 
         return {
-            "is_playing": True,
-            "track": track_name,
-            "artist": artist_name,
-            "album": album_name,
-            "album_art_url": album_art_url,
-            "progress_ms": 0,  # Position requires separate D-Bus call
-            "duration_ms": duration_ms,
-            "progress_pct": 0,
+            "is_playing": status == "Playing",
+            "status": status,
+            "track": title,
+            "artist": artist,
+            "album": album,
+            "album_art_url": art_url,
+            "progress_ms": position // 1000,
+            "duration_ms": duration_us // 1000,
+            "progress_pct": (position / duration_us * 100) if duration_us > 0 else 0,
+            "volume": int(volume * 100),
+            "track_id": track_id,
         }
     except Exception as e:
-        logger.debug(f"Error getting MPRIS metadata: {e}")
+        logger.debug(f"Error getting MPRIS playback status: {e}")
         return None
+
+
+async def _mpris_is_available() -> bool:
+    """Check if spotifyd MPRIS interface is available."""
+    player, _ = await _get_dbus_player()
+    return player is not None
+
+
+def _spotifyd_transfer_playback() -> bool:
+    """
+    Transfer playback to spotifyd using the rs.spotifyd.Controls interface.
+    This makes spotifyd the active playback device.
+    """
+    try:
+        bus = dbus.SystemBus()
+        # Find rs.spotifyd service
+        dbus_obj = bus.get_object("org.freedesktop.DBus", "/org/freedesktop/DBus")
+        dbus_iface = dbus.Interface(dbus_obj, "org.freedesktop.DBus")
+        names = dbus_iface.ListNames()
+
+        spotifyd_service = None
+        for name in names:
+            if name.startswith("rs.spotifyd"):
+                spotifyd_service = str(name)
+                break
+
+        if not spotifyd_service:
+            logger.debug("rs.spotifyd service not found")
+            return False
+
+        # Try to call TransferPlayback on the Controls interface
+        obj = bus.get_object(spotifyd_service, "/rs/spotifyd/Controls")
+        controls = dbus.Interface(obj, "rs.spotifyd.Controls")
+        controls.TransferPlayback()
+        logger.debug("TransferPlayback called successfully")
+        return True
+    except Exception as e:
+        logger.debug(f"TransferPlayback failed: {e}")
+        return False
+
+
+async def _persist_spotify_credentials_to_db() -> bool:
+    """
+    Read spotifyd's zeroconf credentials and persist them to the database.
+    This ensures credentials survive container restarts.
+    Returns True if credentials were persisted.
+    """
+    if not SPOTIFY_CREDENTIALS_PATH.exists():
+        return False
+
+    try:
+        with open(SPOTIFY_CREDENTIALS_PATH, "r") as f:
+            creds = json.load(f)
+
+        pool = await get_db_pool()
+        async with pool.connection() as conn:
+            # Store the raw zeroconf credentials under a special key
+            await conn.execute(
+                """
+                INSERT INTO app_settings (key, value, updated_at)
+                VALUES (%s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (key)
+                DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
+                """,
+                ("spotify_zeroconf_credentials", json.dumps(creds)),
+            )
+            await conn.commit()
+        logger.debug("Spotify zeroconf credentials persisted to database")
+        return True
+    except Exception as e:
+        logger.warning(f"Failed to persist Spotify credentials: {e}")
+        return False
+
+
+async def _restore_spotify_credentials_from_db() -> bool:
+    """
+    Restore spotifyd's zeroconf credentials from database to file.
+    Called on startup if the file doesn't exist but DB has credentials.
+    Returns True if credentials were restored.
+    """
+    if SPOTIFY_CREDENTIALS_PATH.exists():
+        # File already exists, no need to restore
+        return False
+
+    try:
+        pool = await get_db_pool()
+        async with pool.connection() as conn:
+            cur = await conn.execute(
+                "SELECT value FROM app_settings WHERE key = %s",
+                ("spotify_zeroconf_credentials",),
+            )
+            row = await cur.fetchone()
+
+        if not row or not row[0]:
+            return False
+
+        creds = json.loads(row[0])
+
+        # Ensure directory exists
+        SPOTIFY_CREDENTIALS_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(SPOTIFY_CREDENTIALS_PATH, "w") as f:
+            json.dump(creds, f)
+
+        logger.info("Spotify credentials restored from database")
+        return True
+    except Exception as e:
+        logger.warning(f"Failed to restore Spotify credentials: {e}")
+        return False
+
+
+async def get_spotify_client_credentials() -> Optional[Dict[str, str]]:
+    """
+    Fetch Spotify client credentials (CLIENT ID/SECRET) from the database.
+    Used for search API via Client Credentials flow.
+    """
+    try:
+        pool = await get_db_pool()
+        async with pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT fields FROM integrations WHERE name = %s", ("spotify",)
+                )
+                row = await cur.fetchone()
+
+                if row and row[0]:
+                    fields = row[0]
+                    return {
+                        "CLIENT_ID": fields.get("CLIENT ID"),
+                        "CLIENT_SECRET": fields.get("CLIENT SECRET"),
+                    }
+        return None
+    except Exception as e:
+        logger.error(f"Error retrieving Spotify client credentials: {e}")
+        return None
+
+
+async def get_spotify_auth_status() -> Dict[str, Any]:
+    """
+    Check the status of Spotify authentication.
+    Also handles persisting/restoring credentials to/from database.
+    Returns status info including whether credentials exist.
+    """
+    # First, try to restore from DB if file doesn't exist
+    if not SPOTIFY_CREDENTIALS_PATH.exists():
+        await _restore_spotify_credentials_from_db()
+
+    has_credentials = SPOTIFY_CREDENTIALS_PATH.exists()
+
+    # If credentials exist, persist them to DB for durability
+    if has_credentials:
+        await _persist_spotify_credentials_to_db()
+
+    return {
+        "has_credentials": has_credentials,
+    }
+
+
+@app.get("/api/spotify/auth-status")
+async def spotify_auth_status():
+    """
+    Get the current Spotify authentication status.
+    Returns whether user has authorized via PKCE OAuth.
+    """
+    token_data = await _get_spotify_user_token()
+    has_token = token_data is not None and token_data.get("access_token") is not None
+
+    # Check if token is still valid
+    is_valid = False
+    if has_token:
+        is_valid = token_data.get("expires_at", 0) > time.time()
+        if not is_valid:
+            # Try to refresh
+            refreshed = await _refresh_spotify_token()
+            is_valid = refreshed is not None
+
+    return JSONResponse(
+        content={
+            "has_credentials": has_token and is_valid,
+            "needs_auth": not (has_token and is_valid),
+        }
+    )
+
+
+@app.get("/api/spotify/auth-url")
+async def spotify_auth_url():
+    """
+    Generate authorization URL via the OAuth broker.
+    The broker handles the OAuth flow and delivers tokens back to this device.
+    """
+    client_id = await _get_spotify_client_id()
+    client_secret = await _get_spotify_client_secret()
+
+    if not client_id or not client_secret:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "Spotify CLIENT ID and SECRET not configured. Add them in Settings > Integrations."
+            },
+        )
+
+    device_id = _get_device_id()
+
+    # Register this device with the broker and get the auth URL
+    try:
+        response = requests.post(
+            f"{SPOTIFY_BROKER_URL}/api/spotify/register-device",
+            json={
+                "device_id": device_id,
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "scopes": SPOTIFY_SCOPES,
+            },
+            headers={"Content-Type": "application/json"},
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        if data.get("error"):
+            return JSONResponse(status_code=400, content={"error": data["error"]})
+
+        return JSONResponse(
+            content={
+                "auth_url": data["auth_url"],
+                "device_id": device_id,
+            }
+        )
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to register with broker: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={"error": f"Could not reach authorization broker: {e}"},
+        )
+
+
+@app.get("/api/spotify/auth-poll")
+async def spotify_auth_poll():
+    """
+    Poll the broker to check if authorization has been completed.
+    The frontend calls this periodically after redirecting user to auth URL.
+    """
+    device_id = _get_device_id()
+
+    try:
+        response = requests.get(
+            f"{SPOTIFY_BROKER_URL}/api/spotify/poll-token",
+            params={"device_id": device_id},
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        if data.get("status") == "pending":
+            return JSONResponse(content={"status": "pending"})
+
+        if data.get("status") == "authorized":
+            # Store the tokens locally
+            await _store_spotify_user_token(
+                data["access_token"],
+                data["refresh_token"],
+                data.get("expires_in", 3600),
+            )
+            return JSONResponse(
+                content={
+                    "status": "authorized",
+                    "message": "Spotify authorized successfully!",
+                }
+            )
+
+        if data.get("status") == "error":
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "status": "error",
+                    "error": data.get("error", "Unknown error"),
+                },
+            )
+
+        return JSONResponse(content={"status": "pending"})
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to poll broker: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={"error": f"Could not reach authorization broker: {e}"},
+        )
+
+
+@app.post("/api/spotify/auth-callback")
+async def spotify_auth_callback(request: Request):
+    """
+    Receive tokens directly from the broker (webhook callback).
+    This is called by the broker after successful authorization.
+    """
+    data = await request.json()
+
+    # Verify the device_id matches
+    device_id = data.get("device_id")
+    if device_id != _get_device_id():
+        return JSONResponse(status_code=403, content={"error": "Device ID mismatch"})
+
+    access_token = data.get("access_token")
+    refresh_token = data.get("refresh_token")
+    expires_in = data.get("expires_in", 3600)
+
+    if not access_token or not refresh_token:
+        return JSONResponse(status_code=400, content={"error": "Missing token data"})
+
+    # Store tokens
+    await _store_spotify_user_token(access_token, refresh_token, expires_in)
+
+    logger.info("Spotify tokens received from broker")
+    return JSONResponse(
+        content={"success": True, "message": "Spotify authorized successfully!"}
+    )
 
 
 async def get_spotify_playback() -> Optional[Dict[str, Any]]:
-    """Get current Spotify playback state via D-Bus MPRIS."""
-    try:
-        # Run in thread pool to avoid blocking
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, _get_mpris_metadata)
-    except Exception as e:
-        logger.debug(f"Error getting Spotify playback: {e}")
-        return None
+    """Get current playback state via D-Bus MPRIS."""
+    return await _mpris_get_playback_status()
 
 
 async def _spotify_monitor_loop():
-    """Background task to monitor Spotify playback and update display."""
+    """Background task to monitor Spotify playback and update display via Web API."""
     global _spotify_playback_cache, _spotify_last_check
 
-    logger.info("Spotify monitor started")
+    logger.info("Spotify monitor started (Web API)")
     last_playing = False
 
     while True:
         try:
-            await asyncio.sleep(2)
+            await asyncio.sleep(1)
 
             manager = _display_manager
-            if manager and manager._screensaver_active:
-                last_playing = False
-                continue
 
             playback = await get_spotify_playback()
             _spotify_playback_cache = playback or {}
@@ -1608,6 +1928,31 @@ async def _spotify_monitor_loop():
 
             is_playing = playback is not None and playback.get("is_playing", False)
 
+            # Update I2C display (separate from full display manager)
+            try:
+                from src.common import (
+                    _i2c_display_ref,
+                    i2c_display_show_spotify,
+                    i2c_display_stop_spotify,
+                )
+
+                if _i2c_display_ref:
+                    if is_playing and playback:
+                        await i2c_display_show_spotify(
+                            _i2c_display_ref,
+                            track=playback.get("track", "Unknown"),
+                            artist=playback.get("artist", "Unknown"),
+                            progress_ms=playback.get("progress_ms", 0),
+                            duration_ms=playback.get("duration_ms", 0),
+                        )
+                    elif last_playing and not is_playing:
+                        await i2c_display_stop_spotify(_i2c_display_ref)
+            except ImportError:
+                pass  # I2C display functions not available
+            except Exception as e:
+                logger.debug(f"I2C Spotify display error: {e}")
+
+            # Update full display manager (HDMI/TFT)
             if not manager or not manager.is_available:
                 last_playing = is_playing
                 continue
@@ -1620,6 +1965,8 @@ async def _spotify_monitor_loop():
                     album=playback.get("album", ""),
                     album_art_url=playback.get("album_art_url"),
                     progress_pct=playback.get("progress_pct", 0),
+                    progress_ms=playback.get("progress_ms", 0),
+                    duration_ms=playback.get("duration_ms", 0),
                 )
                 last_playing = True
             elif last_playing and not is_playing:
@@ -1652,124 +1999,184 @@ async def get_spotify_playback_state():
     return JSONResponse(content={"is_playing": False})
 
 
+async def _get_gpt_home_device_id(sp: spotipy.Spotify) -> Optional[str]:
+    """Find the GPT Home device ID from available Spotify devices."""
+    try:
+        devices = sp.devices()
+        for device in devices.get("devices", []):
+            if device.get("name") == "GPT Home":
+                return device.get("id")
+    except Exception as e:
+        logger.debug(f"Error getting devices: {e}")
+    return None
+
+
 @app.post("/spotify-control")
 async def spotify_control(request: Request):
-    """Control Spotify playback."""
+    """
+    Spotify control via Web API (PKCE OAuth).
+
+    Accepts structured requests from the LangGraph agent:
+    - command: "play", "pause", "stop", "next", "previous", "volume"
+    - search_type: "artist", "track", "album", "playlist", "show" (for play command)
+    - query: The search query (for play command)
+
+    Also supports legacy text-based commands for backwards compatibility.
+    """
     try:
         incoming_data = await request.json()
-        text = incoming_data.get("text", "").lower().strip()
 
+        # New structured format from LangGraph agent
+        command = incoming_data.get("command", "").lower().strip()
+        search_type = incoming_data.get("search_type", "").lower().strip()
+        query = incoming_data.get("query", "").strip()
+
+        # Legacy format support (text field)
+        legacy_text = incoming_data.get("text", "").lower().strip()
+        if legacy_text and not command:
+            # Fall back to legacy text parsing
+            command = legacy_text
+
+        # Get user-authorized Spotify client
+        sp = await get_spotify_user_client()
+        if not sp:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "message": "Spotify not authorized. Please authorize in Settings > Integrations."
+                },
+            )
+
+        # Get search client (client credentials for searching)
         sp_search = await get_client_credentials_token()
 
-        if not sp_search:
-            return JSONResponse(
-                content={
-                    "message": "Spotify not configured. Please add Client ID and Client Secret in the web interface."
-                },
-                status_code=400,
-            )
+        # Find GPT Home device
+        device_id = await _get_gpt_home_device_id(sp)
 
-        if "play" in text:
-            song = re.sub(r"^play\s+", "", text)
-            song = re.sub(r"\s+on\s+spotify$", "", song)
-            song = song.strip()
-
-            if song:
-                spotify_uris, message = await spotify_get_track_uris(song, sp_search)
-
-                if isinstance(spotify_uris, JSONResponse):
-                    return spotify_uris
-
-                if spotify_uris:
-                    success, _ = mpris_open_uri(spotify_uris[0])
-                    if success:
-                        return JSONResponse(content={"message": message})
-                    return JSONResponse(
-                        content={
-                            "message": f"Found: {message} - Could not start playback."
-                        }
-                    )
-            else:
-                success, _ = mpris_play()
-                if success:
-                    return JSONResponse(content={"message": "Resumed playback."})
-                return JSONResponse(content={"message": "No active playback."})
-
-        elif "next" in text or "skip" in text:
-            success, _ = mpris_next()
-            if success:
-                return JSONResponse(content={"message": "Playing next track."})
-            return JSONResponse(content={"message": "Could not skip track."})
-
-        elif "previous" in text or "go back" in text:
-            success, _ = mpris_previous()
-            if success:
-                return JSONResponse(content={"message": "Playing previous track."})
-            return JSONResponse(content={"message": "Could not go back."})
-
-        elif "pause" in text or "stop" in text:
-            success, _ = mpris_pause()
-            if success:
-                return JSONResponse(content={"message": "Paused playback."})
-            return JSONResponse(content={"message": "Could not pause."})
-
-        elif "volume" in text:
-            try:
-                volume = int(re.search(r"\d+", text.split("volume", 1)[1]).group())
-                volume = max(0, min(100, volume))
-                mpris_volume = volume / 100.0
-                success, _ = _run_dbus_command_set_property(
-                    "Volume", f"double:{mpris_volume}"
+        # Command Routing
+        if command == "play" or "play" in command:
+            # Use structured query if provided, otherwise parse from legacy text
+            if query and search_type:
+                # New structured format - search with explicit type
+                logger.debug(f"Spotify search: type={search_type}, query={query}")
+                uris, message = await spotify_search_by_type(
+                    query, search_type, sp_search
                 )
-                if success:
+            elif query:
+                # Query provided but no type - use smart detection
+                uris, message = await spotify_get_track_uris(query, sp_search)
+            else:
+                # Legacy: extract query from command text
+                song_query = (
+                    re.sub(r"^play\s+", "", command).replace("on spotify", "").strip()
+                )
+                if song_query and sp_search:
+                    uris, message = await spotify_get_track_uris(song_query, sp_search)
+                else:
+                    uris, message = [], ""
+
+            if uris:
+                try:
+                    # Start playback on GPT Home device
+                    # Limit to 50 tracks (Spotify's max per call), but prefer full albums
+                    sp.start_playback(device_id=device_id, uris=uris[:50])
+                    return JSONResponse(content={"message": message})
+                except Exception as e:
+                    logger.error(f"Failed to start playback: {e}")
                     return JSONResponse(
-                        content={"message": f"Set volume to {volume}%."}
+                        status_code=500,
+                        content={"message": f"Failed to start playback: {str(e)}"},
                     )
+
+            if query or (command != "play" and "play" in command):
+                search_term = (
+                    query
+                    or re.sub(r"^play\s+", "", command)
+                    .replace("on spotify", "")
+                    .strip()
+                )
+                return JSONResponse(
+                    content={"message": f"Could not find '{search_term}'"}
+                )
+
+            # No song specified - just resume
+            try:
+                sp.start_playback(device_id=device_id)
+                return JSONResponse(content={"message": "Resumed playback."})
             except Exception as e:
-                logger.error(f"Volume control error: {e}")
-            return JSONResponse(content={"message": "Could not set volume."})
+                logger.error(f"Failed to resume: {e}")
+                return JSONResponse(
+                    status_code=500, content={"message": f"Failed to resume: {str(e)}"}
+                )
 
-        elif "shuffle" in text:
-            success, _ = _run_dbus_command_set_property("Shuffle", "boolean:true")
-            if success:
-                return JSONResponse(content={"message": "Shuffle enabled."})
-            return JSONResponse(content={"message": "Could not enable shuffle."})
+        elif command in ["pause", "stop"] or any(
+            k in command for k in ["pause", "stop"]
+        ):
+            try:
+                sp.pause_playback(device_id=device_id)
+                return JSONResponse(content={"message": "Paused."})
+            except Exception as e:
+                return JSONResponse(
+                    status_code=500, content={"message": f"Failed to pause: {str(e)}"}
+                )
 
-        elif "repeat" in text:
-            success, _ = _run_dbus_command_set_property("LoopStatus", "string:Track")
-            if success:
-                return JSONResponse(content={"message": "Repeat track enabled."})
-            return JSONResponse(content={"message": "Could not enable repeat."})
+        elif command in ["next", "skip"] or any(k in command for k in ["next", "skip"]):
+            try:
+                sp.next_track(device_id=device_id)
+                return JSONResponse(content={"message": "Skipping to next track."})
+            except Exception as e:
+                return JSONResponse(
+                    status_code=500, content={"message": f"Failed to skip: {str(e)}"}
+                )
 
-        elif "search" in text:
-            # Pure search without playback
-            query = re.sub(r"^search\s+(for\s+)?", "", text).strip()
-            if query:
-                results = sp_search.search(query, limit=5, type="track")
-                tracks = results.get("tracks", {}).get("items", [])
-                if tracks:
-                    track_list = [
-                        f"{t['name']} by {t['artists'][0]['name']}" for t in tracks[:5]
-                    ]
+        elif command in ["previous", "back"] or any(
+            k in command for k in ["previous", "back"]
+        ):
+            try:
+                sp.previous_track(device_id=device_id)
+                return JSONResponse(content={"message": "Playing previous track."})
+            except Exception as e:
+                return JSONResponse(
+                    status_code=500, content={"message": f"Failed to go back: {str(e)}"}
+                )
+
+        elif "volume" in command:
+            match = re.search(r"\d+", command)
+            if match:
+                vol_pct = max(0, min(100, int(match.group())))
+                try:
+                    # Use MPRIS to set volume directly on spotifyd (local control)
+                    # This is more reliable than Web API for local playback
+                    success = await _mpris_set_volume(vol_pct)
+                    if success:
+                        logger.info(f"Spotify volume set to {vol_pct}% via MPRIS")
+                        return JSONResponse(
+                            content={"message": f"Volume set to {vol_pct}%."}
+                        )
+                    else:
+                        # Fall back to Web API if MPRIS not available
+                        sp.volume(vol_pct, device_id=device_id)
+                        return JSONResponse(
+                            content={"message": f"Volume set to {vol_pct}%."}
+                        )
+                except Exception as e:
                     return JSONResponse(
-                        content={
-                            "message": f"Found: {', '.join(track_list)}. Say 'play [song name]' to listen."
-                        }
+                        status_code=500,
+                        content={"message": f"Failed to set volume: {str(e)}"},
                     )
-            return JSONResponse(content={"message": "No results found."})
-
-        else:
-            logger.warning(f"Invalid command: {text}")
             return JSONResponse(
-                content={
-                    "message": "Invalid command. Try: play [song], pause, next, previous, or search [query]."
-                },
-                status_code=400,
+                status_code=400, content={"message": "Specify volume 0-100."}
             )
+
+        return JSONResponse(
+            status_code=400, content={"message": "Command not recognized."}
+        )
 
     except Exception as e:
-        logger.critical(f"Spotify control error: {traceback.format_exc()}")
-        return JSONResponse(content={"message": f"Something went wrong: {e}"})
+        logger.error(f"Spotify Control Error: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500, content={"message": f"Spotify error: {str(e)}"}
+        )
 
 
 async def search_spotify(song: str, search_type: str, limit: int, sp):
@@ -1792,38 +2199,194 @@ async def get_artist_top_tracks(artist_id: str, sp):
 
 
 async def get_track_recommendations(track_id: str, sp):
-    recommendations = sp.recommendations(seed_tracks=[track_id])
-    return [track["uri"] for track in recommendations["tracks"]]
+    """Get related tracks based on a seed track.
+
+    Since Spotify deprecated the recommendations API in November 2024,
+    this fetches top tracks from the same artist as a replacement.
+    """
+    try:
+        # Get the track details to find the artist
+        track = sp.track(track_id)
+        if not track or not track.get("artists"):
+            return []
+
+        artist_id = track["artists"][0]["id"]
+
+        # Get top tracks from the same artist
+        top_tracks = sp.artist_top_tracks(artist_id)
+        if not top_tracks or not top_tracks.get("tracks"):
+            return []
+
+        # Return URIs excluding the original track, limit to 10
+        return [t["uri"] for t in top_tracks["tracks"] if t["id"] != track_id][:10]
+    except Exception as e:
+        logger.warning(f"Failed to get track recommendations: {e}")
+        return []
 
 
-async def spotify_get_track_uris(
-    song: str, sp, search_types=["album", "artist", "track", "show"], limit=1
-):
+async def spotify_search_by_type(query: str, search_type: str, sp, limit: int = 1):
+    """Search Spotify with an explicit search type specified by the LangGraph agent.
+
+    Args:
+        query: The search query (artist name, track name, album name, etc.)
+        search_type: One of "artist", "track", "album", "playlist", "show"
+        sp: Spotify client
+        limit: Number of results to fetch
+
+    Returns:
+        Tuple of (list of URIs, message string)
+    """
+    search_type = search_type.lower().strip()
+    valid_types = ["artist", "track", "album", "playlist", "show"]
+
+    if search_type not in valid_types:
+        logger.warning(f"Invalid search type '{search_type}', defaulting to artist")
+        search_type = "artist"
+
+    logger.debug(f"Spotify explicit search: type={search_type}, query={query}")
+
+    result = await search_spotify(query, search_type, limit, sp)
+    items_key = search_type + "s"  # e.g., "artists", "tracks"
+
+    if not result.get(items_key, {}).get("items"):
+        return [], f"No {search_type} found for '{query}'"
+
+    item = result[items_key]["items"][0]
+    item_id = item["id"]
+    item_name = item["name"]
+
+    if search_type == "artist":
+        message = f"Playing top tracks by {item_name}..."
+        uris = await get_artist_top_tracks(item_id, sp)
+        return uris, message
+
+    elif search_type == "track":
+        artist_name = item.get("artists", [{}])[0].get("name", "Unknown")
+        message = f"Playing '{item_name}' by {artist_name}..."
+        recommended_uris = await get_track_recommendations(item_id, sp)
+        return [f"spotify:track:{item_id}"] + recommended_uris, message
+
+    elif search_type == "album":
+        artist_name = item.get("artists", [{}])[0].get("name", "Unknown")
+        message = f"Playing album '{item_name}' by {artist_name}..."
+        uris = await get_album_tracks(item_id, sp)
+        return uris, message
+
+    elif search_type == "playlist":
+        owner = item.get("owner", {}).get("display_name", "Unknown")
+        message = f"Playing playlist '{item_name}' by {owner}..."
+        # Get playlist tracks
+        try:
+            tracks = sp.playlist_tracks(item_id, limit=50)
+            uris = [t["track"]["uri"] for t in tracks["items"] if t.get("track")]
+            return uris, message
+        except Exception as e:
+            logger.error(f"Failed to get playlist tracks: {e}")
+            return [], f"Failed to load playlist '{item_name}'"
+
+    elif search_type == "show":
+        message = f"Playing episodes from '{item_name}'..."
+        uris = await get_podcast_episodes(item_id, sp)
+        return uris, message
+
+    return [], f"No results found for '{query}'"
+
+
+async def spotify_get_track_uris(song: str, sp, search_types=None, limit=1):
+    """Search Spotify and return track URIs to play.
+
+    Intelligently determines search order based on query patterns:
+    - "songs by X" or "music by X" -> search artist first
+    - "album X" -> search album first
+    - "X by Y" -> search track first (song by artist)
+    - Default: artist, track, album, show
+    """
+    query = song.lower().strip()
+
+    # Clean up common query patterns that confuse search
+    # "songs by jid" -> "jid" (artist search)
+    # "music by taylor swift" -> "taylor swift" (artist search)
+    artist_patterns = [
+        r"^(?:songs?|music|tracks?)\s+(?:by|from)\s+(.+)$",
+        r"^(?:play\s+)?(?:some\s+)?(.+?)(?:\s+songs?|\s+music)?$",
+    ]
+
+    # Check if query indicates artist-focused search
+    is_artist_query = False
+    cleaned_query = query
+
+    # Pattern: "songs by X" or "music by X" -> extract artist name
+    artist_match = re.match(
+        r"^(?:songs?|music|tracks?)\s+(?:by|from)\s+(.+)$", query, re.IGNORECASE
+    )
+    if artist_match:
+        cleaned_query = artist_match.group(1).strip()
+        is_artist_query = True
+        logger.debug(
+            f"Detected artist query pattern: '{query}' -> artist '{cleaned_query}'"
+        )
+
+    # Pattern: "album X by Y" -> keep as album search
+    album_match = re.match(r"^album\s+(.+)$", query, re.IGNORECASE)
+    is_album_query = album_match is not None
+    if album_match:
+        cleaned_query = album_match.group(1).strip()
+
+    # Pattern: "X by Y" (song by artist) -> track search
+    track_by_artist = re.match(r"^(.+?)\s+by\s+(.+)$", cleaned_query, re.IGNORECASE)
+    is_track_query = (
+        track_by_artist is not None and not is_artist_query and not is_album_query
+    )
+
+    # Determine search order based on query analysis
+    if search_types is None:
+        if is_artist_query:
+            search_types = ["artist", "track", "album", "show"]
+        elif is_album_query:
+            search_types = ["album", "artist", "track", "show"]
+        elif is_track_query:
+            search_types = ["track", "artist", "album", "show"]
+        else:
+            # Default: prioritize artist for simple queries like "jid" or "taylor swift"
+            search_types = ["artist", "track", "album", "show"]
+
+    logger.debug(f"Spotify search: query='{cleaned_query}', order={search_types}")
+
     for search_type in search_types:
-        result = await search_spotify(song, search_type, limit, sp)
+        result = await search_spotify(cleaned_query, search_type, limit, sp)
 
         if result[search_type + "s"]["items"]:
             item_id = result[search_type + "s"]["items"][0]["id"]
             item_name = result[search_type + "s"]["items"][0]["name"]
 
             if search_type == "album":
-                message = f"Playing album '{item_name} by {result[search_type + 's']['items'][0]['artists'][0]['name']}'..."
+                artist_name = (
+                    result[search_type + "s"]["items"][0]
+                    .get("artists", [{}])[0]
+                    .get("name", "Unknown")
+                )
+                message = f"Playing album '{item_name}' by {artist_name}..."
                 return (await get_album_tracks(item_id, sp), message)
 
             elif search_type == "artist":
-                message = f"Playing top tracks based on artist '{item_name}'..."
+                message = f"Playing top tracks by {item_name}..."
                 return (await get_artist_top_tracks(item_id, sp), message)
 
             elif search_type == "track":
-                message = f"Playing radio based on track '{item_name}'..."
+                artist_name = (
+                    result[search_type + "s"]["items"][0]
+                    .get("artists", [{}])[0]
+                    .get("name", "Unknown")
+                )
+                message = f"Playing '{item_name}' by {artist_name}..."
                 recommended_uris = await get_track_recommendations(item_id, sp)
-                return ([item_id] + recommended_uris, message)
+                return ([f"spotify:track:{item_id}"] + recommended_uris, message)
 
             elif search_type == "show":
-                message = f"Playing episodes from the show '{item_name}'..."
+                message = f"Playing episodes from '{item_name}'..."
                 return (await get_podcast_episodes(item_id, sp), message)
 
-    return JSONResponse(content={"message": f"No match found for: {song}"})
+    return [], "No match found"
 
 
 ## Philips Hue ##
@@ -2196,16 +2759,67 @@ async def display_status():
         has_full_display = len(full_displays) > 0
         supports_modes = manager is not None and manager.supports_modes
 
+        # Get current display type
+        current_display_type = None
+        if manager and manager._display:
+            current_display_type = manager._display.info.screen_type.value
+
+        # Load saved display preference
+        saved_display_type = None
+        settings_path = SOURCE_DIR / "settings.json"
+        if settings_path.exists():
+            try:
+                with settings_path.open("r") as f:
+                    settings = json.load(f)
+                saved_display_type = settings.get("display_type")
+            except Exception:
+                pass
+
+        def get_display_id(d) -> str:
+            if d.screen_type == ScreenType.I2C:
+                return f"i2c_{d.bus}_{d.address:02x}"
+            elif d.device_path:
+                return d.device_path.replace("/dev/", "").replace("/", "_")
+            return f"{d.screen_type.value}_{d.width}x{d.height}"
+
+        def get_display_name(d) -> str:
+            if d.screen_type == ScreenType.I2C:
+                return f"I2C Display ({d.width}x{d.height})"
+            elif d.screen_type == ScreenType.SPI_TFT:
+                return f"SPI TFT ({d.width}x{d.height})"
+            elif d.screen_type == ScreenType.HDMI:
+                return f"HDMI ({d.width}x{d.height})"
+            return f"{d.screen_type.value} ({d.width}x{d.height})"
+
+        # Get multi-display config
+        mirror_enabled = False
+        display_enabled_map = {}
+        try:
+            from src.display.multi import get_multi_display_manager
+
+            multi_manager = get_multi_display_manager()
+            config = multi_manager.get_config()
+            mirror_enabled = config.mirror_enabled
+            display_enabled_map = {
+                cfg.display_id: cfg.enabled for cfg in config.displays.values()
+            }
+        except Exception:
+            pass
+
         return JSONResponse(
             content={
                 "available": len(displays) > 0,
                 "displays": [
                     {
+                        "id": get_display_id(d),
                         "type": d.screen_type.value,
+                        "name": get_display_name(d),
                         "width": d.width,
                         "height": d.height,
                         "driver": d.driver,
+                        "device_path": d.device_path,
                         "supports_modes": d.screen_type != ScreenType.I2C,
+                        "enabled": display_enabled_map.get(get_display_id(d), True),
                     }
                     for d in displays
                 ],
@@ -2216,6 +2830,9 @@ async def display_status():
                 "current_mode": manager.mode.name.lower()
                 if manager and manager.is_available
                 else None,
+                "current_display_type": current_display_type,
+                "saved_display_type": saved_display_type,
+                "mirror_enabled": mirror_enabled,
                 "info": get_display_info_string(displays),
                 "drm_status": drm_status,
                 "note": "I2C displays are text-only and do not support display modes. "
@@ -2234,8 +2851,457 @@ async def display_status():
                 "supports_modes": False,
                 "active": False,
                 "current_mode": None,
+                "current_display_type": None,
+                "saved_display_type": None,
                 "error": str(e),
             }
+        )
+
+
+@app.post("/api/display/select")
+async def select_display(request: Request):
+    """Select which display to use when multiple are available.
+
+    Only full displays (HDMI, SPI TFT) can be selected. The selected display
+    type is saved to settings and used on restart.
+    """
+    try:
+        data = await request.json()
+        display_type = data.get("type")  # "hdmi", "spi_tft"
+
+        if not display_type:
+            return JSONResponse(
+                content={"success": False, "message": "Display type is required"},
+                status_code=400,
+            )
+
+        # Validate display type
+        valid_types = ["hdmi", "spi_tft"]
+        if display_type not in valid_types:
+            return JSONResponse(
+                content={
+                    "success": False,
+                    "message": f"Invalid display type. Must be one of: {valid_types}",
+                },
+                status_code=400,
+            )
+
+        # Save to settings
+        settings_path = SOURCE_DIR / "settings.json"
+        try:
+            if settings_path.exists():
+                with settings_path.open("r") as f:
+                    settings = json.load(f)
+            else:
+                settings = {}
+            settings["display_type"] = display_type
+            with settings_path.open("w") as f:
+                json.dump(settings, f, indent=4)
+        except Exception as e:
+            logger.warning(f"Could not save display type to settings: {e}")
+
+        # Reinitialize display manager with new type
+        manager = await get_display_manager()
+        if manager:
+            await manager.initialize(preferred_type=display_type, force_refresh=True)
+
+            return JSONResponse(
+                content={
+                    "success": True,
+                    "message": f"Display switched to {display_type}",
+                    "active": manager.is_available,
+                    "supports_modes": manager.supports_modes,
+                }
+            )
+
+        return JSONResponse(
+            content={
+                "success": True,
+                "message": f"Display preference saved. Will use {display_type} on next restart.",
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error selecting display: {e}")
+        return JSONResponse(
+            content={"success": False, "message": str(e)}, status_code=500
+        )
+
+
+@app.post("/api/display/hardware-mode")
+async def set_display_hardware_mode(request: Request):
+    """Switch between TFT-only and HDMI display hardware modes.
+
+    This modifies /boot/firmware/config.txt (or /boot/config.txt) to configure
+    the Raspberry Pi for either:
+    - "hdmi": Standard HDMI output with vc4-kms-v3d (default)
+    - "tft": SPI TFT display only (disables HDMI, uses piscreen overlay)
+
+    Note: TFT and HDMI cannot work simultaneously due to kernel driver conflicts.
+    A reboot is required for changes to take effect.
+    """
+    try:
+        data = await request.json()
+        mode = data.get("mode")  # "hdmi" or "tft"
+        auto_reboot = data.get("auto_reboot", True)
+
+        if mode not in ["hdmi", "tft"]:
+            return JSONResponse(
+                content={
+                    "success": False,
+                    "message": "Invalid mode. Must be 'hdmi' or 'tft'",
+                },
+                status_code=400,
+            )
+
+        # Find config.txt location
+        config_paths = ["/boot/firmware/config.txt", "/boot/config.txt"]
+        config_path = None
+        for path in config_paths:
+            if os.path.exists(path):
+                config_path = path
+                break
+
+        if not config_path:
+            return JSONResponse(
+                content={
+                    "success": False,
+                    "message": "Could not find config.txt. Is this a Raspberry Pi?",
+                },
+                status_code=400,
+            )
+
+        # Read current config
+        with open(config_path, "r") as f:
+            config_lines = f.readlines()
+
+        # Process config based on mode
+        new_lines = []
+        found_vc4_kms = False
+        found_piscreen = False
+        found_spi = False
+
+        for line in config_lines:
+            stripped = line.strip()
+
+            # Handle vc4-kms-v3d overlay
+            if (
+                "dtoverlay=vc4-kms-v3d" in stripped
+                or "dtoverlay=vc4-fkms-v3d" in stripped
+            ):
+                found_vc4_kms = True
+                if mode == "tft":
+                    # Comment out for TFT mode
+                    if not stripped.startswith("#"):
+                        new_lines.append(f"#{line.rstrip()}\n")
+                    else:
+                        new_lines.append(line)
+                else:
+                    # Uncomment for HDMI mode
+                    if stripped.startswith("#"):
+                        new_lines.append(line.lstrip("#"))
+                    else:
+                        new_lines.append(line)
+                continue
+
+            # Handle piscreen overlay
+            if "dtoverlay=piscreen" in stripped:
+                found_piscreen = True
+                if mode == "hdmi":
+                    # Comment out for HDMI mode
+                    if not stripped.startswith("#"):
+                        new_lines.append(f"#{line.rstrip()}\n")
+                    else:
+                        new_lines.append(line)
+                else:
+                    # Uncomment for TFT mode
+                    if stripped.startswith("#"):
+                        new_lines.append(line.lstrip("#"))
+                    else:
+                        new_lines.append(line)
+                continue
+
+            # Handle SPI parameter
+            if "dtparam=spi=on" in stripped:
+                found_spi = True
+                if mode == "hdmi":
+                    # Comment out for HDMI mode (optional, but cleaner)
+                    if not stripped.startswith("#"):
+                        new_lines.append(f"#{line.rstrip()}\n")
+                    else:
+                        new_lines.append(line)
+                else:
+                    # Uncomment for TFT mode
+                    if stripped.startswith("#"):
+                        new_lines.append(line.lstrip("#"))
+                    else:
+                        new_lines.append(line)
+                continue
+
+            new_lines.append(line)
+
+        # Add missing entries for TFT mode
+        if mode == "tft":
+            if not found_spi:
+                new_lines.append("\n# GPT Home TFT Display Configuration\n")
+                new_lines.append("dtparam=spi=on\n")
+            if not found_piscreen:
+                new_lines.append("dtoverlay=piscreen,drm,speed=18000000,rotate=90\n")
+
+        # Add missing vc4-kms-v3d for HDMI mode
+        if mode == "hdmi" and not found_vc4_kms:
+            new_lines.append("\n# GPT Home HDMI Configuration\n")
+            new_lines.append("dtoverlay=vc4-kms-v3d\n")
+
+        # Write updated config using nsenter for host access
+        try:
+            import tempfile
+
+            with tempfile.NamedTemporaryFile(
+                mode="w", delete=False, suffix=".txt"
+            ) as tmp:
+                tmp.writelines(new_lines)
+                tmp_path = tmp.name
+
+            # Copy to host config.txt via nsenter
+            subprocess.run(
+                [
+                    "nsenter",
+                    "--target",
+                    "1",
+                    "--mount",
+                    "--uts",
+                    "--ipc",
+                    "--net",
+                    "--pid",
+                    "--",
+                    "cp",
+                    tmp_path,
+                    config_path,
+                ],
+                check=True,
+            )
+            os.unlink(tmp_path)
+        except subprocess.CalledProcessError:
+            # Fallback: try direct write (may work if running privileged)
+            with open(config_path, "w") as f:
+                f.writelines(new_lines)
+
+        logger.info(f"Display hardware mode set to: {mode}")
+
+        if auto_reboot:
+            # Reboot the system
+            try:
+                subprocess.run(
+                    [
+                        "nsenter",
+                        "--target",
+                        "1",
+                        "--mount",
+                        "--uts",
+                        "--ipc",
+                        "--net",
+                        "--pid",
+                        "--",
+                        "reboot",
+                    ]
+                )
+            except Exception:
+                subprocess.run(["reboot"])
+
+            return JSONResponse(
+                content={
+                    "success": True,
+                    "message": f"Display mode set to {mode.upper()}. System is rebooting...",
+                    "mode": mode,
+                    "rebooting": True,
+                }
+            )
+
+        return JSONResponse(
+            content={
+                "success": True,
+                "message": f"Display mode set to {mode.upper()}. Reboot required for changes to take effect.",
+                "mode": mode,
+                "rebooting": False,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error setting display hardware mode: {e}")
+        import traceback
+
+        logger.debug(traceback.format_exc())
+        return JSONResponse(
+            content={"success": False, "message": str(e)}, status_code=500
+        )
+
+
+@app.get("/api/display/hardware-mode")
+async def get_display_hardware_mode():
+    """Get current display hardware mode from config.txt."""
+    try:
+        config_paths = ["/boot/firmware/config.txt", "/boot/config.txt"]
+        config_path = None
+        for path in config_paths:
+            if os.path.exists(path):
+                config_path = path
+                break
+
+        if not config_path:
+            return JSONResponse(
+                content={
+                    "mode": "unknown",
+                    "message": "Could not find config.txt",
+                }
+            )
+
+        with open(config_path, "r") as f:
+            config_content = f.read()
+
+        # Check for active (uncommented) overlays
+        has_active_vc4 = False
+        has_active_piscreen = False
+
+        for line in config_content.split("\n"):
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                continue
+            if (
+                "dtoverlay=vc4-kms-v3d" in stripped
+                or "dtoverlay=vc4-fkms-v3d" in stripped
+            ):
+                has_active_vc4 = True
+            if "dtoverlay=piscreen" in stripped:
+                has_active_piscreen = True
+
+        if has_active_piscreen and not has_active_vc4:
+            mode = "tft"
+        elif has_active_vc4 and not has_active_piscreen:
+            mode = "hdmi"
+        elif has_active_vc4 and has_active_piscreen:
+            # Both active - this will cause conflicts
+            mode = "conflict"
+        else:
+            # Neither active - default to HDMI
+            mode = "hdmi"
+
+        return JSONResponse(
+            content={
+                "mode": mode,
+                "has_vc4_kms": has_active_vc4,
+                "has_piscreen": has_active_piscreen,
+                "config_path": config_path,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error reading display hardware mode: {e}")
+        return JSONResponse(
+            content={"mode": "unknown", "error": str(e)}, status_code=500
+        )
+
+
+@app.get("/api/display/multi")
+async def get_multi_display_config():
+    """Get multi-display configuration including mirror mode and per-display enabled status."""
+    try:
+        from src.display.multi import get_multi_display_manager
+
+        manager = get_multi_display_manager()
+        config = manager.get_config()
+
+        return JSONResponse(
+            content={
+                "mirror_enabled": config.mirror_enabled,
+                "displays": [
+                    {
+                        "id": display_id,
+                        "enabled": cfg.enabled,
+                    }
+                    for display_id, cfg in config.displays.items()
+                ],
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error getting multi-display config: {e}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@app.post("/api/display/mirror")
+async def set_mirror_mode(request: Request):
+    """Enable or disable display mirroring.
+
+    When mirroring is enabled, all enabled displays show the same content.
+    When disabled, only the primary display is used.
+    """
+    try:
+        data = await request.json()
+        enabled = data.get("enabled", False)
+
+        from src.display.multi import get_multi_display_manager
+
+        manager = get_multi_display_manager()
+        manager.set_mirror_enabled(enabled)
+
+        # Reinitialize display manager to apply changes
+        display_manager = await get_display_manager()
+        if display_manager:
+            await display_manager.reinitialize()
+
+        return JSONResponse(
+            content={
+                "success": True,
+                "mirror_enabled": enabled,
+                "message": f"Mirror mode {'enabled' if enabled else 'disabled'}",
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error setting mirror mode: {e}")
+        return JSONResponse(
+            content={"success": False, "message": str(e)}, status_code=500
+        )
+
+
+@app.post("/api/display/enable")
+async def set_display_enabled(request: Request):
+    """Enable or disable a specific display.
+
+    Disabled displays will show TTY console instead of the GPT Home UI.
+    """
+    try:
+        data = await request.json()
+        display_id = data.get("id")
+        enabled = data.get("enabled", True)
+
+        if not display_id:
+            return JSONResponse(
+                content={"success": False, "message": "Display ID is required"},
+                status_code=400,
+            )
+
+        from src.display.multi import get_multi_display_manager
+
+        manager = get_multi_display_manager()
+        manager.set_display_enabled(display_id, enabled)
+
+        # Reinitialize display manager to apply changes
+        display_manager = await get_display_manager()
+        if display_manager:
+            await display_manager.reinitialize()
+
+        return JSONResponse(
+            content={
+                "success": True,
+                "display_id": display_id,
+                "enabled": enabled,
+                "message": f"Display {display_id} {'enabled' if enabled else 'disabled'}",
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error setting display enabled: {e}")
+        return JSONResponse(
+            content={"success": False, "message": str(e)}, status_code=500
         )
 
 
@@ -2627,67 +3693,6 @@ async def display_waveform_start(request: Request):
         return JSONResponse(content={"success": True})
     except Exception as e:
         logger.error(f"Start waveform failed: {e}")
-        return JSONResponse(
-            content={"success": False, "error": str(e)}, status_code=500
-        )
-
-
-# Rate limiting for waveform updates to reduce log spam and load
-_last_waveform_update = 0.0
-_waveform_update_min_interval = 0.05  # 20fps max
-
-
-@app.post("/api/display/waveform/update")
-async def display_waveform_update(request: Request):
-    """Update waveform amplitude during TTS playback.
-
-    Note: This endpoint is rate-limited to reduce load. When real-time audio
-    capture is active, the display manager receives amplitude data directly.
-    """
-    global _last_waveform_update
-
-    try:
-        # Rate limit to reduce load and log spam
-        current_time = time.time()
-        if current_time - _last_waveform_update < _waveform_update_min_interval:
-            return JSONResponse(content={"success": True, "throttled": True})
-        _last_waveform_update = current_time
-
-        data = await request.json()
-        amplitude = data.get("amplitude", 0.0)
-
-        manager = await get_display_manager()
-        if not manager or not manager.is_available:
-            return JSONResponse(content={"success": False}, status_code=404)
-
-        await manager.update_waveform(amplitude)
-        return JSONResponse(content={"success": True})
-    except Exception as e:
-        return JSONResponse(
-            content={"success": False, "error": str(e)}, status_code=500
-        )
-
-
-@app.post("/api/display/waveform/amplitude")
-async def display_waveform_amplitude(request: Request):
-    """Receive 32 waveform amplitude values from app.py during listening."""
-    try:
-        data = await request.json()
-        values = data.get("values", [])
-
-        if not values or len(values) != 32:
-            return JSONResponse(
-                content={"success": False, "error": "Expected 32 values"},
-                status_code=400,
-            )
-
-        manager = await get_display_manager()
-        if not manager or not manager.is_available:
-            return JSONResponse(content={"success": False}, status_code=404)
-
-        manager.set_waveform_values(values)
-        return JSONResponse(content={"success": True})
-    except Exception as e:
         return JSONResponse(
             content={"success": False, "error": str(e)}, status_code=500
         )
@@ -3300,19 +4305,40 @@ async def _auto_select_hdmi_audio() -> bool:
 
     # Use hdmi:CARD=xxx for HDMI devices - this uses /usr/share/alsa/cards/vc4-hdmi.conf
     # which handles IEC958_SUBFRAME_LE conversion automatically
+    # Wrap in softvol for software volume control (HDMI has no hardware mixer)
     playback_device = f"hdmi:CARD={hdmi_card_id},DEV=0"
 
-    asound_config = f"""pcm.!default {{
+    asound_config = f"""# HDMI playback with software volume control (auto-configured)
+# Uses hdmi:CARD={hdmi_card_id} which handles IEC958 format conversion
+
+pcm.hdmi_converted {{
+    type plug
+    slave.pcm "hdmi:CARD={hdmi_card_id},DEV=0"
+}}
+
+pcm.hdmi_softvol {{
+    type softvol
+    slave.pcm "hdmi_converted"
+    control {{
+        name "SoftMaster"
+        card {hdmi_card}
+    }}
+    min_dB -51.0
+    max_dB 0.0
+}}
+
+pcm.!default {{
     type asym
     playback.pcm {{
         type plug
-        slave.pcm "{playback_device}"
+        slave.pcm "hdmi_softvol"
     }}
     capture.pcm {{
         type plug
         slave.pcm "hw:{mic_card},0"
     }}
 }}
+
 ctl.!default {{
     type hw
     card {hdmi_card}
@@ -3320,6 +4346,8 @@ ctl.!default {{
 """
 
     try:
+        # Write ALSA config to /etc/asound.conf
+        # Each container (backend, spotify) detects and configures its own ALSA
         asound_path = Path("/etc/asound.conf")
         asound_path.write_text(asound_config)
 
@@ -3511,20 +4539,19 @@ async def set_audio_device(request: Request):
 
     # Use asymmetric config to separate playback and capture devices (with softvol for HDMI)
     if is_hdmi:
-        asound_config = f"""pcm.hdmi_hw {{
-    type hw
-    card {card}
-    device 0
-}}
+        # HDMI requires IEC958 format conversion - use the named hdmi device which handles this
+        # The softvol plugin wraps the hdmi device for software volume control
+        asound_config = f"""# HDMI playback with software volume control
+# Uses hdmi:CARD={card_id} which handles IEC958 format conversion
 
-ctl.hdmi_hw {{
-    type hw
-    card {card}
+pcm.hdmi_converted {{
+    type plug
+    slave.pcm "hdmi:CARD={card_id},DEV=0"
 }}
 
 pcm.hdmi_softvol {{
     type softvol
-    slave.pcm "hdmi_hw"
+    slave.pcm "hdmi_converted"
     control {{
         name "SoftMaster"
         card {card}
@@ -3535,12 +4562,16 @@ pcm.hdmi_softvol {{
 
 pcm.!default {{
     type asym
-    playback.pcm "hdmi_softvol"
+    playback.pcm {{
+        type plug
+        slave.pcm "hdmi_softvol"
+    }}
     capture.pcm {{
         type plug
         slave.pcm "hw:{mic_card},0"
     }}
 }}
+
 ctl.!default {{
     type hw
     card {card}
@@ -3678,8 +4709,8 @@ async def get_audio_volume():
         asound_path = Path("/etc/asound.conf")
         if asound_path.exists():
             content = asound_path.read_text()
-            # Check for HDMI device in playback.pcm
-            if "hdmi:CARD=" in content:
+            # Check for HDMI device - look for hdmi patterns or softvol config
+            if "hdmi:CARD=" in content or "hdmi_hw" in content or "softvol" in content:
                 is_hdmi = True
             match = re.search(r"card\s+(\w+)", content)
             if match:
@@ -3688,7 +4719,20 @@ async def get_audio_volume():
         pass
 
     try:
-        # Try multiple mixer controls - different cards use different names
+        # For HDMI, try SoftMaster on default device first (softvol virtual control)
+        if is_hdmi:
+            result = subprocess.run(
+                ["amixer", "sget", "SoftMaster"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                match = re.search(r"\[(\d+)%\]", result.stdout)
+                if match:
+                    return {"volume": int(match.group(1)), "control": "SoftMaster"}
+
+        # Try hardware card controls
         mixer_controls = (
             ["SoftMaster", "PCM", "Master", "Speaker", "Headphone", "HDMI"]
             if is_hdmi
@@ -3705,15 +4749,14 @@ async def get_audio_volume():
             if result.returncode == 0:
                 match = re.search(r"\[(\d+)%\]", result.stdout)
                 if match:
-                    return {"volume": int(match.group(1))}
+                    return {"volume": int(match.group(1)), "control": control}
 
-        # HDMI devices often don't have mixer controls accessible via amixer
-        # Return 100 as default since HDMI typically uses fixed output level
+        # HDMI devices often don't have mixer controls until sound is played
         if is_hdmi:
             return {
                 "volume": 100,
                 "hdmi": True,
-                "note": "HDMI devices use fixed output level",
+                "note": "HDMI softvol control created after first playback",
             }
 
         return {"volume": None, "error": "Could not read volume"}
@@ -3737,7 +4780,8 @@ async def set_audio_volume(request: Request):
         asound_path = Path("/etc/asound.conf")
         if asound_path.exists():
             content = asound_path.read_text()
-            if "hdmi:CARD=" in content:
+            # Check for HDMI device - look for hdmi patterns or softvol config
+            if "hdmi:CARD=" in content or "hdmi_hw" in content or "softvol" in content:
                 is_hdmi = True
             match = re.search(r"card\s+(\w+)", content)
             if match:
@@ -3746,28 +4790,44 @@ async def set_audio_volume(request: Request):
         pass
 
     try:
-        # Try multiple mixer controls - different cards use different names
-        mixer_controls = (
-            ["SoftMaster", "PCM", "Master", "Speaker", "Headphone", "HDMI"]
-            if is_hdmi
-            else ["PCM", "Master", "Speaker", "Headphone", "HDMI"]
-        )
         success = False
 
-        for control in mixer_controls:
+        # For HDMI, try SoftMaster on default device first (softvol virtual control)
+        if is_hdmi:
             result = subprocess.run(
-                ["amixer", "-c", current_card, "sset", control, f"{volume}%"],
+                ["amixer", "sset", "SoftMaster", f"{volume}%"],
                 capture_output=True,
                 text=True,
                 timeout=5,
             )
             if result.returncode == 0:
                 success = True
-                logger.debug(f"Volume set via {control} control on card {current_card}")
-                break
+                logger.debug("Volume set via SoftMaster (softvol)")
+
+        # If softvol didn't work, try hardware card controls
+        if not success:
+            mixer_controls = (
+                ["SoftMaster", "PCM", "Master", "Speaker", "Headphone", "HDMI"]
+                if is_hdmi
+                else ["PCM", "Master", "Speaker", "Headphone", "HDMI"]
+            )
+
+            for control in mixer_controls:
+                result = subprocess.run(
+                    ["amixer", "-c", current_card, "sset", control, f"{volume}%"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode == 0:
+                    success = True
+                    logger.debug(
+                        f"Volume set via {control} control on card {current_card}"
+                    )
+                    break
 
         if not success:
-            # HDMI devices often don't have mixer controls
+            # HDMI devices often don't have mixer controls until sound is played
             if is_hdmi:
                 logger.info(
                     f"HDMI device on card {current_card} has no mixer control (normal)"
@@ -3776,7 +4836,7 @@ async def set_audio_volume(request: Request):
                     "success": True,
                     "volume": volume,
                     "hdmi": True,
-                    "note": "HDMI uses fixed output",
+                    "note": "HDMI uses fixed output - softvol control created after first playback",
                 }
             logger.warning(f"Could not set volume on card {current_card}")
 
@@ -4127,28 +5187,6 @@ async def set_speech_timing(request: Request):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-def _run_host_command(cmd: list, timeout: int = 5) -> str:
-    """Run a command on the host system via nsenter."""
-    try:
-        full_cmd = [
-            "nsenter",
-            "--target",
-            "1",
-            "--mount",
-            "--uts",
-            "--ipc",
-            "--net",
-            "--pid",
-            "--",
-        ] + cmd
-        result = subprocess.run(
-            full_cmd, capture_output=True, text=True, timeout=timeout
-        )
-        return result.stdout.strip() if result.returncode == 0 else ""
-    except Exception:
-        return ""
 
 
 def _get_host_stats() -> dict:

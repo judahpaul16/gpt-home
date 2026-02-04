@@ -10,8 +10,8 @@ COPY src/frontend/package*.json ./
 RUN npm ci
 
 ENV CHOKIDAR_USEPOLLING=true
-ENV PORT=80
 
-EXPOSE 80
+ENV PORT=3000
+EXPOSE 3000
 
 CMD ["npm", "start"]

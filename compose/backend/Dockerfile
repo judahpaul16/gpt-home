@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libdrm-dev libgbm-dev libinput-dev libudev-dev \
     libgl1-mesa-dev libgles2-mesa-dev mesa-utils \
     fonts-noto-cjk fonts-dejavu \
+    dbus libdbus-1-dev libdbus-glib-1-dev pkg-config \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
@@ -29,15 +30,19 @@ WORKDIR /app
 COPY src/requirements.txt /app/src/requirements.txt
 
 # Create virtual environment and install dependencies
+# Use CFLAGS=-O0 to reduce memory usage during compilation (critical for Raspberry Pi)
+# Use --default-timeout=1000 to handle slow PyPI connections on limited bandwidth networks
 RUN python3 -m venv /env && \
-    /env/bin/pip install --no-cache-dir wheel && \
-    /env/bin/pip install --no-cache-dir pygame-ce --upgrade && \
-    /env/bin/pip install --no-cache-dir -r src/requirements.txt
+    /env/bin/pip install --no-cache-dir --default-timeout=1000 --retries 5 --upgrade pip wheel setuptools && \
+    CFLAGS="-O0" /env/bin/pip install --no-cache-dir --default-timeout=1000 --retries 5 -r src/requirements.txt
 
 COPY src /app/src
-COPY logs /app/logs
 COPY contrib/alarm.wav /usr/share/sounds/alarm.wav
+COPY contrib/asound.conf /etc/asound.conf
 COPY src/display/font5x8.bin /app/font5x8.bin
+
+RUN mkdir -p /app/logs
+RUN touch /app/logs/events.log
 
 ENV PATH="/env/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
@@ -45,5 +50,23 @@ ENV PYGAME_HIDE_SUPPORT_PROMPT=1
 
 EXPOSE 8000
 
+# Entrypoint script to set up D-Bus symlink, ALSA config, and start backend
+RUN cat > /usr/local/bin/start-backend.sh <<'EOF'
+#!/bin/bash
+set -e
+
+# Create symlink so dbus-python can find the host D-Bus socket at the standard path
+if [ -S /host/run/dbus/system_bus_socket ]; then
+    mkdir -p /run/dbus
+    ln -sf /host/run/dbus/system_bus_socket /run/dbus/system_bus_socket
+    echo "D-Bus socket linked: /run/dbus/system_bus_socket -> /host/run/dbus/system_bus_socket"
+else
+    echo "WARNING: Host D-Bus socket not found at /host/run/dbus/system_bus_socket"
+fi
+
+exec uvicorn src.backend:app --host 127.0.0.1 --port 8000
+EOF
+RUN chmod +x /usr/local/bin/start-backend.sh
+
 # Run uvicorn which starts both FastAPI backend and voice assistant in same process
-CMD ["uvicorn", "src.backend:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/usr/local/bin/start-backend.sh"]

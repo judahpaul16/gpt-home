@@ -1,9 +1,16 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
+import { useQueryClient } from "@tanstack/react-query";
 import { Icons, Spinner } from "./Icons";
 import { cn } from "../lib/utils";
 import ConfirmModal, { useConfirm } from "./ConfirmModal";
+import { queryKeys } from "../hooks/useApi";
+
+interface SpotifyAuthStatus {
+    has_credentials: boolean;
+    needs_auth?: boolean;
+}
 
 interface IntegrationProps {
     name: string;
@@ -12,6 +19,8 @@ interface IntegrationProps {
     requiredFields: { [key: string]: string[] };
     toggleStatus: (name: string) => void;
     setShowOverlay: (visible: boolean) => void;
+    spotifyAuthStatus?: SpotifyAuthStatus | null;
+    onSpotifyConnected?: () => void;
 }
 
 const Integration: React.FC<IntegrationProps> = ({
@@ -20,12 +29,94 @@ const Integration: React.FC<IntegrationProps> = ({
     requiredFields,
     toggleStatus,
     setShowOverlay,
+    spotifyAuthStatus,
+    onSpotifyConnected,
 }) => {
+    const queryClient = useQueryClient();
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({} as { [key: string]: string });
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
+    const [authLoading, setAuthLoading] = useState(false);
+    const [authPolling, setAuthPolling] = useState(false);
     const { confirmConfig, showConfirm, closeConfirm } = useConfirm();
+
+    const handleSpotifyAuthorize = async () => {
+        setAuthLoading(true);
+        setError("");
+        try {
+            const response = await axios.get("/api/spotify/auth-url");
+            if (response.data.auth_url) {
+                // Open auth URL in new window
+                const authWindow = window.open(
+                    response.data.auth_url,
+                    "spotify-auth",
+                    "width=500,height=700,menubar=no,toolbar=no",
+                );
+
+                // Start polling for authorization completion
+                setAuthPolling(true);
+                const pollInterval = setInterval(async () => {
+                    try {
+                        const pollResponse = await axios.get(
+                            "/api/spotify/auth-poll",
+                        );
+                        if (pollResponse.data.status === "authorized") {
+                            clearInterval(pollInterval);
+                            setAuthPolling(false);
+                            setAuthLoading(false);
+                            // Close the auth window if still open
+                            if (authWindow && !authWindow.closed) {
+                                authWindow.close();
+                            }
+                            // Refresh the page to update status
+                            window.location.reload();
+                        } else if (pollResponse.data.status === "error") {
+                            clearInterval(pollInterval);
+                            setAuthPolling(false);
+                            setAuthLoading(false);
+                            setError(
+                                pollResponse.data.error ||
+                                    "Authorization failed",
+                            );
+                            if (authWindow && !authWindow.closed) {
+                                authWindow.close();
+                            }
+                        }
+                    } catch {
+                        // Continue polling on network errors
+                    }
+                }, 2000);
+
+                // Stop polling after 5 minutes
+                setTimeout(
+                    () => {
+                        clearInterval(pollInterval);
+                        if (authPolling) {
+                            setAuthPolling(false);
+                            setAuthLoading(false);
+                            setError(
+                                "Authorization timed out. Please try again.",
+                            );
+                        }
+                    },
+                    5 * 60 * 1000,
+                );
+            } else {
+                setError(
+                    response.data.error || "Failed to get authorization URL",
+                );
+                setAuthLoading(false);
+            }
+        } catch (err: any) {
+            setError(
+                err.response?.data?.error ||
+                    err.message ||
+                    "Failed to get authorization URL",
+            );
+            setAuthLoading(false);
+        }
+    };
 
     const apiRefs: { [key: string]: string[] } = {
         Spotify: ["https://developer.spotify.com/documentation/web-api/"],
@@ -63,14 +154,29 @@ const Integration: React.FC<IntegrationProps> = ({
 
         axios
             .post("/connect-service", { name, fields })
-            .then((response) => {
+            .then(async (response) => {
                 if (response.data.redirect_url) {
                     window.location.replace(response.data.redirect_url);
                 } else if (response.data.success) {
+                    // Invalidate the service statuses cache to force refetch
+                    queryClient.invalidateQueries({
+                        queryKey: queryKeys.serviceStatuses,
+                    });
                     if (!status) toggleStatus(name);
                     setShowOverlay(false);
                     setShowForm(false);
                     if (name !== "PhilipsHue") setFormData({});
+
+                    // For Spotify, immediately trigger OAuth flow after credentials are saved
+                    if (name === "Spotify") {
+                        // Notify parent to refresh status
+                        if (onSpotifyConnected) {
+                            onSpotifyConnected();
+                        }
+                        // Automatically start OAuth authorization flow
+                        setLoading(false);
+                        await handleSpotifyAuthorize();
+                    }
                 } else {
                     setError(
                         response.data.message ||
@@ -102,10 +208,18 @@ const Integration: React.FC<IntegrationProps> = ({
                     .post("/disconnect-service", { name })
                     .then((response) => {
                         if (response.data.success) {
+                            // Invalidate the service statuses cache to force refetch
+                            queryClient.invalidateQueries({
+                                queryKey: queryKeys.serviceStatuses,
+                            });
                             toggleStatus(name);
                             setShowOverlay(false);
                             setShowForm(false);
                             setFormData({});
+                            // For Spotify, refresh auth status to clear any stale state
+                            if (name === "Spotify" && onSpotifyConnected) {
+                                onSpotifyConnected();
+                            }
                         } else {
                             setError(
                                 `Error disconnecting: ${response.data.error}`,
@@ -147,6 +261,31 @@ const Integration: React.FC<IntegrationProps> = ({
                         Edit
                     </button>
                 )}
+                {/* Spotify: Show Authorize button when connected but needs OAuth */}
+                {name === "Spotify" &&
+                    status &&
+                    spotifyAuthStatus &&
+                    spotifyAuthStatus.needs_auth && (
+                        <button
+                            onClick={handleSpotifyAuthorize}
+                            disabled={authLoading}
+                            className="btn-primary flex items-center gap-2 text-sm"
+                        >
+                            {authLoading ? (
+                                <>
+                                    <Spinner size="sm" />
+                                    {authPolling
+                                        ? "Waiting for authorization..."
+                                        : "Loading..."}
+                                </>
+                            ) : (
+                                <>
+                                    <Icons.Music className="w-4 h-4" />
+                                    Authorize
+                                </>
+                            )}
+                        </button>
+                    )}
                 <button
                     onClick={
                         status ? disconnectService : () => setShowForm(true)
@@ -235,18 +374,32 @@ const Integration: React.FC<IntegrationProps> = ({
 
                                 {/* Service-specific notes */}
                                 {name === "Spotify" && (
-                                    <div className="p-4 rounded-xl bg-emerald-100 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300 text-sm">
-                                        <p className="text-sm opacity-75">
-                                            Get credentials from the{" "}
-                                            <a
-                                                href="https://developer.spotify.com/dashboard/"
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="underline"
-                                            >
-                                                Spotify Developer Dashboard
-                                            </a>
-                                        </p>
+                                    <div className="space-y-4">
+                                        <div className="p-4 rounded-xl bg-emerald-100 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300 text-sm">
+                                            <p>
+                                                Get credentials from the{" "}
+                                                <a
+                                                    href="https://developer.spotify.com/dashboard/"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="underline font-medium"
+                                                >
+                                                    Spotify Developer Dashboard
+                                                </a>
+                                            </p>
+                                        </div>
+                                        <div className="p-4 rounded-xl bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 text-sm">
+                                            <p className="font-medium mb-1">
+                                                Redirect URI Setup
+                                            </p>
+                                            <p className="mb-2 opacity-90">
+                                                In your Spotify app settings,
+                                                add this Redirect URI:
+                                            </p>
+                                            <code className="block bg-amber-200/50 dark:bg-amber-800/30 px-3 py-2 rounded-lg text-xs font-mono break-all">
+                                                https://gpt-home.judahpaul.com/spotify/callback
+                                            </code>
+                                        </div>
                                     </div>
                                 )}
 

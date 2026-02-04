@@ -5,20 +5,29 @@ import axios from "axios";
 // Types
 // ============================================================================
 
+export interface DisplayInfo {
+    id: string;
+    type: string;
+    name: string;
+    width: number;
+    height: number;
+    driver: string | null;
+    device_path: string | null;
+    supports_modes?: boolean;
+    enabled?: boolean;
+}
+
 export interface DisplayStatus {
     available: boolean;
-    displays: Array<{
-        type: string;
-        width: number;
-        height: number;
-        driver: string | null;
-        supports_modes?: boolean;
-    }>;
+    displays: DisplayInfo[];
     active: boolean;
     current_mode: string | null;
+    current_display_type: string | null;
+    saved_display_type: string | null;
     has_full_display?: boolean;
     has_simple_display?: boolean;
     supports_modes?: boolean;
+    mirror_enabled?: boolean;
     note?: string | null;
 }
 
@@ -361,6 +370,10 @@ export function useSettingsPageData() {
     const speechTiming = useSpeechTiming();
     const screensaver = useScreensaver();
 
+    // Critical data required for initial render (fast queries)
+    const isCriticalLoading = settings.isLoading || models.isLoading;
+
+    // All data loading (for backwards compatibility)
     const isLoading =
         settings.isLoading ||
         models.isLoading ||
@@ -389,7 +402,22 @@ export function useSettingsPageData() {
         speechTiming: speechTiming.data,
         screensaver: screensaver.data,
         isLoading,
+        isCriticalLoading,
         isError,
+        // Expose individual loading states for progressive rendering
+        loadingStates: {
+            settings: settings.isLoading,
+            models: models.isLoading,
+            displayStatus: displayStatus.isLoading,
+            galleryImages: galleryImages.isLoading,
+            audioDevices: audioDevices.isLoading,
+            audioInputDevices: audioInputDevices.isLoading,
+            audioVolume: audioVolume.isLoading,
+            micGain: micGain.isLoading,
+            vadThreshold: vadThreshold.isLoading,
+            speechTiming: speechTiming.isLoading,
+            screensaver: screensaver.isLoading,
+        },
         // Expose refetch functions for manual refresh
         refetch: {
             settings: settings.refetch,

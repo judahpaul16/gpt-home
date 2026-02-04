@@ -35,8 +35,8 @@ jobs:
                       dockerfile: compose/web/Dockerfile
                     - name: backend
                       dockerfile: compose/app/Dockerfile
-                    - name: spotifyd
-                      dockerfile: compose/spotifyd/Dockerfile
+                    - name: spotify
+                      dockerfile: compose/spotify/Dockerfile
         steps:
             - name: Checkout code
               uses: actions/checkout@v3

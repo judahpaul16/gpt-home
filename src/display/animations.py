@@ -1,326 +1,307 @@
+"""Tool-specific animations for the display manager."""
+
 import asyncio
 import math
-import random
 import time
-from dataclasses import dataclass
-from enum import Enum
-from typing import Callable, List, Optional, Tuple
+from typing import Any, Callable, Dict, Optional
 
-from .base import Color, Colors
+import aiohttp
 
+from .base import BaseDisplay, Color
+from .palette import Palette, ScrollingText, ease_in_out_sine, lerp
 
-class Easing(Enum):
-    LINEAR = "linear"
-    EASE_IN = "ease_in"
-    EASE_OUT = "ease_out"
-    EASE_IN_OUT = "ease_in_out"
-    BOUNCE = "bounce"
-    ELASTIC = "elastic"
+FRAME_TIME = 1.0 / 120
 
 
-@dataclass
-class Particle:
-    x: float
-    y: float
-    vx: float
-    vy: float
-    life: float
-    max_life: float
-    size: float
-    color: Color
+async def timer_animation(
+    d: BaseDisplay,
+    context: Dict[str, Any],
+    stop_check: Callable[[], bool],
+    render_lock: asyncio.Lock,
+    draw_bg: Callable,
+    draw_overlay: Callable,
+) -> None:
+    """Render timer/alarm animation."""
+    duration = context.get("duration", 0)
+    name = context.get("name", "Timer")
+    start_time = time.perf_counter()
+    last_frame = start_time
+    is_alarm = "alarm" in name.lower()
+    rotation = 0.0
 
+    while not stop_check():
+        now = time.perf_counter()
+        dt = now - last_frame
+        last_frame = now
+        elapsed = now - start_time
 
-class AnimationController:
-    @staticmethod
-    def ease(t: float, easing: Easing = Easing.LINEAR) -> float:
-        t = max(0.0, min(1.0, t))
-
-        if easing == Easing.LINEAR:
-            return t
-        elif easing == Easing.EASE_IN:
-            return t * t * t
-        elif easing == Easing.EASE_OUT:
-            return 1 - (1 - t) ** 3
-        elif easing == Easing.EASE_IN_OUT:
-            if t < 0.5:
-                return 4 * t * t * t
-            return 1 - ((-2 * t + 2) ** 3) / 2
-        elif easing == Easing.BOUNCE:
-            if t < 1 / 2.75:
-                return 7.5625 * t * t
-            elif t < 2 / 2.75:
-                t -= 1.5 / 2.75
-                return 7.5625 * t * t + 0.75
-            elif t < 2.5 / 2.75:
-                t -= 2.25 / 2.75
-                return 7.5625 * t * t + 0.9375
-            else:
-                t -= 2.625 / 2.75
-                return 7.5625 * t * t + 0.984375
-        elif easing == Easing.ELASTIC:
-            if t == 0 or t == 1:
-                return t
-            return -(2 ** (10 * t - 10)) * math.sin(
-                (t * 10 - 10.75) * (2 * math.pi) / 3
-            )
-        return t
-
-    @staticmethod
-    def interpolate(
-        start: float, end: float, t: float, easing: Easing = Easing.EASE_OUT
-    ) -> float:
-        return start + (end - start) * AnimationController.ease(t, easing)
-
-    @staticmethod
-    def interpolate_color(
-        start: Color, end: Color, t: float, easing: Easing = Easing.EASE_OUT
-    ) -> Color:
-        t = AnimationController.ease(t, easing)
-        return Color(
-            r=int(start.r + (end.r - start.r) * t),
-            g=int(start.g + (end.g - start.g) * t),
-            b=int(start.b + (end.b - start.b) * t),
-        )
-
-
-class ParticleSystem:
-    def __init__(self, max_particles: int = 100):
-        self.particles: List[Particle] = []
-        self.max_particles = max_particles
-
-    def emit(
-        self,
-        x: float,
-        y: float,
-        count: int = 1,
-        velocity_range: Tuple[float, float] = (-2, 2),
-        life_range: Tuple[float, float] = (0.5, 2.0),
-        size_range: Tuple[float, float] = (2, 6),
-        color: Color = Colors.WHITE,
-        direction: Optional[float] = None,
-        spread: float = math.pi * 2,
-    ) -> None:
-        for _ in range(count):
-            if len(self.particles) >= self.max_particles:
+        async with render_lock:
+            if stop_check():
                 break
 
-            if direction is not None:
-                angle = direction + random.uniform(-spread / 2, spread / 2)
-            else:
-                angle = random.uniform(0, math.pi * 2)
+            draw_bg(d)
+            cx, cy = d.get_center()
 
-            speed = random.uniform(velocity_range[0], velocity_range[1])
-            life = random.uniform(life_range[0], life_range[1])
-            size = random.uniform(size_range[0], size_range[1])
+            if duration <= 0:
+                rotation += dt * 120
+                pulse = ease_in_out_sine((math.sin(elapsed * 2) + 1) / 2)
 
-            self.particles.append(
-                Particle(
-                    x=x,
-                    y=y,
-                    vx=math.cos(angle) * speed,
-                    vy=math.sin(angle) * speed,
-                    life=life,
-                    max_life=life,
-                    size=size,
-                    color=color,
+                d.draw_circle_sync(
+                    cx, cy, d.scale_x(90), Color(40, 45, 65), filled=False
                 )
+                radius = d.scale_x(70)
+                d.draw_circle_sync(cx, cy, radius, Color(55, 60, 85), filled=False)
+
+                if hasattr(d, "draw_arc_sync"):
+                    arc_len = 80 + 40 * pulse
+                    d.draw_arc_sync(
+                        cx,
+                        cy,
+                        radius,
+                        int(rotation % 360),
+                        int((rotation + arc_len) % 360),
+                        Palette.ACCENT_CYAN,
+                        4,
+                    )
+
+                icon_r = d.scale_x(28)
+                d.draw_circle_sync(
+                    cx,
+                    cy,
+                    icon_r,
+                    Color(
+                        50 + int(15 * pulse), 55 + int(15 * pulse), 80 + int(15 * pulse)
+                    ),
+                    filled=True,
+                )
+
+                if is_alarm:
+                    d.draw_circle_sync(
+                        cx,
+                        cy - d.scale_y(3),
+                        d.scale_x(10),
+                        Palette.ACCENT_ORANGE,
+                        filled=True,
+                    )
+                    d.draw_circle_sync(
+                        cx,
+                        cy - d.scale_y(14),
+                        d.scale_x(4),
+                        Palette.ACCENT_ORANGE,
+                        filled=True,
+                    )
+                else:
+                    angle = math.radians(rotation * 0.3)
+                    hx = int(cx + math.cos(angle - 1) * d.scale_x(8))
+                    hy = int(cy + math.sin(angle - 1) * d.scale_y(8))
+                    mx = int(cx + math.cos(angle) * d.scale_x(14))
+                    my = int(cy + math.sin(angle) * d.scale_y(14))
+                    d.draw_line_sync(cx, cy, hx, hy, Palette.ACCENT_CYAN, 3)
+                    d.draw_line_sync(cx, cy, mx, my, Palette.ACCENT_CYAN, 2)
+
+                label = f"Setting {name}"
+                label_size = d.scale_font(20)
+                d.draw_text_sync(
+                    label,
+                    int(cx - len(label) * label_size * 0.25),
+                    cy + d.scale_y(55),
+                    Palette.TEXT_PRIMARY,
+                    label_size,
+                )
+            else:
+                remaining = max(0, duration - elapsed)
+                progress = min(1.0, elapsed / duration)
+
+                d.draw_circle_sync(
+                    cx, cy, d.scale_x(90), Color(40, 45, 65), filled=False
+                )
+                radius = d.scale_x(75)
+                d.draw_circle_sync(cx, cy, radius, Color(50, 55, 80), filled=False)
+
+                if hasattr(d, "draw_arc_sync"):
+                    r = int(lerp(80, Palette.ACCENT_GREEN.r, progress))
+                    g = int(lerp(200, Palette.ACCENT_GREEN.g, progress))
+                    b = int(lerp(255, Palette.ACCENT_GREEN.b, progress))
+                    d.draw_arc_sync(
+                        cx,
+                        cy,
+                        radius,
+                        -90,
+                        int(-90 + progress * 360),
+                        Color(r, g, b),
+                        6,
+                    )
+
+                mins, secs = int(remaining // 60), int(remaining % 60)
+                time_str = f"{mins}:{secs:02d}" if mins > 0 else str(secs)
+                time_size = d.scale_font(52)
+                d.draw_text_sync(
+                    time_str,
+                    int(cx - len(time_str) * time_size * 0.27),
+                    cy - d.scale_y(15),
+                    Palette.TEXT_PRIMARY,
+                    time_size,
+                )
+
+                unit = "remaining" if mins > 0 else "seconds"
+                unit_size = d.scale_font(14)
+                d.draw_text_sync(
+                    unit,
+                    int(cx - len(unit) * unit_size * 0.25),
+                    cy + d.scale_y(25),
+                    Palette.TEXT_MUTED,
+                    unit_size,
+                )
+
+                name_size = d.scale_font(18)
+                d.draw_text_sync(
+                    name,
+                    int(cx - len(name) * name_size * 0.25),
+                    cy + d.scale_y(55),
+                    Palette.TEXT_SECONDARY,
+                    name_size,
+                )
+
+                if remaining <= 0:
+                    break
+
+            draw_overlay(d)
+            d.show_sync()
+
+        await asyncio.sleep(max(0.001, FRAME_TIME - (time.perf_counter() - now)))
+
+
+async def light_animation(
+    d: BaseDisplay,
+    context: Dict[str, Any],
+    stop_check: Callable[[], bool],
+    render_lock: asyncio.Lock,
+) -> None:
+    """Render light control animation."""
+    action = context.get("action", "toggle")
+    is_on = "on" in action.lower() or "toggle" in action.lower()
+    frame = 0
+
+    while not stop_check():
+        now = time.perf_counter()
+        pulse = ease_in_out_sine((math.sin(now * 3) + 1) / 2)
+
+        async with render_lock:
+            if stop_check():
+                break
+
+            d.clear_sync(Color(18, 20, 28))
+            cx, cy = d.get_center()
+
+            if is_on:
+                glow_radius = int(d.scale_x(60 + 40 * pulse))
+                for r in range(5, 0, -1):
+                    alpha = 0.15 * r * pulse
+                    glow_color = Color(
+                        int(255 * alpha), int(220 * alpha), int(100 * alpha)
+                    )
+                    d.draw_circle_sync(
+                        cx,
+                        cy - d.scale_y(20),
+                        glow_radius + r * 15,
+                        glow_color,
+                        filled=True,
+                    )
+                bulb_color = Color(int(255 * pulse), int(240 * pulse), int(180 * pulse))
+            else:
+                bulb_color = Color(80, 85, 100)
+
+            d.draw_circle_sync(
+                cx, cy - d.scale_y(20), d.scale_x(40), bulb_color, filled=True
             )
 
-    def update(self, dt: float, gravity: float = 0) -> None:
-        alive = []
-        for p in self.particles:
-            p.x += p.vx * dt * 60
-            p.y += p.vy * dt * 60
-            p.vy += gravity * dt
-            p.life -= dt
-            if p.life > 0:
-                alive.append(p)
-        self.particles = alive
-
-    def clear(self) -> None:
-        self.particles = []
-
-
-class WeatherEffects:
-    def __init__(self, width: int, height: int):
-        self.width = width
-        self.height = height
-        self.raindrops: List[dict] = []
-        self.snowflakes: List[dict] = []
-        self.clouds: List[dict] = []
-        self.sun_rays: List[dict] = []
-        self.lightning_flash = 0.0
-        self._init_clouds()
-
-    def _init_clouds(self) -> None:
-        for i in range(3):
-            self.clouds.append(
-                {
-                    "x": random.uniform(0, self.width),
-                    "y": random.uniform(self.height * 0.1, self.height * 0.3),
-                    "width": random.uniform(80, 150),
-                    "speed": random.uniform(0.2, 0.5),
-                }
+            status = f"Lights {action.title()}"
+            status_size = d.scale_font(24)
+            status_w = len(status) * (status_size * 0.5)
+            d.draw_text_sync(
+                status,
+                int(cx - status_w // 2),
+                cy + d.scale_y(50),
+                Palette.TEXT_PRIMARY,
+                status_size,
             )
 
-    def update_rain(self, dt: float, intensity: float = 1.0) -> None:
-        spawn_count = int(intensity * 3)
-        for _ in range(spawn_count):
-            if len(self.raindrops) < 100:
-                self.raindrops.append(
-                    {
-                        "x": random.uniform(0, self.width),
-                        "y": -10,
-                        "speed": random.uniform(8, 15),
-                        "length": random.uniform(10, 25),
-                    }
-                )
+            dots = "." * ((frame // 15) % 4)
+            proc_text = f"Controlling{dots}"
+            proc_size = d.scale_font(14)
+            d.draw_text_sync(
+                proc_text,
+                int(cx - len(proc_text) * proc_size * 0.25),
+                cy + d.scale_y(80),
+                Palette.TEXT_MUTED,
+                proc_size,
+            )
 
-        alive = []
-        for drop in self.raindrops:
-            drop["y"] += drop["speed"] * dt * 60
-            drop["x"] += 1 * dt * 60
-            if drop["y"] < self.height + 30:
-                alive.append(drop)
-        self.raindrops = alive
+            d.show_sync()
 
-    def update_snow(self, dt: float, intensity: float = 1.0) -> None:
-        spawn_count = int(intensity * 2)
-        for _ in range(spawn_count):
-            if len(self.snowflakes) < 80:
-                self.snowflakes.append(
-                    {
-                        "x": random.uniform(0, self.width),
-                        "y": -10,
-                        "speed": random.uniform(1, 3),
-                        "size": random.uniform(2, 5),
-                        "wobble": random.uniform(0, math.pi * 2),
-                        "wobble_speed": random.uniform(1, 3),
-                    }
-                )
-
-        alive = []
-        for flake in self.snowflakes:
-            flake["y"] += flake["speed"] * dt * 60
-            flake["wobble"] += flake["wobble_speed"] * dt
-            flake["x"] += math.sin(flake["wobble"]) * 0.5
-            if flake["y"] < self.height + 10:
-                alive.append(flake)
-        self.snowflakes = alive
-
-    def update_clouds(self, dt: float) -> None:
-        for cloud in self.clouds:
-            cloud["x"] += cloud["speed"] * dt * 60
-            if cloud["x"] > self.width + cloud["width"]:
-                cloud["x"] = -cloud["width"]
-
-    def update_sun_rays(self, dt: float) -> None:
-        if len(self.sun_rays) < 8:
-            for i in range(8):
-                angle = (i / 8) * math.pi * 2
-                self.sun_rays.append(
-                    {
-                        "angle": angle,
-                        "length": random.uniform(40, 80),
-                        "pulse": random.uniform(0, math.pi * 2),
-                    }
-                )
-
-        for ray in self.sun_rays:
-            ray["pulse"] += dt * 2
-            ray["length"] = 50 + math.sin(ray["pulse"]) * 20
-
-    def trigger_lightning(self) -> None:
-        self.lightning_flash = 1.0
-
-    def update_lightning(self, dt: float) -> None:
-        if self.lightning_flash > 0:
-            self.lightning_flash -= dt * 5
-            if self.lightning_flash < 0:
-                self.lightning_flash = 0
+        frame += 1
+        await asyncio.sleep(max(0.001, FRAME_TIME - (time.perf_counter() - now)))
 
 
-class WaveformVisualizer:
-    def __init__(self, width: int, height: int, bar_count: int = 32):
-        self.width = width
-        self.height = height
-        self.bar_count = bar_count
-        self.values = [0.0] * bar_count
-        self.target_values = [0.0] * bar_count
-        self.peaks = [0.0] * bar_count
-        self.peak_decay = 0.02
+async def generic_tool_animation(
+    d: BaseDisplay,
+    tool_name: str,
+    stop_check: Callable[[], bool],
+    render_lock: asyncio.Lock,
+) -> None:
+    """Render generic tool animation with spinning dots."""
+    frame = 0
 
-    def update(self, amplitude: float, dt: float) -> None:
-        self.target_values.pop(0)
-        self.target_values.append(amplitude)
+    while not stop_check():
+        t = (frame % 60) / 60.0
+        phase = t * math.pi * 2
 
-        for i in range(self.bar_count):
-            diff = self.target_values[i] - self.values[i]
-            self.values[i] += diff * min(1.0, dt * 15)
+        async with render_lock:
+            if stop_check():
+                break
 
-            if self.values[i] > self.peaks[i]:
-                self.peaks[i] = self.values[i]
-            else:
-                self.peaks[i] -= self.peak_decay * dt * 60
-                self.peaks[i] = max(self.peaks[i], 0)
+            d.clear_sync(Color(18, 20, 28))
+            cx, cy = d.get_center()
 
-    def set_values(self, values: List[float]) -> None:
-        for i, v in enumerate(values[: self.bar_count]):
-            self.target_values[i] = v
+            for j in range(8):
+                angle = (j / 8) * math.pi * 2 + phase
+                radius = d.scale_x(50) + int(10 * math.sin(phase * 2))
+                x = cx + int(math.cos(angle) * radius)
+                y = cy + int(math.sin(angle) * radius)
+                dot_size = 4 + int(4 * (1 + math.sin(phase + j)))
+                colors = [
+                    Palette.ACCENT_CYAN,
+                    Palette.ACCENT_BLUE,
+                    Palette.ACCENT_PURPLE,
+                    Palette.ACCENT_PINK,
+                ]
+                color = colors[(j + frame // 15) % len(colors)]
+                d.draw_circle_sync(x, y, dot_size, color, filled=True)
 
+            name = tool_name.replace("_", " ").title()
+            name_size = d.scale_font(20)
+            name_w = len(name) * (name_size * 0.5)
+            d.draw_text_sync(
+                name,
+                int(cx - name_w // 2),
+                cy + d.scale_y(80),
+                Palette.TEXT_SECONDARY,
+                name_size,
+            )
 
-class PulseAnimation:
-    def __init__(self):
-        self.phase = 0.0
-        self.speed = 2.0
+            dots = "." * ((frame // 20) % 4)
+            status = f"Processing{dots}"
+            status_size = d.scale_font(14)
+            status_w = len(status) * (status_size * 0.5)
+            d.draw_text_sync(
+                status,
+                int(cx - status_w // 2),
+                cy + d.scale_y(110),
+                Palette.TEXT_MUTED,
+                status_size,
+            )
 
-    def update(self, dt: float) -> None:
-        self.phase += dt * self.speed
-        if self.phase > math.pi * 2:
-            self.phase -= math.pi * 2
+            d.show_sync()
 
-    def get_scale(self, base: float = 1.0, amplitude: float = 0.1) -> float:
-        return base + math.sin(self.phase) * amplitude
-
-    def get_alpha(self, base: float = 1.0, amplitude: float = 0.3) -> float:
-        return max(0, min(1, base + math.sin(self.phase) * amplitude))
-
-
-class TransitionManager:
-    def __init__(self):
-        self.active = False
-        self.progress = 0.0
-        self.duration = 0.5
-        self.type = "fade"
-        self._start_time = 0.0
-
-    def start(self, transition_type: str = "fade", duration: float = 0.5) -> None:
-        self.active = True
-        self.progress = 0.0
-        self.duration = duration
-        self.type = transition_type
-        self._start_time = time.time()
-
-    def update(self, dt: float) -> bool:
-        if not self.active:
-            return False
-
-        elapsed = time.time() - self._start_time
-        self.progress = min(1.0, elapsed / self.duration)
-
-        if self.progress >= 1.0:
-            self.active = False
-            return False
-        return True
-
-    def get_fade_alpha(self, phase: str = "out") -> float:
-        if phase == "out":
-            return 1.0 - AnimationController.ease(self.progress, Easing.EASE_IN_OUT)
-        return AnimationController.ease(self.progress, Easing.EASE_IN_OUT)
-
-    def get_slide_offset(self, distance: int, direction: str = "left") -> int:
-        eased = AnimationController.ease(self.progress, Easing.EASE_OUT)
-        offset = int(distance * (1 - eased))
-        if direction in ("left", "up"):
-            return -offset
-        return offset
+        frame += 1
+        await asyncio.sleep(0.016)

@@ -30,7 +30,7 @@ ninja==1.11.1
 oauthlib==3.2.2
 phue==1.1
 Pillow==10.0.0
-protobuf==4.24.3
+protobuf==3.20.1
 pyasn1==0.5.0
 pyasn1-modules==0.3.0
 PyAudio==0.2.13
@@ -47,9 +47,7 @@ requests-oauthlib==1.3.1
 RPi.GPIO==0.7.1
 rsa==4.9
 sniffio==1.3.0
-
-# LangGraph and LangMem dependencies - VERIFIED FROM PYPI
-# Using langchain 1.x ecosystem (langchain-core>=1.0.0)
+dbus-python==1.3.2
 langgraph==1.0.5
 langgraph-checkpoint==3.0.1
 langgraph-checkpoint-postgres==3.0.2

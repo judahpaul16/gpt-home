@@ -245,7 +245,8 @@ const Settings: React.FC = () => {
         vadThreshold: fetchedVadThreshold,
         speechTiming: fetchedSpeechTiming,
         screensaver: fetchedScreensaver,
-        isLoading: isQueryLoading,
+        isCriticalLoading,
+        loadingStates,
         refetch,
     } = useSettingsPageData();
 
@@ -272,6 +273,10 @@ const Settings: React.FC = () => {
     );
     const [isRefreshingDisplay, setIsRefreshingDisplay] = useState(false);
     const [isPoweringDisplay, setIsPoweringDisplay] = useState(false);
+    const [hardwareDisplayMode, setHardwareDisplayMode] = useState<
+        "hdmi" | "tft" | "unknown" | "conflict"
+    >("unknown");
+    const [isChangingHardwareMode, setIsChangingHardwareMode] = useState(false);
     const [audioState, setAudioState] = useState<AudioState>({
         devices: [],
         current: null,
@@ -406,9 +411,10 @@ const Settings: React.FC = () => {
         }
     }, [settings.litellm_api_key, allModels]);
 
-    // Initialize local state from React Query cached data
+    // Initialize critical data (settings, models) as soon as available
+    // This allows the page to render quickly while slower queries load
     useEffect(() => {
-        if (!isQueryLoading && !isInitialized) {
+        if (!isCriticalLoading && !isInitialized) {
             // Settings
             if (fetchedSettings) {
                 setSettings(fetchedSettings);
@@ -420,67 +426,108 @@ const Settings: React.FC = () => {
                 setAllModels(fetchedModels);
             }
 
-            // Display status
-            if (fetchedDisplayStatus) {
-                setDisplayStatus(fetchedDisplayStatus);
-            }
-
-            // Gallery images
-            if (fetchedGalleryImages) {
-                setGalleryImages(fetchedGalleryImages);
-            }
-
-            // Audio state
-            setAudioState({
-                devices: fetchedAudioDevices?.devices || [],
-                current: fetchedAudioDevices?.current || null,
-                volume: fetchedAudioVolume ?? null,
-                inputDevices: fetchedAudioInputDevices?.devices || [],
-                currentInputDevice: fetchedAudioInputDevices?.current || null,
-                micGain: fetchedMicGain?.gain ?? null,
-                micCard: fetchedMicGain?.card ?? null,
-                vadThreshold: fetchedVadThreshold ?? -50,
-            });
-
-            // Speech timing
-            if (fetchedSpeechTiming) {
-                setSpeechTiming(fetchedSpeechTiming);
-                setOriginalSpeechTiming(fetchedSpeechTiming);
-            }
-
-            // Screensaver
-            if (fetchedScreensaver) {
-                setScreensaverSettings({
-                    enabled: fetchedScreensaver.enabled,
-                    timeout: fetchedScreensaver.timeout,
-                    style: fetchedScreensaver.style,
-                    is_active: fetchedScreensaver.is_active,
-                    available_styles: fetchedScreensaver.available_styles,
-                });
-                setOriginalScreensaver({
-                    enabled: fetchedScreensaver.enabled,
-                    timeout: fetchedScreensaver.timeout,
-                    style: fetchedScreensaver.style,
-                });
-            }
-
             setIsInitialized(true);
         }
-    }, [
-        isQueryLoading,
-        isInitialized,
-        fetchedSettings,
-        fetchedModels,
-        fetchedDisplayStatus,
-        fetchedGalleryImages,
-        fetchedAudioDevices,
-        fetchedAudioInputDevices,
-        fetchedAudioVolume,
-        fetchedMicGain,
-        fetchedVadThreshold,
-        fetchedSpeechTiming,
-        fetchedScreensaver,
-    ]);
+    }, [isCriticalLoading, isInitialized, fetchedSettings, fetchedModels]);
+
+    // Progressively initialize other data as it arrives
+    useEffect(() => {
+        if (fetchedDisplayStatus) {
+            setDisplayStatus(fetchedDisplayStatus);
+        }
+    }, [fetchedDisplayStatus]);
+
+    // Fetch hardware display mode on mount
+    useEffect(() => {
+        const fetchHardwareMode = async () => {
+            try {
+                const response = await axios.get("/api/display/hardware-mode");
+                if (response.data.mode) {
+                    setHardwareDisplayMode(response.data.mode);
+                }
+            } catch (err) {
+                console.error("Failed to fetch hardware display mode:", err);
+            }
+        };
+        fetchHardwareMode();
+    }, []);
+
+    useEffect(() => {
+        if (fetchedGalleryImages) {
+            setGalleryImages(fetchedGalleryImages);
+        }
+    }, [fetchedGalleryImages]);
+
+    useEffect(() => {
+        // Update audio state progressively as data arrives
+        setAudioState((prev) => ({
+            ...prev,
+            devices: fetchedAudioDevices?.devices ?? prev.devices,
+            current: fetchedAudioDevices?.current ?? prev.current,
+        }));
+    }, [fetchedAudioDevices]);
+
+    useEffect(() => {
+        setAudioState((prev) => ({
+            ...prev,
+            inputDevices:
+                fetchedAudioInputDevices?.devices ?? prev.inputDevices,
+            currentInputDevice:
+                fetchedAudioInputDevices?.current ?? prev.currentInputDevice,
+        }));
+    }, [fetchedAudioInputDevices]);
+
+    useEffect(() => {
+        if (fetchedAudioVolume !== undefined) {
+            setAudioState((prev) => ({
+                ...prev,
+                volume: fetchedAudioVolume ?? prev.volume,
+            }));
+        }
+    }, [fetchedAudioVolume]);
+
+    useEffect(() => {
+        if (fetchedMicGain) {
+            setAudioState((prev) => ({
+                ...prev,
+                micGain: fetchedMicGain.gain ?? prev.micGain,
+                micCard: fetchedMicGain.card ?? prev.micCard,
+            }));
+        }
+    }, [fetchedMicGain]);
+
+    useEffect(() => {
+        if (fetchedVadThreshold !== undefined) {
+            setAudioState((prev) => ({
+                ...prev,
+                vadThreshold: fetchedVadThreshold ?? prev.vadThreshold,
+            }));
+        }
+    }, [fetchedVadThreshold]);
+
+    useEffect(() => {
+        if (fetchedSpeechTiming) {
+            setSpeechTiming(fetchedSpeechTiming);
+            setOriginalSpeechTiming(fetchedSpeechTiming);
+        }
+    }, [fetchedSpeechTiming]);
+
+    useEffect(() => {
+        if (fetchedScreensaver) {
+            setScreensaverSettings({
+                enabled: fetchedScreensaver.enabled,
+                timeout: fetchedScreensaver.timeout,
+                style: fetchedScreensaver.style,
+                is_active: fetchedScreensaver.is_active,
+                available_styles: fetchedScreensaver.available_styles,
+            });
+            setOriginalScreensaver({
+                enabled: fetchedScreensaver.enabled,
+                timeout: fetchedScreensaver.timeout,
+                style: fetchedScreensaver.style,
+            });
+        }
+    }, [fetchedScreensaver]);
 
     const handleRefreshDisplay = async () => {
         setIsRefreshingDisplay(true);
@@ -565,6 +612,93 @@ const Settings: React.FC = () => {
 
     const handleDisplayModeChange = (mode: string) => {
         setSettings({ ...settings, display_mode: mode });
+    };
+
+    const handleMirrorToggle = async (enabled: boolean) => {
+        try {
+            const response = await axios.post("/api/display/mirror", {
+                enabled,
+            });
+            if (response.data.success) {
+                const result = await refetch.displayStatus();
+                if (result.data) {
+                    setDisplayStatus(result.data);
+                }
+                showAlert(
+                    "success",
+                    "Mirror Mode",
+                    `Display mirroring ${enabled ? "enabled" : "disabled"}`,
+                );
+            }
+        } catch (err) {
+            console.error("Mirror toggle error:", err);
+            showAlert("error", "Failed", "Could not change mirror mode");
+        }
+    };
+
+    const handleDisplayEnable = async (displayId: string, enabled: boolean) => {
+        try {
+            const response = await axios.post("/api/display/enable", {
+                id: displayId,
+                enabled,
+            });
+            if (response.data.success) {
+                const result = await refetch.displayStatus();
+                if (result.data) {
+                    setDisplayStatus(result.data);
+                }
+            }
+        } catch (err) {
+            console.error("Display enable error:", err);
+            showAlert("error", "Failed", "Could not change display state");
+        }
+    };
+
+    const handleHardwareModeChange = (mode: "hdmi" | "tft") => {
+        const modeLabel = mode === "hdmi" ? "HDMI" : "TFT (SPI)";
+        const otherMode = mode === "hdmi" ? "TFT" : "HDMI";
+        showConfirm(
+            `Switch to ${modeLabel} Display`,
+            `This will configure the Raspberry Pi for ${modeLabel} display output and disable ${otherMode}. ` +
+                `The system will reboot to apply changes.\n\n` +
+                `Note: HDMI and TFT displays cannot work simultaneously due to kernel driver limitations.`,
+            async () => {
+                setIsChangingHardwareMode(true);
+                try {
+                    const response = await axios.post(
+                        "/api/display/hardware-mode",
+                        {
+                            mode,
+                            auto_reboot: true,
+                        },
+                    );
+                    if (response.data.success) {
+                        setHardwareDisplayMode(mode);
+                        showAlert(
+                            "info",
+                            "Rebooting",
+                            response.data.message ||
+                                "System is rebooting to apply display changes...",
+                        );
+                    } else {
+                        showAlert(
+                            "error",
+                            "Failed",
+                            response.data.message ||
+                                "Could not change display mode",
+                        );
+                    }
+                } catch (err) {
+                    console.error("Hardware mode change error:", err);
+                    const message =
+                        err instanceof Error ? err.message : "Unknown error";
+                    showAlert("error", "Failed", message);
+                } finally {
+                    setIsChangingHardwareMode(false);
+                }
+            },
+            { confirmText: "Switch & Reboot", variant: "danger" },
+        );
     };
 
     const handleScreensaverSettingChange = (
@@ -1250,8 +1384,9 @@ const Settings: React.FC = () => {
         );
     };
 
-    // Show loading spinner only on initial load (not on refetch)
-    if (isQueryLoading && !isInitialized) {
+    // Show loading spinner only for critical data (settings, models)
+    // Other sections will show inline loading states while data loads progressively
+    if (isCriticalLoading && !isInitialized) {
         return (
             <div className="flex items-center justify-center h-96">
                 <Spinner size="lg" />
@@ -2075,9 +2210,14 @@ const Settings: React.FC = () => {
                                 {displayStatus &&
                                     displayStatus.displays.length > 0 && (
                                         <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline">
-                                            {displayStatus.displays[0].width}x
-                                            {displayStatus.displays[0].height}{" "}
-                                            {displayStatus.displays[0].type}
+                                            {displayStatus.displays.find(
+                                                (d) =>
+                                                    d.type ===
+                                                    displayStatus.current_display_type,
+                                            )?.name ||
+                                                displayStatus.displays[0]
+                                                    .name ||
+                                                `${displayStatus.displays[0].width}x${displayStatus.displays[0].height} ${displayStatus.displays[0].type}`}
                                         </span>
                                     )}
                                 {displayStatus &&
@@ -2145,6 +2285,102 @@ const Settings: React.FC = () => {
                                             only. Display modes require HDMI or
                                             TFT LCD.
                                         </p>
+                                    </div>
+                                )}
+
+                            {/* Multi-display controls - show when multiple full displays detected */}
+                            {displayStatus &&
+                                displayStatus.displays.filter(
+                                    (d) => d.supports_modes,
+                                ).length > 1 && (
+                                    <div className="mb-4 space-y-3">
+                                        {/* Mirror Mode Toggle */}
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block">
+                                                    Mirror Displays
+                                                </label>
+                                                <p className="text-xs text-slate-500 dark:text-slate-500">
+                                                    Show same content on all
+                                                    displays
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={() =>
+                                                    handleMirrorToggle(
+                                                        !displayStatus.mirror_enabled,
+                                                    )
+                                                }
+                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                                    displayStatus.mirror_enabled
+                                                        ? "bg-indigo-600"
+                                                        : "bg-slate-200 dark:bg-slate-700"
+                                                }`}
+                                            >
+                                                <span
+                                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                                        displayStatus.mirror_enabled
+                                                            ? "translate-x-6"
+                                                            : "translate-x-1"
+                                                    }`}
+                                                />
+                                            </button>
+                                        </div>
+
+                                        {/* Per-display enable/disable */}
+                                        <div>
+                                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2 block">
+                                                Enabled Displays
+                                            </label>
+                                            <div className="space-y-2">
+                                                {displayStatus.displays
+                                                    .filter(
+                                                        (d) => d.supports_modes,
+                                                    )
+                                                    .map((display) => (
+                                                        <div
+                                                            key={display.id}
+                                                            className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50"
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                <Icons.Monitor className="w-4 h-4 text-slate-400" />
+                                                                <span className="text-sm text-slate-700 dark:text-slate-300">
+                                                                    {
+                                                                        display.name
+                                                                    }
+                                                                </span>
+                                                            </div>
+                                                            <button
+                                                                onClick={() =>
+                                                                    handleDisplayEnable(
+                                                                        display.id,
+                                                                        !display.enabled,
+                                                                    )
+                                                                }
+                                                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                                                                    display.enabled !==
+                                                                    false
+                                                                        ? "bg-emerald-500"
+                                                                        : "bg-slate-300 dark:bg-slate-600"
+                                                                }`}
+                                                            >
+                                                                <span
+                                                                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                                                        display.enabled !==
+                                                                        false
+                                                                            ? "translate-x-4"
+                                                                            : "translate-x-1"
+                                                                    }`}
+                                                                />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                            <p className="text-xs text-slate-500 mt-1">
+                                                Disabled displays show TTY
+                                                console
+                                            </p>
+                                        </div>
                                     </div>
                                 )}
 
@@ -2217,6 +2453,87 @@ const Settings: React.FC = () => {
                                         )}
                                     </div>
                                 )}
+
+                            {/* Hardware Display Mode Toggle */}
+                            <div className="mt-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div>
+                                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block">
+                                            Hardware Display Mode
+                                        </label>
+                                        <p className="text-xs text-slate-500 dark:text-slate-500">
+                                            Switch between HDMI and TFT display
+                                            (requires reboot)
+                                        </p>
+                                    </div>
+                                    {hardwareDisplayMode === "conflict" && (
+                                        <span className="text-xs px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400">
+                                            Conflict
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() =>
+                                            handleHardwareModeChange("hdmi")
+                                        }
+                                        disabled={
+                                            isChangingHardwareMode ||
+                                            hardwareDisplayMode === "hdmi"
+                                        }
+                                        className={cn(
+                                            "flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors",
+                                            hardwareDisplayMode === "hdmi"
+                                                ? "bg-primary-500 text-white"
+                                                : "bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600",
+                                            isChangingHardwareMode &&
+                                                "opacity-50 cursor-not-allowed",
+                                        )}
+                                    >
+                                        {isChangingHardwareMode ? (
+                                            <Spinner size="sm" />
+                                        ) : (
+                                            <>
+                                                <Icons.Monitor className="w-4 h-4 inline mr-1.5" />
+                                                HDMI
+                                            </>
+                                        )}
+                                    </button>
+                                    <button
+                                        onClick={() =>
+                                            handleHardwareModeChange("tft")
+                                        }
+                                        disabled={
+                                            isChangingHardwareMode ||
+                                            hardwareDisplayMode === "tft"
+                                        }
+                                        className={cn(
+                                            "flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors",
+                                            hardwareDisplayMode === "tft"
+                                                ? "bg-primary-500 text-white"
+                                                : "bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600",
+                                            isChangingHardwareMode &&
+                                                "opacity-50 cursor-not-allowed",
+                                        )}
+                                    >
+                                        {isChangingHardwareMode ? (
+                                            <Spinner size="sm" />
+                                        ) : (
+                                            <>
+                                                <Icons.Cpu className="w-4 h-4 inline mr-1.5" />
+                                                TFT (SPI)
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                                {hardwareDisplayMode === "conflict" && (
+                                    <p className="text-xs text-rose-500 mt-2">
+                                        Both HDMI and TFT overlays are active.
+                                        This will cause boot issues. Select one
+                                        mode to fix.
+                                    </p>
+                                )}
+                            </div>
                         </div>
 
                         {/* Divider */}
@@ -2353,6 +2670,9 @@ const Settings: React.FC = () => {
                                 <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
                                     Audio Output
                                 </h3>
+                                {loadingStates.audioDevices && (
+                                    <Spinner size="sm" />
+                                )}
                                 {audioState.current !== null && (
                                     <span className="text-xs text-slate-500 dark:text-slate-400">
                                         Card {audioState.current}
@@ -2360,7 +2680,11 @@ const Settings: React.FC = () => {
                                 )}
                             </div>
 
-                            {audioState.devices.length > 0 ? (
+                            {loadingStates.audioDevices ? (
+                                <div className="text-sm text-slate-500 dark:text-slate-400">
+                                    Detecting audio devices...
+                                </div>
+                            ) : audioState.devices.length > 0 ? (
                                 <div className="space-y-3">
                                     <div>
                                         <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">
@@ -2454,6 +2778,9 @@ const Settings: React.FC = () => {
                                 <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
                                     Microphone Input
                                 </h3>
+                                {loadingStates.audioInputDevices && (
+                                    <Spinner size="sm" />
+                                )}
                                 {audioState.micCard && (
                                     <span className="text-xs text-slate-500 dark:text-slate-400">
                                         Card {audioState.micCard}
@@ -2462,7 +2789,11 @@ const Settings: React.FC = () => {
                             </div>
 
                             {/* Input Device Dropdown */}
-                            {audioState.inputDevices.length > 0 && (
+                            {loadingStates.audioInputDevices ? (
+                                <div className="text-sm text-slate-500 dark:text-slate-400 mb-3">
+                                    Detecting input devices...
+                                </div>
+                            ) : audioState.inputDevices.length > 0 ? (
                                 <div className="mb-3">
                                     <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">
                                         Input Device
@@ -2505,7 +2836,7 @@ const Settings: React.FC = () => {
                                         <Icons.ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none w-4 h-4" />
                                     </div>
                                 </div>
-                            )}
+                            ) : null}
 
                             {audioState.micGain !== null && (
                                 <div className="mb-3">

@@ -10,11 +10,10 @@ logger = logging.getLogger(__name__)
 class DisplayFactory:
     @staticmethod
     def create(info: DisplayInfo) -> Optional[BaseDisplay]:
-        if (
-            info.screen_type == ScreenType.HDMI
-            or info.screen_type == ScreenType.SPI_TFT
-        ):
+        if info.screen_type == ScreenType.HDMI:
             return DisplayFactory._create_kmsdrm_display(info)
+        elif info.screen_type == ScreenType.SPI_TFT:
+            return DisplayFactory._create_fbdev_display(info)
         elif info.screen_type == ScreenType.I2C:
             return DisplayFactory._create_i2c_display(info)
         return None
@@ -31,6 +30,40 @@ class DisplayFactory:
             logger.error(f"Failed to import KmsdrmDisplay: {e}")
         except Exception as e:
             logger.error(f"Failed to create KmsdrmDisplay: {e}")
+        return None
+
+    @staticmethod
+    def _create_fbdev_display(info: DisplayInfo) -> Optional[BaseDisplay]:
+        # If detected via DRM (mipi-dbi-spi), use KMSDRM driver instead of fbdev
+        if info.driver == "kmsdrm":
+            logger.info(
+                f"Creating KMSDRM display for TFT: {info.width}x{info.height} "
+                f"on {info.device_path}"
+            )
+            try:
+                from .drivers.kmsdrm import KmsdrmDisplay
+
+                display = KmsdrmDisplay(info)
+                return display
+            except ImportError as e:
+                logger.error(f"Failed to import KmsdrmDisplay: {e}")
+            except Exception as e:
+                logger.error(f"Failed to create KmsdrmDisplay for TFT: {e}")
+            return None
+
+        # Otherwise use standard fbdev driver for fbtft-based TFTs
+        logger.info(
+            f"Creating framebuffer display: {info.width}x{info.height} on {info.device_path}"
+        )
+        try:
+            from .drivers.fbdev import FbdevDisplay
+
+            display = FbdevDisplay(info)
+            return display
+        except ImportError as e:
+            logger.error(f"Failed to import FbdevDisplay: {e}")
+        except Exception as e:
+            logger.error(f"Failed to create FbdevDisplay: {e}")
         return None
 
     @staticmethod

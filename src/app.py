@@ -1,5 +1,6 @@
 from common import *
 
+from src.backend import get_db_pool
 from src.routes import action_router
 
 try:
@@ -114,10 +115,24 @@ def _check_audio_level_sync() -> tuple:
                 max_val = (1 << (8 * source.SAMPLE_WIDTH - 1)) - 1
                 db_level = 20 * math.log10(rms / max_val + 1e-10) if rms > 0 else -100.0
 
+                # WebRTC VAD requires 16000 Hz sample rate
+                # Resample audio if needed before VAD check
+                vad_sample_rate = 16000
+                vad_audio = audio_data
+                if source.SAMPLE_RATE != vad_sample_rate:
+                    vad_audio, _ = audioop.ratecv(
+                        audio_data,
+                        source.SAMPLE_WIDTH,
+                        1,
+                        source.SAMPLE_RATE,
+                        vad_sample_rate,
+                        None,
+                    )
+
                 has_voice = detector.detect_voice(
-                    audio_data,
+                    vad_audio,
                     sample_width=source.SAMPLE_WIDTH,
-                    sample_rate=source.SAMPLE_RATE,
+                    sample_rate=vad_sample_rate,
                 )
                 return has_voice, db_level, vad_threshold_db
             else:
@@ -137,7 +152,7 @@ def _check_audio_level_sync() -> tuple:
         return False, -100.0, -50.0
 
 
-async def check_audio_level_above_threshold(display) -> bool:
+async def check_audio_level_above_threshold() -> bool:
     """Quick check if voice is detected using WebRTC VAD."""
     loop = asyncio.get_running_loop()
     has_voice, db, threshold = await loop.run_in_executor(None, _check_audio_level_sync)
@@ -182,7 +197,7 @@ async def idle_loop(display):
             check_count += 1
             print(f"[IDLE] Check #{check_count} - checking audio level...", flush=True)
 
-            has_audio = await check_audio_level_above_threshold(display)
+            has_audio = await check_audio_level_above_threshold()
 
             if has_audio:
                 print(
@@ -272,7 +287,6 @@ async def main():
                     f"[APP] Listen timeout, silence count: {_consecutive_silence_count}",
                     flush=True,
                 )
-                continue
 
             stop_event.set()
             if state_task:
@@ -334,6 +348,7 @@ async def main():
                     print(f"[APP] Speaking response...", flush=True)
                     await speak_with_display(response_message, i2c_display)
                     print(f"[APP] Response spoken", flush=True)
+
                     _consecutive_silence_count = 0
                     dm = get_display_manager()
                     if dm and dm.is_available:
@@ -381,15 +396,42 @@ def _get_host_ip() -> str:
     except Exception:
         pass
 
-    try:
-        with open("/run/gpt-home/host-ip", "r") as f:
-            ip = f.read().strip()
-            if ip:
-                return ip
-    except Exception:
-        pass
-
     return "gpt-home.local"
+
+
+async def _init_tables():
+    """Initialize database tables."""
+    pool = await get_db_pool()
+    async with pool.connection() as conn:
+        await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS gallery_images (
+                        id SERIAL PRIMARY KEY,
+                        filename VARCHAR(255) UNIQUE NOT NULL,
+                        data BYTEA NOT NULL,
+                        mime_type VARCHAR(100) NOT NULL,
+                        size INTEGER NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+
+        await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS app_settings (
+                        key TEXT PRIMARY KEY,
+                        value TEXT NOT NULL,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+
+        await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS integrations (
+                        id SERIAL PRIMARY KEY,
+                        name TEXT UNIQUE NOT NULL,
+                        fields JSONB NOT NULL DEFAULT '{}'::jsonb,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+        await conn.commit()
 
 
 async def startup():
@@ -397,8 +439,16 @@ async def startup():
     global i2c_display
     i2c_display = await initialize_system()
 
-    # Display manager is initialized by backend.py and registered with common.py
-    # We just use get_display_manager() from common.py to access it
+    await _init_tables()
+
+    try:
+        from src.waveform import get_waveform_mediator
+
+        mediator = get_waveform_mediator()
+        if get_audio_activity_detector:
+            mediator.set_audio_detector(get_audio_activity_detector())
+    except Exception as e:
+        print(f"[APP] Waveform mediator init failed: {e}", flush=True)
 
     api_key = os.getenv("LITELLM_API_KEY")
 

@@ -29,6 +29,7 @@ from ctypes import CFUNCTYPE, c_char_p, c_int, cdll
 from datetime import datetime, timedelta
 from pathlib import Path
 from threading import Timer
+from typing import Optional
 
 import aiohttp
 import busio
@@ -793,6 +794,7 @@ def i2c_display_register_activity():
         _i2c_display_screensaver_render_task
     _i2c_display_last_activity_time = time.time()
     if _i2c_display_screensaver_active:
+        print("[I2C_SCREENSAVER] Waking I2C screensaver due to activity", flush=True)
         _i2c_display_screensaver_active = False
         if (
             _i2c_display_screensaver_render_task
@@ -826,6 +828,10 @@ async def i2c_display_check_screensaver(display):
         return
 
     if _i2c_display_screensaver_active:
+        return
+
+    # Don't activate screensaver while Spotify is playing
+    if _i2c_spotify_active:
         return
 
     timeout = float(settings.get("screensaver_timeout", 300))
@@ -935,6 +941,188 @@ def is_i2c_display_screensaver_active():
     return _i2c_display_screensaver_active
 
 
+# I2C display Spotify player state
+_i2c_spotify_active = False
+_i2c_spotify_track = ""
+_i2c_spotify_artist = ""
+_i2c_spotify_progress_ms = 0
+_i2c_spotify_duration_ms = 0
+_i2c_spotify_render_task = None
+_i2c_spotify_scroll_offset = 0
+_i2c_spotify_scroll_pause = 0
+
+
+def is_i2c_spotify_active():
+    """Check if I2C Spotify player is currently active."""
+    return _i2c_spotify_active
+
+
+async def i2c_display_show_spotify(
+    display, track: str, artist: str, progress_ms: int = 0, duration_ms: int = 0
+):
+    """Show Spotify now playing on I2C display with scrolling text.
+
+    This does NOT block agent listening - it runs as a background render task.
+    The screensaver is prevented while Spotify is playing.
+
+    Args:
+        display: I2C display object
+        track: Track name
+        artist: Artist name
+        progress_ms: Current playback position in milliseconds
+        duration_ms: Total track duration in milliseconds
+    """
+    global _i2c_spotify_active, _i2c_spotify_track, _i2c_spotify_artist
+    global _i2c_spotify_progress_ms, _i2c_spotify_duration_ms
+    global \
+        _i2c_spotify_render_task, \
+        _i2c_spotify_scroll_offset, \
+        _i2c_spotify_scroll_pause
+
+    if display is None:
+        return
+
+    # Check if track changed - reset scroll position
+    track_changed = track != _i2c_spotify_track or artist != _i2c_spotify_artist
+
+    # Update state
+    _i2c_spotify_track = track
+    _i2c_spotify_artist = artist
+    _i2c_spotify_progress_ms = progress_ms
+    _i2c_spotify_duration_ms = duration_ms
+
+    if track_changed:
+        _i2c_spotify_scroll_offset = 0
+        _i2c_spotify_scroll_pause = 2.0  # Pause at start before scrolling
+
+    # Register activity to prevent screensaver
+    _i2c_display_last_activity_time = time.time()
+
+    # Start render task if not already running
+    if not _i2c_spotify_active:
+        _i2c_spotify_active = True
+        # Cancel screensaver if active
+        if _i2c_display_screensaver_active:
+            i2c_display_register_activity()
+        if _i2c_spotify_render_task is None or _i2c_spotify_render_task.done():
+            _i2c_spotify_render_task = asyncio.create_task(
+                _i2c_spotify_render_loop(display)
+            )
+
+
+async def i2c_display_stop_spotify(display):
+    """Stop the I2C Spotify display and restore normal header."""
+    global _i2c_spotify_active, _i2c_spotify_render_task
+    global _i2c_spotify_track, _i2c_spotify_artist
+
+    _i2c_spotify_active = False
+    _i2c_spotify_track = ""
+    _i2c_spotify_artist = ""
+
+    if _i2c_spotify_render_task and not _i2c_spotify_render_task.done():
+        _i2c_spotify_render_task.cancel()
+        try:
+            await _i2c_spotify_render_task
+        except asyncio.CancelledError:
+            pass
+    _i2c_spotify_render_task = None
+
+    # Restore normal display
+    if display:
+        async with display_lock:
+            display.fill(0)
+            draw_i2c_header(display)
+            display.show()
+
+
+async def _i2c_spotify_render_loop(display):
+    """Background render loop for I2C Spotify player with scrolling text.
+
+    This loop runs independently and does NOT block agent listening.
+    """
+    global _i2c_spotify_scroll_offset, _i2c_spotify_scroll_pause
+    global _i2c_spotify_active
+
+    # Scrolling parameters
+    scroll_speed = 30  # pixels per second
+    char_width = 6  # approximate pixels per character
+    display_width = 128
+    last_frame = time.time()
+
+    try:
+        while _i2c_spotify_active:
+            now = time.time()
+            dt = now - last_frame
+            last_frame = now
+
+            # Build display text: "Track - Artist"
+            display_text = f"{_i2c_spotify_track} - {_i2c_spotify_artist}"
+            text_width = len(display_text) * char_width
+            needs_scroll = text_width > display_width
+
+            # Update scroll position
+            if needs_scroll:
+                if _i2c_spotify_scroll_pause > 0:
+                    _i2c_spotify_scroll_pause -= dt
+                else:
+                    _i2c_spotify_scroll_offset += scroll_speed * dt
+                    max_scroll = text_width - display_width + char_width * 3
+                    if _i2c_spotify_scroll_offset >= max_scroll:
+                        # Reset to start with pause
+                        _i2c_spotify_scroll_offset = 0
+                        _i2c_spotify_scroll_pause = 2.0
+
+            # Format progress time
+            if _i2c_spotify_duration_ms > 0:
+                prog_min = _i2c_spotify_progress_ms // 60000
+                prog_sec = (_i2c_spotify_progress_ms % 60000) // 1000
+                dur_min = _i2c_spotify_duration_ms // 60000
+                dur_sec = (_i2c_spotify_duration_ms % 60000) // 1000
+                time_str = f"{prog_min}:{prog_sec:02d}/{dur_min}:{dur_sec:02d}"
+            else:
+                time_str = ""
+
+            # Render to display
+            async with display_lock:
+                display.fill(0)
+
+                # Header line: IP and temp (same as normal)
+                draw_i2c_header(display)
+
+                # Line 2 (y=12): Scrolling track/artist text
+                scroll_x = -int(_i2c_spotify_scroll_offset) if needs_scroll else 0
+                display.text(display_text, scroll_x, 12, 1)
+
+                # Line 3 (y=24): Progress bar and time
+                if _i2c_spotify_duration_ms > 0:
+                    # Progress bar (left side)
+                    bar_width = 80
+                    bar_height = 4
+                    bar_y = 26
+                    progress_pct = _i2c_spotify_progress_ms / _i2c_spotify_duration_ms
+                    filled_width = int(bar_width * min(1.0, progress_pct))
+
+                    # Draw bar outline
+                    display.rect(0, bar_y, bar_width, bar_height, 1)
+                    # Draw filled portion
+                    if filled_width > 0:
+                        display.fill_rect(0, bar_y, filled_width, bar_height, 1)
+
+                    # Time on right side
+                    display.text(time_str, 85, 24, 1)
+
+                display.show()
+
+            await asyncio.sleep(0.1)  # 10 FPS is enough for I2C display
+
+    except asyncio.CancelledError:
+        pass
+    except Exception as e:
+        logger.error(f"I2C Spotify render error: {e}")
+    finally:
+        _i2c_spotify_active = False
+
+
 # Public alias for _find_microphone_device_index (for use in app.py)
 def find_microphone_device_index():
     """Find the best available microphone device index for speech recognition.
@@ -965,7 +1153,7 @@ def network_connected():
 
 
 async def load_integration_statuses() -> dict[str, bool]:
-    from backend import get_db_pool
+    from src.backend import get_db_pool
 
     pool = await get_db_pool()
     async with pool.connection() as conn:
@@ -1164,96 +1352,70 @@ async def update_i2c_display(
         await display_text_legacy(delay)
 
 
-_waveform_values = deque([0.0] * 32, maxlen=32)
-_waveform_send_lock = threading.Lock()
-_last_waveform_send = 0.0
-_streaming_waveform_active = False
+_i2c_waveform_observer = None
 
 
-def _send_waveform_to_backend(values: list, has_voice: bool = False):
-    """Send waveform amplitude values to the display manager.
+def _get_i2c_waveform_observer():
+    global _i2c_waveform_observer
+    if _i2c_waveform_observer is None:
+        try:
+            from src.waveform import I2CDisplayWaveformObserver, get_waveform_mediator
 
-    Args:
-        values: List of 32 amplitude values
-        has_voice: Whether voice was detected (from WebRTC VAD)
-    """
-    global _last_waveform_send
-    now = time.time()
-    if now - _last_waveform_send < 0.033:
-        return
-    _last_waveform_send = now
-    dm = get_display_manager()
-    if dm and dm.is_available:
-        dm.set_waveform_values(values, has_voice=has_voice)
+            _i2c_waveform_observer = I2CDisplayWaveformObserver()
+            mediator = get_waveform_mediator()
+            mediator.register_observer(_i2c_waveform_observer)
+        except Exception as e:
+            print(f"[I2C] Failed to init waveform observer: {e}", flush=True)
+    return _i2c_waveform_observer
 
 
 def _update_waveform_from_chunk(audio_chunk: sr.AudioData):
-    """Update waveform visualization from a single audio chunk in real-time."""
-    global _waveform_values
     try:
-        from src.audio_activity import get_audio_activity_detector
+        from src.waveform import get_waveform_mediator
 
-        detector = get_audio_activity_detector()
-        values_list = detector.update_waveform(audio_chunk)
-
-        with _waveform_send_lock:
-            for i, val in enumerate(values_list):
-                _waveform_values[i] = val
-
-        max_amp = max(values_list) if values_list else 0.0
-        _send_waveform_to_backend(values_list, has_voice=max_amp > 0.02)
+        mediator = get_waveform_mediator()
+        mediator.update_from_audio_chunk(audio_chunk)
     except Exception as e:
         print(f"[WAVEFORM] chunk update error: {e}", flush=True)
 
 
 def _notify_waveform_start_sync():
-    """Start waveform display (synchronous)."""
+    try:
+        from src.waveform import WaveformSource, get_waveform_mediator
+
+        mediator = get_waveform_mediator()
+        mediator.start(WaveformSource.MICROPHONE)
+    except Exception as e:
+        print(f"[WAVEFORM] mediator start failed: {e}", flush=True)
+
     dm = get_display_manager()
     if dm and dm.is_available:
-        import asyncio
-
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.run_coroutine_threadsafe(
-                    dm.start_waveform(source="microphone"), loop
-                )
-            else:
-                loop.run_until_complete(dm.start_waveform(source="microphone"))
-        except Exception:
-            pass
+        dm.start_waveform_sync()
 
 
 def _notify_waveform_stop_sync():
-    """Stop waveform display (synchronous)."""
+    try:
+        from src.waveform import get_waveform_mediator
+
+        mediator = get_waveform_mediator()
+        mediator.stop()
+    except Exception:
+        pass
+
     dm = get_display_manager()
     if dm and dm.is_available:
-        import asyncio
-
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.run_coroutine_threadsafe(dm.stop_waveform(), loop)
-            else:
-                loop.run_until_complete(dm.stop_waveform())
-        except Exception:
-            pass
+        dm.stop_waveform_sync()
 
 
 def _clear_waveform_values():
     """Reset waveform values to zero."""
-    global _waveform_values
     try:
-        from src.audio_activity import get_audio_activity_detector
+        from src.waveform import get_waveform_mediator
 
-        detector = get_audio_activity_detector()
-        detector.clear_waveform()
+        mediator = get_waveform_mediator()
+        mediator.clear()
     except Exception:
         pass
-    with _waveform_send_lock:
-        for i in range(32):
-            _waveform_values[i] = 0.0
-    _send_waveform_to_backend([0.0] * 32)
 
 
 def _listen_with_streaming_waveform(source, timeout=3, phrase_time_limit=15):
@@ -1367,6 +1529,129 @@ def _listen_with_streaming_waveform(source, timeout=3, phrase_time_limit=15):
         _notify_waveform_stop_sync()
 
 
+# Volume ducking state
+_original_volume: Optional[int] = None
+_original_spotify_volume: Optional[int] = None
+_spotify_was_ducked_for_listen: bool = False
+_DUCK_VOLUME_PERCENT = 30  # Duck to 30% of original volume
+_LISTEN_DUCK_VOLUME = 10  # Duck Spotify to 10% while listening for wake word
+
+
+async def duck_volume() -> None:
+    """Lower system and Spotify volume temporarily when wake word is detected."""
+    global _original_volume, _original_spotify_volume
+    try:
+        import aiohttp
+
+        async with aiohttp.ClientSession() as session:
+            # Duck system volume
+            try:
+                async with session.get(
+                    "http://localhost:8000/api/audio/volume",
+                    timeout=aiohttp.ClientTimeout(total=2),
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        current_vol = data.get("volume")
+                        if current_vol and current_vol > _DUCK_VOLUME_PERCENT:
+                            _original_volume = current_vol
+                            ducked_vol = max(10, int(current_vol * 0.3))
+                            async with session.post(
+                                "http://localhost:8000/api/audio/volume",
+                                json={"volume": ducked_vol},
+                                timeout=aiohttp.ClientTimeout(total=2),
+                            ) as _:
+                                print(
+                                    f"[DUCK] System volume ducked from {current_vol}% to {ducked_vol}%",
+                                    flush=True,
+                                )
+            except Exception as e:
+                print(f"[DUCK] Failed to duck system volume: {e}", flush=True)
+
+            # Duck Spotify volume if playing
+            try:
+                async with session.get(
+                    "http://localhost:8000/api/spotify/playback",
+                    timeout=aiohttp.ClientTimeout(total=2),
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        is_playing = data.get("is_playing")
+                        current_spotify_vol = data.get("volume")
+                        print(
+                            f"[DUCK] Spotify check: is_playing={is_playing}, volume={current_spotify_vol}",
+                            flush=True,
+                        )
+                        if is_playing:
+                            # Volume comes directly from MPRIS as "volume" (0-100)
+                            if (
+                                current_spotify_vol is not None
+                                and current_spotify_vol > 20
+                            ):
+                                _original_spotify_volume = current_spotify_vol
+                                ducked_spotify_vol = max(
+                                    10, int(current_spotify_vol * 0.2)
+                                )
+                                # Set Spotify volume via control endpoint
+                                async with session.post(
+                                    "http://localhost:8000/spotify-control",
+                                    json={"command": f"volume {ducked_spotify_vol}"},
+                                    timeout=aiohttp.ClientTimeout(total=3),
+                                ) as _:
+                                    print(
+                                        f"[DUCK] Spotify volume ducked from {current_spotify_vol}% to {ducked_spotify_vol}%",
+                                        flush=True,
+                                    )
+            except Exception as e:
+                print(f"[DUCK] Failed to duck Spotify volume: {e}", flush=True)
+
+    except Exception as e:
+        print(f"[DUCK] Failed to duck volume: {e}", flush=True)
+
+
+async def restore_volume() -> None:
+    """Restore system and Spotify volume after interaction completes."""
+    global _original_volume, _original_spotify_volume
+    try:
+        import aiohttp
+
+        async with aiohttp.ClientSession() as session:
+            # Restore system volume
+            if _original_volume is not None:
+                try:
+                    async with session.post(
+                        "http://localhost:8000/api/audio/volume",
+                        json={"volume": _original_volume},
+                        timeout=aiohttp.ClientTimeout(total=2),
+                    ) as _:
+                        print(
+                            f"[DUCK] System volume restored to {_original_volume}%",
+                            flush=True,
+                        )
+                    _original_volume = None
+                except Exception as e:
+                    print(f"[DUCK] Failed to restore system volume: {e}", flush=True)
+
+            # Restore Spotify volume
+            if _original_spotify_volume is not None:
+                try:
+                    async with session.post(
+                        "http://localhost:8000/spotify-control",
+                        json={"command": f"volume {_original_spotify_volume}"},
+                        timeout=aiohttp.ClientTimeout(total=3),
+                    ) as _:
+                        print(
+                            f"[DUCK] Spotify volume restored to {_original_spotify_volume}%",
+                            flush=True,
+                        )
+                    _original_spotify_volume = None
+                except Exception as e:
+                    print(f"[DUCK] Failed to restore Spotify volume: {e}", flush=True)
+
+    except Exception as e:
+        print(f"[DUCK] Failed to restore volume: {e}", flush=True)
+
+
 async def listen(display, state_task, stop_event):
     """Listen for voice input and return recognized text.
 
@@ -1381,7 +1666,7 @@ async def listen(display, state_task, stop_event):
 
     loop = asyncio.get_running_loop()
 
-    def recognize_audio_litellm():
+    async def recognize_audio_litellm():
         """Use LiteLLM for STT with real-time streaming waveform visualization."""
         try:
             import audioop
@@ -1449,6 +1734,9 @@ async def listen(display, state_task, stop_event):
                 return None
             print("[STT] Audio passed VAD check", flush=True)
 
+            # Duck Spotify volume
+            await duck_volume()
+
             register_all_display_activity()
 
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
@@ -1500,31 +1788,6 @@ async def listen(display, state_task, stop_event):
                     text = response.text if hasattr(response, "text") else str(response)
                     print(f"[STT] Transcription result: {text}", flush=True)
 
-                    # Detect and reject Whisper hallucinations (repeated phrases)
-                    if text:
-                        text_lower = text.lower().strip()
-                        words = text_lower.split()
-
-                        # Check for exact repetition (e.g., "computer set a timer computer set a timer")
-                        if len(words) >= 4:
-                            half = len(words) // 2
-                            first_half = " ".join(words[:half])
-                            second_half = " ".join(words[half : half * 2])
-                            if first_half == second_half:
-                                print(
-                                    f"[STT] Detected hallucination (repeated phrase), rejecting",
-                                    flush=True,
-                                )
-                                return None
-
-                        # Check for repeated short phrases that indicate hallucination
-                        if text_lower.count(keyword) > 2:
-                            print(
-                                f"[STT] Detected hallucination (keyword repeated {text_lower.count(keyword)} times), rejecting",
-                                flush=True,
-                            )
-                            return None
-
                     return text if text else None
             finally:
                 os.unlink(tmp_path)
@@ -1539,7 +1802,7 @@ async def listen(display, state_task, stop_event):
             print(f"[STT] LiteLLM STT failed: {e}, falling back to Google", flush=True)
             return None
 
-    def recognize_audio_google():
+    async def recognize_audio_google():
         """Fallback to Google speech recognition with real-time streaming waveform."""
         try:
             mic_index = _find_microphone_device_index()
@@ -1568,6 +1831,9 @@ async def listen(display, state_task, stop_event):
                 return None
             print("[STT-GOOGLE] Audio passed VAD check", flush=True)
 
+            # Duck Spotify volume
+            await duck_volume()
+
             register_all_display_activity()
 
             print("[STT-GOOGLE] Sending to Google for transcription...", flush=True)
@@ -1584,13 +1850,15 @@ async def listen(display, state_task, stop_event):
 
     text = None
     if stt_engine == "litellm" and litellm_stt_available():
-        text = await loop.run_in_executor(executor, recognize_audio_litellm)
+        text = await recognize_audio_litellm()
 
     if text is None:
-        text = await loop.run_in_executor(executor, recognize_audio_google)
+        text = await recognize_audio_google()
 
     if text:
         state_task.cancel()
+
+    await restore_volume()
     return text
 
 
@@ -1608,8 +1876,18 @@ async def display_state(state, display, stop_event):
     if display is None:
         return
 
-    # Register activity when display state changes (wakes screensaver)
-    i2c_display_register_activity()
+    # Register activity when display state changes (wakes screensaver on both displays)
+    register_all_display_activity()
+
+    # Also wake the full display screensaver asynchronously if active
+    dm = get_display_manager()
+    if dm and dm.is_available:
+        if dm._screensaver_active:
+            print(f"[DISPLAY_STATE] Waking screensaver for state: {state}", flush=True)
+            await dm.register_activity_async()
+        else:
+            # Still register activity to reset timer
+            dm.register_activity()
 
     if state == "Connecting":
         async with display_lock:
@@ -1651,14 +1929,18 @@ async def display_state(state, display, stop_event):
 
 async def _display_listening_waveform(display, stop_event):
     """Display real-time waveform bars on I2C display while listening."""
-    global _waveform_values
+    # When Spotify is active, don't show waveform - keep Spotify display visible
+    if _i2c_spotify_active:
+        while not stop_event.is_set():
+            await asyncio.sleep(0.1)
+        return
 
-    try:
-        from src.audio_activity import get_audio_activity_detector
+    if _i2c_display_screensaver_active:
+        await i2c_display_stop_screensaver(display)
 
-        detector = get_audio_activity_detector()
-    except Exception:
-        detector = None
+    observer = _get_i2c_waveform_observer()
+    if observer is None:
+        return
 
     bar_count = 16
     bar_width = 6
@@ -1669,66 +1951,38 @@ async def _display_listening_waveform(display, stop_event):
     max_bar_height = 18
     min_bar_height = 2
 
-    smoothed = [0.0] * bar_count
-
-    # Restore header before starting waveform display
     async with display_lock:
         display.fill(0)
         draw_i2c_header(display)
         display.show()
 
-    try:
-        while not stop_event.is_set():
-            with _waveform_send_lock:
-                waveform_snapshot = list(_waveform_values)
+    while not stop_event.is_set():
+        waveform_snapshot = observer.get_render_values()
+        current_max = max(waveform_snapshot) if waveform_snapshot else 0.0
 
-            current_max = max(waveform_snapshot) if waveform_snapshot else 0.0
+        if current_max > 0.02:
+            register_all_display_activity()
 
-            if current_max > 0.02:
-                register_all_display_activity()
+        async with display_lock:
+            display.fill_rect(0, 10, 128, 22, 0)
+            display.text("Listening", 34, 10, 1)
 
-            async with display_lock:
-                display.fill_rect(0, 10, 128, 22, 0)
-                display.text("Listening", 34, 10, 1)
+            for i in range(bar_count):
+                # Combine two adjacent values for 16-bar I2C display
+                idx1 = i * 2
+                idx2 = i * 2 + 1
+                val = (waveform_snapshot[idx1] + waveform_snapshot[idx2]) / 2.0
 
-                # Use a reasonable scale for normalization
-                max_val = max(0.08, current_max)
+                # Always show bars - minimum height ensures visibility
+                bar_height = max(min_bar_height, int(val * max_bar_height))
+                x = start_x + i * (bar_width + bar_spacing)
+                y = base_y - bar_height
 
-                for i in range(bar_count):
-                    idx1 = i * 2
-                    idx2 = i * 2 + 1
-                    raw_val = (waveform_snapshot[idx1] + waveform_snapshot[idx2]) / 2.0
-                    val = min(1.0, (raw_val / max_val) * 1.2)
+                display.fill_rect(x, y, bar_width, bar_height, 1)
 
-                    if detector:
-                        smoothed[i] = (
-                            detector.smooth_amplitude(val)
-                            if i == 0
-                            else (
-                                smoothed[i] * 0.3 + val * 0.7
-                                if val > smoothed[i]
-                                else smoothed[i] * 0.7 + val * 0.3
-                            )
-                        )
-                    else:
-                        smoothed[i] = (
-                            smoothed[i] * 0.3 + val * 0.7
-                            if val > smoothed[i]
-                            else smoothed[i] * 0.7 + val * 0.3
-                        )
+            display.show()
 
-                    # Always show bars - minimum height ensures visibility
-                    bar_height = max(min_bar_height, int(smoothed[i] * max_bar_height))
-                    x = start_x + i * (bar_width + bar_spacing)
-                    y = base_y - bar_height
-
-                    display.fill_rect(x, y, bar_width, bar_height, 1)
-
-                display.show()
-
-            await asyncio.sleep(0.033)
-    finally:
-        pass
+        await asyncio.sleep(0.033)
 
 
 async def speak(text, stop_event=asyncio.Event(), word_callback=None):
