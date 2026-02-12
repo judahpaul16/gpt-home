@@ -356,25 +356,28 @@ except Exception as e:
 
 executor = ThreadPoolExecutor()
 
-# Display manager reference - set by app.py after initialization
 import sys
-
-_display_manager = None
 
 sys.modules["common"] = sys.modules[__name__]
 if "src.common" in sys.modules:
     sys.modules["src.common"] = sys.modules[__name__]
 
 
-def set_display_manager(manager):
-    """Set the display manager reference for direct calls instead of HTTP."""
-    global _display_manager
-    _display_manager = manager
-
-
 def get_display_manager():
-    """Get the display manager reference."""
-    return _display_manager
+    """Get the display manager singleton instance.
+
+    Returns the DisplayManager singleton if available and initialized,
+    None otherwise. This is safe to call before initialization.
+    """
+    try:
+        from src.display import DisplayManager
+
+        instance = DisplayManager.get_instance()
+        if instance._display_initialized:
+            return instance
+        return None
+    except Exception:
+        return None
 
 
 async def show_tool_animation(tool_name: str, context: dict = None):
@@ -1419,7 +1422,7 @@ def _clear_waveform_values():
 
 
 def _listen_with_streaming_waveform(source, timeout=3, phrase_time_limit=15):
-    """Listen for audio with real-time waveform streaming."""
+    """Listen for audio and update waveform display."""
     global _streaming_waveform_active
 
     _streaming_waveform_active = True

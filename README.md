@@ -173,7 +173,7 @@ This is the list of parts I used to build my first GPT Home. You can use this as
 
 **Optional Components**  
 - **128x32 I2C OLED Display**: [Link](https://www.amazon.com/dp/B08CDN5PSJ?_encoding=UTF8&psc=1&ref_=cm_sw_r_cp_ud_dp_VHXY426Y4QR6VHNAJ34D) - $13-$14
-- **3.5" TFT LCD Display (480x320)**: [Link](https://www.amazon.com/dp/B0BJDTL9J3) - $15-$20 (SPI, ILI9341)
+- **3.5" TFT LCD Display (480x320)**: [Link](https://www.amazon.com/dp/B0BJDTL9J3) - $15-$20 (SPI, ILI9341) — auto-detected by setup script
 - **7" HDMI Touchscreen**: [Link](https://www.amazon.com/Hosyond-Display-1024%C3%97600-Capacitive-Raspberry/dp/B09XKC53NH) - $40-$60 (1024x600)
 - **Standoff Spacer Column M3x40mm**: [Link](https://www.amazon.com/dp/B07M7D8HMT?_encoding=UTF8&psc=1&ref_=cm_sw_r_cp_ud_dp_G9Y5DED2RVNWYEFCDGZJ) - $14
 - **M1.4 M1.7 M2 M2.5 M3 Screw Kit**: [Link](https://www.amazon.com/dp/B08KXS2MWG?_encoding=UTF8&psc=1&ref_=cm_sw_r_cp_ud_dp_Q9TVWARHCPKVKGDHFY5S) - $15
@@ -584,12 +584,40 @@ echo "               _|_||_|_                     \\"
 echo "      ____    |___||___|                     \\"
 echo -e "${NC}"
 
+# Parse flags early so they're available throughout the script
+NO_BUILD=false
+NO_CACHE=false
+PRUNE=false
+
+for arg in "$@"; do
+    case $arg in
+        --no-build) NO_BUILD=true ;;
+        --no-cache) NO_CACHE=true ;;
+        --prune) PRUNE=true ;;
+    esac
+done
+
 # Mask systemd-networkd-wait-online.service to prevent boot delays
 sudo systemctl mask systemd-networkd-wait-online.service
 
 # Set Permissions
 sudo chown -R $(whoami):$(whoami) .
 sudo chmod -R 755 .
+
+# Disable unattended-upgrades to prevent package lock issues during setup
+if systemctl is-active --quiet unattended-upgrades 2>/dev/null; then
+    echo "Stopping unattended-upgrades to prevent package lock..."
+    sudo systemctl stop unattended-upgrades
+    sudo systemctl disable unattended-upgrades
+fi
+
+# Wait for any existing package manager lock to be released
+if command -v apt-get >/dev/null; then
+    while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+        echo -n "."
+        sleep 1
+    done
+fi
 
 # Function to install system dependencies
 function install() {
@@ -598,13 +626,34 @@ function install() {
 
     # Detect the package management system
     if command -v apt-get >/dev/null; then
-        if ! dpkg -s "$package" >/dev/null 2>&1; then
+        if [ "$package" == "docker" ]; then
+            # Install Docker from official Docker repository (includes buildx plugin)
+            if dpkg -s docker-ce docker-buildx-plugin docker-compose-plugin &>/dev/null; then
+                echo "Docker with buildx already installed"
+            else
+                echo "Installing Docker from official repository (includes buildx)..."
+                # Remove old docker.io if present
+                sudo apt-get remove -y docker.io docker-doc docker-compose podman-docker containerd runc 2>/dev/null || true
+                # Add Docker's official GPG key and repository
+                sudo apt-get update
+                sudo apt-get install -y ca-certificates curl
+                sudo install -m 0755 -d /etc/apt/keyrings
+                sudo curl -fsSL https://download.docker.com/linux/$(. /etc/os-release && echo "$ID")/gpg -o /etc/apt/keyrings/docker.asc
+                sudo chmod a+r /etc/apt/keyrings/docker.asc
+                # Add the repository
+                echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/$(. /etc/os-release && echo "$ID") $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+                sudo apt-get update
+                if ! sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; then
+                    echo -e "${RED}ERROR: Failed to install Docker from official repository${NC}"
+                    exit 1
+                fi
+            fi
+        elif ! dpkg -s "$package" >/dev/null 2>&1; then
             sudo yes | add-apt-repository universe >/dev/null 2>&1 || true
             sudo apt update || true
-            if [ "$package" == "docker" ]; then
-                sudo apt-get install -y docker.io
-            else
-                sudo apt-get install -y "$package"
+            if ! sudo apt-get install -y "$package"; then
+                echo -e "${RED}ERROR: Failed to install $package${NC}"
+                exit 1
             fi
         fi
     elif command -v yum >/dev/null; then
@@ -635,24 +684,39 @@ function install() {
     fi
 
     if [ "$package" == "docker" ]; then
-        if ! docker ps >/dev/null 2>&1; then
-            echo "Docker installed. Adding $(whoami) to the 'docker' group..."
+        # Verify docker group exists
+        if ! getent group docker >/dev/null 2>&1; then
+            echo -e "${RED}ERROR: Docker installation failed - 'docker' group does not exist.${NC}"
+            echo -e "${YELLOW}This usually means the package manager was locked during installation.${NC}"
+            echo -e "${YELLOW}Please run: sudo apt-get install -y docker-ce${NC}"
+            echo -e "${YELLOW}Then re-run this script.${NC}"
+            exit 1
+        fi
+
+        # Check if user is in docker group (check actual group membership, not just current session)
+        if ! id -nG "$(whoami)" | grep -qw docker; then
+            echo "Adding $(whoami) to the 'docker' group..."
             sudo usermod -aG docker $(whoami)
-            echo -e "${RED}User added to \`docker\` group but the session must be reloaded to access the Docker daemon. Please log out, log back in, and rerun the script. Exiting...${NC}"
+            echo -e "${RED}User added to 'docker' group but the session must be reloaded to access the Docker daemon.${NC}"
+            echo -e "${YELLOW}Please log out, log back in, and re-run this script.${NC}"
             exit 0
+        fi
+
+        # Ensure Docker daemon is running
+        if ! systemctl is-active --quiet docker; then
+            echo "Starting Docker daemon..."
+            sudo systemctl start docker
         fi
     fi
 }
 
 install chrony
-install containerd
 install docker
-install docker-buildx-plugin
-install docker-compose-plugin
 install alsa-utils
 install libdrm2
 install libgbm1
 install mesa-utils
+install unzip
 sudo systemctl enable docker
 sudo systemctl start docker
 
@@ -787,57 +851,21 @@ sudo usermod -aG render $(whoami) 2>/dev/null || true
 
 echo -e "${GREEN}DRM display configuration complete.${NC}"
 
-# Configure SPI TFT display support (3.5" LCD displays)
-echo ""
-echo "Checking for SPI TFT display..."
+# ============================================================
+# SPI TFT Display Support (3.5" Waveshare/Goodtft LCD screens)
+# ============================================================
+# Always install the TFT overlay and enable SPI. The overlay is
+# harmless when no display is connected - it just won't find
+# hardware. This way the display works immediately when plugged in
+# without any extra steps from the user.
 
-# Detect if a TFT display overlay is already configured
-TFT_CONFIGURED=false
 if [ -n "$CONFIG_TXT" ]; then
-    if grep -qE "^dtoverlay=(tft35a|waveshare35a|piscreen|pitft35)" "$CONFIG_TXT" 2>/dev/null; then
-        TFT_CONFIGURED=true
-        echo -e "${GREEN}SPI TFT display overlay already configured in config.txt${NC}"
-    fi
-fi
+    if grep -qE "^dtoverlay=(waveshare35a|tft35a|piscreen|pitft35)" "$CONFIG_TXT" 2>/dev/null; then
+        echo -e "${GREEN}SPI TFT display overlay already configured${NC}"
+    else
+        echo "Configuring SPI TFT display support..."
 
-# Check for /dev/fb1 (typical for SPI TFT displays)
-if [ -e /dev/fb1 ]; then
-    echo -e "${GREEN}SPI TFT framebuffer detected at /dev/fb1${NC}"
-    TFT_DETECTED=true
-else
-    TFT_DETECTED=false
-fi
-
-# Function to install SPI TFT display drivers
-install_tft_driver() {
-    local display_type=$1
-    echo "Installing $display_type TFT display driver..."
-
-    # Enable SPI if not already enabled
-    if [ -n "$CONFIG_TXT" ]; then
-        if ! grep -q "^dtparam=spi=on" "$CONFIG_TXT"; then
-            echo "Enabling SPI..."
-            echo "dtparam=spi=on" | sudo tee -a "$CONFIG_TXT" > /dev/null
-        fi
-
-        # Add TFT display header if not present
-        if ! grep -q "^# GPT Home TFT display configuration" "$CONFIG_TXT"; then
-            echo "" | sudo tee -a "$CONFIG_TXT" > /dev/null
-            echo "# GPT Home TFT display configuration" | sudo tee -a "$CONFIG_TXT" > /dev/null
-        fi
-    fi
-
-    # Clone LCD-show repository for driver installation
-    if [ ! -d /tmp/LCD-show ]; then
-        echo "Downloading TFT display drivers..."
-        git clone https://github.com/goodtft/LCD-show.git /tmp/LCD-show 2>/dev/null || {
-            echo -e "${YELLOW}Could not download TFT drivers. Manual installation may be required.${NC}"
-            return 1
-        }
-    fi
-
-    # Copy the overlay file
-    if [ -f /tmp/LCD-show/usr/tft35a-overlay.dtb ]; then
+        # Detect overlays directory
         OVERLAYS_DIR=""
         if [ -d /boot/firmware/overlays ]; then
             OVERLAYS_DIR="/boot/firmware/overlays"
@@ -846,59 +874,80 @@ install_tft_driver() {
         fi
 
         if [ -n "$OVERLAYS_DIR" ]; then
-            echo "Installing TFT overlay to $OVERLAYS_DIR..."
-            sudo cp /tmp/LCD-show/usr/tft35a-overlay.dtb "$OVERLAYS_DIR/tft35a.dtbo"
+            # Install the overlay file if not already present
+            if [ ! -f "$OVERLAYS_DIR/waveshare35a.dtbo" ]; then
+                OVERLAY_INSTALLED=false
 
-            # Add overlay to config.txt
-            if [ -n "$CONFIG_TXT" ] && ! grep -q "^dtoverlay=tft35a" "$CONFIG_TXT"; then
-                echo "dtoverlay=tft35a:rotate=90" | sudo tee -a "$CONFIG_TXT" > /dev/null
-                echo -e "${GREEN}TFT display overlay configured${NC}"
+                # Try Waveshare official overlay first
+                if curl -fsSL https://files.waveshare.com/wiki/common/Waveshare35a.zip -o /tmp/Waveshare35a.zip 2>/dev/null; then
+                    if unzip -o /tmp/Waveshare35a.zip -d /tmp/waveshare35a_overlay >/dev/null 2>&1; then
+                        if [ -f /tmp/waveshare35a_overlay/waveshare35a.dtbo ]; then
+                            sudo cp /tmp/waveshare35a_overlay/waveshare35a.dtbo "$OVERLAYS_DIR/waveshare35a.dtbo"
+                            OVERLAY_INSTALLED=true
+                        fi
+                    fi
+                    rm -f /tmp/Waveshare35a.zip
+                    rm -rf /tmp/waveshare35a_overlay
+                fi
+
+                # Fallback to goodtft
+                if [ "$OVERLAY_INSTALLED" = false ]; then
+                    if git clone --depth 1 https://github.com/goodtft/LCD-show.git /tmp/LCD-show 2>/dev/null; then
+                        if [ -f /tmp/LCD-show/usr/tft35a-overlay.dtb ]; then
+                            sudo cp /tmp/LCD-show/usr/tft35a-overlay.dtb "$OVERLAYS_DIR/waveshare35a.dtbo"
+                            OVERLAY_INSTALLED=true
+                        fi
+                        rm -rf /tmp/LCD-show
+                    fi
+                fi
+
+                if [ "$OVERLAY_INSTALLED" = true ]; then
+                    echo -e "${GREEN}TFT display overlay installed${NC}"
+                else
+                    echo -e "${YELLOW}Could not download TFT overlay (non-fatal)${NC}"
+                fi
             fi
+
+            # Enable SPI
+            if ! grep -q "^dtparam=spi=on" "$CONFIG_TXT"; then
+                echo "dtparam=spi=on" | sudo tee -a "$CONFIG_TXT" > /dev/null
+            fi
+
+            # Add TFT overlay to config.txt
+            if ! grep -qE "^dtoverlay=(waveshare35a|tft35a)" "$CONFIG_TXT"; then
+                if ! grep -q "^# GPT Home TFT display configuration" "$CONFIG_TXT"; then
+                    echo "" | sudo tee -a "$CONFIG_TXT" > /dev/null
+                    echo "# GPT Home TFT display configuration" | sudo tee -a "$CONFIG_TXT" > /dev/null
+                fi
+                echo "dtoverlay=waveshare35a" | sudo tee -a "$CONFIG_TXT" > /dev/null
+            fi
+
+            echo -e "${GREEN}SPI TFT display support configured${NC}"
+            TFT_NEEDS_REBOOT=true
         fi
     fi
-
-    # Clean up
-    rm -rf /tmp/LCD-show
-
-    echo -e "${GREEN}TFT driver installation complete. Reboot required to activate.${NC}"
-    return 0
-}
-
-# Auto-detect common SPI TFT displays by checking for connected SPI devices
-detect_spi_tft() {
-    # Check if SPI is available
-    if [ ! -d /sys/class/spi_master ]; then
-        return 1
-    fi
-
-    # Check for common TFT display chip IDs via SPI
-    # ILI9486, ILI9341, ST7789 are common controllers
-    for spi in /sys/class/spi_master/spi*/; do
-        if [ -d "$spi" ]; then
-            echo "SPI bus detected: $(basename $spi)"
-            return 0
-        fi
-    done
-    return 1
-}
-
-# Auto-install TFT drivers if SPI hardware is detected but not configured
-if [ "$TFT_CONFIGURED" = false ] && detect_spi_tft; then
-    echo -e "${CYAN}SPI bus detected - installing TFT display drivers automatically...${NC}"
-    install_tft_driver "3.5inch"
-    echo -e "${YELLOW}TFT display configured. Reboot required to activate.${NC}"
 fi
 
-# Ensure framebuffer permissions for TFT displays
-if [ -e /dev/fb1 ]; then
-    sudo chmod 666 /dev/fb1 2>/dev/null || true
+# Ensure framebuffer permissions for any detected displays
+sudo chmod 666 /dev/fb* 2>/dev/null || true
+
+# Clean up any old user-level Docker plugins (may be corrupted/outdated)
+if [ -f "$HOME/.docker/cli-plugins/docker-buildx" ]; then
+    echo "Removing old user-level buildx plugin..."
+    rm -f "$HOME/.docker/cli-plugins/docker-buildx"
+fi
+if [ -f "$HOME/.docker/cli-plugins/docker-compose" ]; then
+    echo "Removing old user-level compose plugin..."
+    rm -f "$HOME/.docker/cli-plugins/docker-compose"
 fi
 
-# Install Docker Buildx plugin
-mkdir -p $HOME/.docker/cli-plugins
-curl -Lo $HOME/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.19.3/buildx-v0.19.3.linux-arm64
-sudo chmod +x $HOME/.docker/cli-plugins/docker-buildx
-docker buildx version
+# Verify Docker Buildx is available (installed via apt to /usr/libexec/docker/cli-plugins/)
+if [ -f /usr/libexec/docker/cli-plugins/docker-buildx ]; then
+    echo -e "${GREEN}Docker Buildx plugin installed${NC}"
+else
+    echo -e "${RED}ERROR: Docker Buildx plugin not found. Re-run script to install Docker properly.${NC}"
+    exit 1
+fi
 
 # Setup UFW Firewall
 echo "Setting up UFW Firewall..."
@@ -916,28 +965,36 @@ sudo ufw allow 5353/udp
 sudo ufw allow 1234
 echo "y" | sudo ufw enable
 
-# Use docker compose (v2 plugin installed with docker-compose-plugin)
-if docker compose version &>/dev/null; then
+# Use docker compose (v2 plugin installed via apt to /usr/libexec/docker/cli-plugins/)
+if [ -f /usr/libexec/docker/cli-plugins/docker-compose ]; then
     COMPOSE="docker compose"
+    echo -e "${GREEN}Docker Compose plugin installed${NC}"
 else
-    echo "ERROR: Docker Compose plugin not available. Re-run script to install Docker properly."
+    echo -e "${RED}ERROR: Docker Compose plugin not found. Re-run script to install Docker properly.${NC}"
     exit 1
 fi
 
-# Parse flags
-NO_BUILD=false
-NO_CACHE=false
-PRUNE=false
-
-for arg in "$@"; do
-    case $arg in
-        --no-build) NO_BUILD=true ;;
-        --no-cache) NO_CACHE=true ;;
-        --prune) PRUNE=true ;;
-    esac
-done
-
 if [[ "$NO_BUILD" == "false" ]]; then
+    # Increase swap to prevent OOM during Docker build
+    echo "Checking swap space for Docker build..."
+    CURRENT_SWAP=$(free -m | awk '/^Swap:/ {print $2}')
+    if [ "$CURRENT_SWAP" -lt 2048 ]; then
+        echo -e "${YELLOW}Swap is ${CURRENT_SWAP}MB - increasing to 2GB for Docker build...${NC}"
+        if [ -f /etc/dphys-swapfile ]; then
+            sudo sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile
+            sudo systemctl restart dphys-swapfile 2>/dev/null || sudo /etc/init.d/dphys-swapfile restart 2>/dev/null || true
+            sleep 2
+        elif [ ! -f /swapfile ]; then
+            sudo fallocate -l 2G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=2048
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+            sudo swapon /swapfile
+        fi
+        echo -e "${GREEN}Swap configured: $(free -m | awk '/^Swap:/ {print $2}')MB${NC}"
+    else
+        echo -e "${GREEN}Swap is sufficient: ${CURRENT_SWAP}MB${NC}"
+    fi
+
     [ -d ~/gpt-home ] && rm -rf ~/gpt-home
     git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
     cd ~/gpt-home
@@ -951,11 +1008,15 @@ if [[ "$NO_BUILD" == "false" ]]; then
         docker volume prune -f
     fi
 
-    # Check if the buildx builder exists, if not create and use it
-    if ! docker buildx ls | grep -q mybuilder; then
-        docker buildx create --name mybuilder --use
-        docker buildx inspect --bootstrap
+    # Use the default docker driver for buildx (not docker-container which has network issues on Pi)
+    # Remove any existing docker-container builders that cause network timeouts
+    if docker buildx ls 2>/dev/null | grep -q "docker-container"; then
+        echo "Removing docker-container builders (cause network issues on Pi)..."
+        for builder in $(docker buildx ls --format '{{.Name}}' 2>/dev/null | grep -v default | grep -v "^\*"); do
+            docker buildx rm "$builder" 2>/dev/null || true
+        done
     fi
+    docker buildx use default 2>/dev/null || true
 
     echo "Building and starting gpt-home with docker compose..."
     if [[ "$NO_CACHE" == "true" ]]; then
@@ -986,6 +1047,24 @@ if [[ "$NO_BUILD" == "true" ]]; then
     $COMPOSE up -d
 
     $COMPOSE ps
+fi
+
+# Final reboot prompt if TFT driver was just installed
+if [ "$TFT_NEEDS_REBOOT" = true ]; then
+    echo ""
+    echo -e "${YELLOW}================================================================${NC}"
+    echo -e "${YELLOW}  REBOOT REQUIRED: The 3.5\" TFT display driver was installed.${NC}"
+    echo -e "${YELLOW}  The display won't work until you reboot your Raspberry Pi.${NC}"
+    echo -e "${YELLOW}  GPT Home will restart automatically after reboot.${NC}"
+    echo -e "${YELLOW}================================================================${NC}"
+    echo ""
+    read -t 30 -p "Reboot now? [Y/n] " reboot_answer </dev/tty || reboot_answer="y"
+    if [[ ! "$reboot_answer" =~ ^[Nn]$ ]]; then
+        echo "Rebooting..."
+        sudo reboot
+    else
+        echo -e "${YELLOW}Remember to reboot later with: sudo reboot${NC}"
+    fi
 fi
 ```
 

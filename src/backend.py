@@ -855,7 +855,7 @@ async def startup_event():
 
     # Initialize display manager immediately on startup
     try:
-        manager = await get_display_manager()
+        manager = await ensure_display_initialized()
         if manager and manager.is_available:
             logger.info("Display manager initialized on startup")
 
@@ -2532,8 +2532,8 @@ _display_manager_initialized = False
 _display_manager_lock = asyncio.Lock()
 
 
-async def get_display_manager(force_refresh: bool = False):
-    """Get or initialize the display manager.
+async def ensure_display_initialized(force_refresh: bool = False):
+    """Ensure the display manager is initialized.
 
     Args:
         force_refresh: If True, reinitialize to detect newly connected displays
@@ -2616,7 +2616,7 @@ async def refresh_display():
         full_displays = [d for d in displays if d.screen_type != ScreenType.I2C]
 
         # Reinitialize display manager
-        manager = await get_display_manager(force_refresh=True)
+        manager = await ensure_display_initialized(force_refresh=True)
 
         if manager and manager.is_available and manager.display:
             display = manager.display
@@ -2697,7 +2697,7 @@ async def display_power_on():
         status = check_drm_status()
 
         if status["available"]:
-            manager = await get_display_manager(force_refresh=True)
+            manager = await ensure_display_initialized(force_refresh=True)
             if manager and manager.is_available:
                 return JSONResponse(
                     content={
@@ -2749,7 +2749,7 @@ async def display_status():
 
         drm_status = check_drm_status()
         displays = detect_displays()
-        manager = await get_display_manager()
+        manager = await ensure_display_initialized()
 
         # Categorize displays
         full_displays = [d for d in displays if d.screen_type != ScreenType.I2C]
@@ -2901,7 +2901,7 @@ async def select_display(request: Request):
             logger.warning(f"Could not save display type to settings: {e}")
 
         # Reinitialize display manager with new type
-        manager = await get_display_manager()
+        manager = await ensure_display_initialized()
         if manager:
             await manager.initialize(preferred_type=display_type, force_refresh=True)
 
@@ -3245,7 +3245,7 @@ async def set_mirror_mode(request: Request):
         manager.set_mirror_enabled(enabled)
 
         # Reinitialize display manager to apply changes
-        display_manager = await get_display_manager()
+        display_manager = await ensure_display_initialized()
         if display_manager:
             await display_manager.reinitialize()
 
@@ -3286,7 +3286,7 @@ async def set_display_enabled(request: Request):
         manager.set_display_enabled(display_id, enabled)
 
         # Reinitialize display manager to apply changes
-        display_manager = await get_display_manager()
+        display_manager = await ensure_display_initialized()
         if display_manager:
             await display_manager.reinitialize()
 
@@ -3336,7 +3336,7 @@ async def set_display_mode(request: Request):
             )
 
         # Check if we have a display that supports modes
-        manager = await get_display_manager()
+        manager = await ensure_display_initialized()
         if manager and not manager.supports_modes:
             return JSONResponse(
                 content={
@@ -3361,7 +3361,7 @@ async def set_display_mode(request: Request):
             logger.warning(f"Could not save display mode to settings: {settings_err}")
 
         # Try to apply to display if available
-        manager = await get_display_manager()
+        manager = await ensure_display_initialized()
         if manager and manager.is_available:
             # If switching to weather mode, fetch current weather data
             if mode == DisplayMode.WEATHER:
@@ -3587,7 +3587,7 @@ def _wmo_code_to_condition(code: int) -> str:
 @app.post("/api/display/test")
 async def test_display():
     try:
-        manager = await get_display_manager()
+        manager = await ensure_display_initialized()
         if not manager or not manager.is_available:
             return JSONResponse(
                 content={"success": False, "message": "No display available"},
@@ -3620,7 +3620,7 @@ async def display_user_message(request: Request):
             flush=True,
         )
 
-        manager = await get_display_manager()
+        manager = await ensure_display_initialized()
         if not manager or not manager.is_available:
             return JSONResponse(content={"success": False}, status_code=404)
 
@@ -3650,7 +3650,7 @@ async def display_tool_animation(request: Request):
             flush=True,
         )
 
-        manager = await get_display_manager()
+        manager = await ensure_display_initialized()
         if not manager or not manager.is_available:
             return JSONResponse(content={"success": False}, status_code=404)
 
@@ -3676,7 +3676,7 @@ async def display_waveform_start(request: Request):
     try:
         source = "microphone"
 
-        manager = await get_display_manager()
+        manager = await ensure_display_initialized()
         if not manager or not manager.is_available:
             return JSONResponse(content={"success": False}, status_code=404)
 
@@ -3702,7 +3702,7 @@ async def display_waveform_start(request: Request):
 async def display_waveform_stop():
     """Stop waveform visualization and return to idle."""
     try:
-        manager = await get_display_manager()
+        manager = await ensure_display_initialized()
         if not manager or not manager.is_available:
             return JSONResponse(content={"success": False}, status_code=404)
 
@@ -3719,7 +3719,7 @@ async def display_waveform_stop():
 async def display_register_activity():
     """Register user activity to reset screensaver timer."""
     try:
-        manager = await get_display_manager()
+        manager = await ensure_display_initialized()
         if not manager or not manager.is_available:
             return JSONResponse(content={"success": False}, status_code=404)
 
@@ -3739,7 +3739,7 @@ async def display_response_animation(request: Request):
         data = await request.json()
         response = data.get("response", "")
 
-        manager = await get_display_manager()
+        manager = await ensure_display_initialized()
         if not manager or not manager.is_available:
             return JSONResponse(content={"success": False}, status_code=404)
 
@@ -3756,7 +3756,7 @@ async def display_response_animation(request: Request):
 async def display_resume_idle():
     """Resume idle state (clock display in SMART mode)."""
     try:
-        manager = await get_display_manager()
+        manager = await ensure_display_initialized()
         if not manager or not manager.is_available:
             return JSONResponse(content={"success": False}, status_code=404)
 
@@ -3787,7 +3787,7 @@ async def screensaver_status():
 
         settings = load_settings()
 
-        manager = await get_display_manager()
+        manager = await ensure_display_initialized()
         is_active = False
         time_until_activation = None
         current_mode = None
@@ -3840,7 +3840,7 @@ async def set_screensaver_settings(request: Request):
 
         save_settings(settings)
 
-        manager = await get_display_manager()
+        manager = await ensure_display_initialized()
         if manager and manager.is_available:
             old_enabled = manager._screensaver_enabled
             manager._load_screensaver_settings()
@@ -3886,7 +3886,7 @@ async def activate_screensaver():
     interacts (speech, etc.) or when deactivate is called.
     """
     try:
-        manager = await get_display_manager()
+        manager = await ensure_display_initialized()
         if not manager or not manager.is_available:
             return JSONResponse(
                 content={"success": False, "message": "No display available"},
@@ -3919,7 +3919,7 @@ async def deactivate_screensaver():
     started (SMART, CLOCK, WEATHER, GALLERY, WAVEFORM, etc.)
     """
     try:
-        manager = await get_display_manager()
+        manager = await ensure_display_initialized()
         if not manager or not manager.is_available:
             return JSONResponse(
                 content={"success": False, "message": "No display available"},
@@ -3950,7 +3950,7 @@ async def deactivate_screensaver():
 async def poke_screensaver():
     """Reset the screensaver inactivity timer without deactivating screensaver."""
     try:
-        manager = await get_display_manager()
+        manager = await ensure_display_initialized()
         if manager and manager.is_available:
             # Only reset the timer, don't deactivate screensaver
             manager._last_activity_time = time.time()

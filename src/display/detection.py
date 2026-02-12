@@ -379,11 +379,10 @@ def _detect_spi_tft() -> Optional[DisplayInfo]:
                 try:
                     name = name_file.read_text().strip()
                     logger.debug(f"Framebuffer {fb_dir.name} name: {name}")
-                    # fbtft devices have names like "fb_ili9486" or similar
-                    if (
-                        "ili" in name.lower()
-                        or "tft" in name.lower()
-                        or "st7" in name.lower()
+                    # fbtft devices have names like "fb_ili9486", "flexfb", etc.
+                    if any(
+                        x in name.lower()
+                        for x in ["ili", "tft", "st7", "flexfb", "waveshare"]
                     ):
                         fb_path = Path(f"/dev/{fb_dir.name}")
                         if fb_path.exists() and os.access(fb_path, os.R_OK | os.W_OK):
