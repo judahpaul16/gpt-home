@@ -169,6 +169,10 @@ class AudioCapture:
         # For smoothing
         self._prev_values = [0.0] * self.NUM_BARS
 
+        # Adaptive gain: track recent peak to auto-scale
+        self._recent_peak = 0.0
+        self._peak_decay = 0.95  # Slow decay for stable gain
+
     def _find_monitor_device(self, p: "pyaudio.PyAudio") -> Optional[int]:
         """
         Find a monitor/loopback device for capturing audio output.
@@ -406,6 +410,7 @@ class AudioCapture:
 
         Calculates a single RMS value from the audio buffer and shifts it
         into the array, creating a scrolling waveform visualization.
+        Uses adaptive gain to auto-scale based on recent audio levels.
 
         Returns list of 32 normalized amplitude values (0-1).
         """
@@ -415,8 +420,19 @@ class AudioCapture:
             if len(samples) == 0:
                 rms = 0.0
             else:
-                rms = np.sqrt(np.mean(samples**2))
-                rms = min(1.0, rms / 4000.0)
+                raw_rms = np.sqrt(np.mean(samples**2))
+
+                # Track recent peak for adaptive gain (slow decay)
+                if raw_rms > self._recent_peak:
+                    self._recent_peak = raw_rms
+                else:
+                    self._recent_peak *= self._peak_decay
+
+                # Use adaptive normalization: divide by recent peak with a floor
+                # Floor of 800 prevents noise from being amplified too much
+                # Ceiling of 3000 prevents very loud audio from under-scaling
+                divisor = max(800.0, min(3000.0, self._recent_peak * 1.2))
+                rms = min(1.0, raw_rms / divisor)
 
             self._prev_values.pop(0)
             self._prev_values.append(rms)
@@ -644,6 +660,7 @@ class AudioCapture:
 
         self._running = True
         self._prev_values = [0.0] * self.NUM_BARS
+        self._recent_peak = 0.0
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
         self._thread.start()
 
@@ -738,12 +755,17 @@ def start_mic_capture():
 
 
 def stop_mic_capture():
-    """Stop microphone capture."""
+    """Stop microphone capture and release PyAudio resources.
+
+    Releases the global PyAudio singleton so that sr.Microphone (which creates
+    its own PyAudio instance) can safely use PortAudio without heap corruption.
+    """
     global _mic_capture
 
     if _mic_capture:
         _mic_capture.stop()
         _mic_capture = None
+    _release_pyaudio_instance()
 
 
 def is_mic_capturing() -> bool:

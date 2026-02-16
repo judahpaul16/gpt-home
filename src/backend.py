@@ -2928,6 +2928,9 @@ async def select_display(request: Request):
         )
 
 
+_TFT_OVERLAY_NAMES = ["piscreen", "waveshare35a", "tft35a", "pitft35"]
+
+
 @app.post("/api/display/hardware-mode")
 async def set_display_hardware_mode(request: Request):
     """Switch between TFT-only and HDMI display hardware modes.
@@ -2978,7 +2981,7 @@ async def set_display_hardware_mode(request: Request):
         # Process config based on mode
         new_lines = []
         found_vc4_kms = False
-        found_piscreen = False
+        found_tft = False
         found_spi = False
 
         for line in config_lines:
@@ -3004,9 +3007,9 @@ async def set_display_hardware_mode(request: Request):
                         new_lines.append(line)
                 continue
 
-            # Handle piscreen overlay
-            if "dtoverlay=piscreen" in stripped:
-                found_piscreen = True
+            # Handle TFT overlays (piscreen, waveshare35a, tft35a, pitft35)
+            if any(f"dtoverlay={name}" in stripped for name in _TFT_OVERLAY_NAMES):
+                found_tft = True
                 if mode == "hdmi":
                     # Comment out for HDMI mode
                     if not stripped.startswith("#"):
@@ -3045,47 +3048,16 @@ async def set_display_hardware_mode(request: Request):
             if not found_spi:
                 new_lines.append("\n# GPT Home TFT Display Configuration\n")
                 new_lines.append("dtparam=spi=on\n")
-            if not found_piscreen:
-                new_lines.append("dtoverlay=piscreen,drm,speed=18000000,rotate=90\n")
+            if not found_tft:
+                new_lines.append("dtoverlay=waveshare35a\n")
 
         # Add missing vc4-kms-v3d for HDMI mode
         if mode == "hdmi" and not found_vc4_kms:
             new_lines.append("\n# GPT Home HDMI Configuration\n")
             new_lines.append("dtoverlay=vc4-kms-v3d\n")
 
-        # Write updated config using nsenter for host access
-        try:
-            import tempfile
-
-            with tempfile.NamedTemporaryFile(
-                mode="w", delete=False, suffix=".txt"
-            ) as tmp:
-                tmp.writelines(new_lines)
-                tmp_path = tmp.name
-
-            # Copy to host config.txt via nsenter
-            subprocess.run(
-                [
-                    "nsenter",
-                    "--target",
-                    "1",
-                    "--mount",
-                    "--uts",
-                    "--ipc",
-                    "--net",
-                    "--pid",
-                    "--",
-                    "cp",
-                    tmp_path,
-                    config_path,
-                ],
-                check=True,
-            )
-            os.unlink(tmp_path)
-        except subprocess.CalledProcessError:
-            # Fallback: try direct write (may work if running privileged)
-            with open(config_path, "w") as f:
-                f.writelines(new_lines)
+        with open(config_path, "w") as f:
+            f.writelines(new_lines)
 
         logger.info(f"Display hardware mode set to: {mode}")
 
@@ -3161,7 +3133,7 @@ async def get_display_hardware_mode():
 
         # Check for active (uncommented) overlays
         has_active_vc4 = False
-        has_active_piscreen = False
+        has_active_tft = False
 
         for line in config_content.split("\n"):
             stripped = line.strip()
@@ -3172,14 +3144,14 @@ async def get_display_hardware_mode():
                 or "dtoverlay=vc4-fkms-v3d" in stripped
             ):
                 has_active_vc4 = True
-            if "dtoverlay=piscreen" in stripped:
-                has_active_piscreen = True
+            if any(f"dtoverlay={name}" in stripped for name in _TFT_OVERLAY_NAMES):
+                has_active_tft = True
 
-        if has_active_piscreen and not has_active_vc4:
+        if has_active_tft and not has_active_vc4:
             mode = "tft"
-        elif has_active_vc4 and not has_active_piscreen:
+        elif has_active_vc4 and not has_active_tft:
             mode = "hdmi"
-        elif has_active_vc4 and has_active_piscreen:
+        elif has_active_vc4 and has_active_tft:
             # Both active - this will cause conflicts
             mode = "conflict"
         else:
@@ -3190,7 +3162,7 @@ async def get_display_hardware_mode():
             content={
                 "mode": mode,
                 "has_vc4_kms": has_active_vc4,
-                "has_piscreen": has_active_piscreen,
+                "has_tft": has_active_tft,
                 "config_path": config_path,
             }
         )

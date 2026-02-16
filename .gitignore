@@ -34,4 +34,4 @@ src/frontend/build/
 spotify_token.json
 hashed_password.txt
 
-__pycache__
+**/__pycache__/

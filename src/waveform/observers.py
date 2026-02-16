@@ -60,7 +60,7 @@ class FullDisplayWaveformObserver(WaveformObserver):
             )
             if self._is_active:
                 min_height = self._strategy.get_render_params().get(
-                    "min_bar_height", 0.05
+                    "min_bar_height", 0.0
                 )
                 self._smoothed_values = [min_height] * 32
             else:

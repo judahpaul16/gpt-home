@@ -516,7 +516,6 @@ if [[ "$NO_BUILD" == "true" ]]; then
     $COMPOSE ps
 fi
 
-# Final reboot prompt if TFT driver was just installed
 if [ "$TFT_NEEDS_REBOOT" = true ]; then
     echo ""
     echo -e "${YELLOW}================================================================${NC}"

@@ -19,15 +19,14 @@ class VoiceGatedStrategy(RenderStrategy):
     """Strategy for SMART mode on full displays.
 
     Shows waveform whenever listening is active:
-    - Flat bars (min height) when no audio
+    - Flat (zero height) when no audio
     - Animated bars when audio detected
-    - Voice detection used for screensaver wake, not display gating
     """
 
     def __init__(self):
         self._smoothing_speed = 12.0
         self._decay_speed = 8.0
-        self._min_bar_height = 0.05
+        self._min_bar_height = 0.0
 
     def should_render(self, data: WaveformData) -> bool:
         """Render whenever in listening state."""
@@ -61,12 +60,12 @@ class VoiceGatedStrategy(RenderStrategy):
 class AlwaysOnStrategy(RenderStrategy):
     """Strategy for dedicated WAVEFORM mode on full displays.
 
-    Same as VoiceGatedStrategy but with slightly higher minimum bars.
+    Flat when silent, animated when audio detected.
     """
 
     def __init__(self):
         self._smoothing_speed = 10.0
-        self._min_bar_height = 0.08
+        self._min_bar_height = 0.0
 
     def should_render(self, data: WaveformData) -> bool:
         return data.state in (

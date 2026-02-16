@@ -929,6 +929,29 @@ async def i2c_display_screensaver_monitor(display):
         logger.error(f"I2C display screensaver monitor error: {e}")
 
 
+async def i2c_display_stop_screensaver(display):
+    """Stop I2C display screensaver and restore normal display."""
+    global \
+        _i2c_display_screensaver_active, \
+        _i2c_display_screensaver_render_task, \
+        _i2c_display_last_activity_time
+    if not _i2c_display_screensaver_active:
+        return
+    _i2c_display_screensaver_active = False
+    if (
+        _i2c_display_screensaver_render_task
+        and not _i2c_display_screensaver_render_task.done()
+    ):
+        _i2c_display_screensaver_render_task.cancel()
+    _i2c_display_screensaver_render_task = None
+    _i2c_display_last_activity_time = time.time()
+    if display is not None:
+        async with display_lock:
+            display.fill(0)
+            draw_i2c_header(display)
+            display.show()
+
+
 def start_i2c_display_screensaver_monitor(display):
     """Start the I2C display screensaver monitor task."""
     global _i2c_display_screensaver_task
@@ -1384,12 +1407,13 @@ def _update_waveform_from_chunk(audio_chunk: sr.AudioData):
 
 def _notify_waveform_start_sync():
     try:
-        from src.waveform import WaveformSource, get_waveform_mediator
+        from src.waveform import get_waveform_mediator
 
         mediator = get_waveform_mediator()
-        mediator.start(WaveformSource.MICROPHONE)
+        # Mediator stays in LISTENING_MIC from startup; just clear values for fresh listen
+        mediator.clear()
     except Exception as e:
-        print(f"[WAVEFORM] mediator start failed: {e}", flush=True)
+        print(f"[WAVEFORM] mediator clear failed: {e}", flush=True)
 
     dm = get_display_manager()
     if dm and dm.is_available:
@@ -1401,7 +1425,8 @@ def _notify_waveform_stop_sync():
         from src.waveform import get_waveform_mediator
 
         mediator = get_waveform_mediator()
-        mediator.stop()
+        # Don't transition to INACTIVE — just clear values, mediator stays LISTENING_MIC
+        mediator.clear()
     except Exception:
         pass
 
@@ -1423,9 +1448,6 @@ def _clear_waveform_values():
 
 def _listen_with_streaming_waveform(source, timeout=3, phrase_time_limit=15):
     """Listen for audio and update waveform display."""
-    global _streaming_waveform_active
-
-    _streaming_waveform_active = True
     register_all_display_activity()
     _notify_waveform_start_sync()
     _clear_waveform_values()
@@ -1527,7 +1549,6 @@ def _listen_with_streaming_waveform(source, timeout=3, phrase_time_limit=15):
         print("[LISTEN] Timeout", flush=True)
         raise
     finally:
-        _streaming_waveform_active = False
         _clear_waveform_values()
         _notify_waveform_stop_sync()
 
@@ -1692,38 +1713,43 @@ async def listen(display, state_task, stop_event):
             mic_index = _find_microphone_device_index()
             print(f"[STT] Using microphone index: {mic_index}", flush=True)
 
-            import pyaudio
+            def _do_listen():
+                import pyaudio
 
-            pa = pyaudio.PyAudio()
-            print(f"[STT] PyAudio device count: {pa.get_device_count()}", flush=True)
-            for i in range(pa.get_device_count()):
-                try:
-                    info = pa.get_device_info_by_index(i)
-                    if info.get("maxInputChannels", 0) > 0:
-                        print(
-                            f"[STT]   Input device {i}: {info.get('name')} "
-                            f"(inputs={info.get('maxInputChannels')}, rate={info.get('defaultSampleRate')})",
-                            flush=True,
-                        )
-                except Exception:
-                    pass
-            pa.terminate()
-
-            with sr.Microphone(device_index=mic_index) as source:
+                pa = pyaudio.PyAudio()
                 print(
-                    f"[STT] Mic details: rate={source.SAMPLE_RATE}Hz, width={source.SAMPLE_WIDTH}, chunk={source.CHUNK}",
-                    flush=True,
+                    f"[STT] PyAudio device count: {pa.get_device_count()}", flush=True
                 )
-                if source.stream is None:
-                    raise RuntimeError("Microphone not initialized.")
-                print(
-                    f"[STT] Using fixed energy_threshold={r.energy_threshold:.0f}, starting listen...",
-                    flush=True,
-                )
+                for i in range(pa.get_device_count()):
+                    try:
+                        info = pa.get_device_info_by_index(i)
+                        if info.get("maxInputChannels", 0) > 0:
+                            print(
+                                f"[STT]   Input device {i}: {info.get('name')} "
+                                f"(inputs={info.get('maxInputChannels')}, rate={info.get('defaultSampleRate')})",
+                                flush=True,
+                            )
+                    except Exception:
+                        pass
+                pa.terminate()
 
-                audio = _listen_with_streaming_waveform(
-                    source, timeout=3, phrase_time_limit=get_phrase_time_limit()
-                )
+                with sr.Microphone(device_index=mic_index) as source:
+                    print(
+                        f"[STT] Mic details: rate={source.SAMPLE_RATE}Hz, width={source.SAMPLE_WIDTH}, chunk={source.CHUNK}",
+                        flush=True,
+                    )
+                    if source.stream is None:
+                        raise RuntimeError("Microphone not initialized.")
+                    print(
+                        f"[STT] Using fixed energy_threshold={r.energy_threshold:.0f}, starting listen...",
+                        flush=True,
+                    )
+
+                    return _listen_with_streaming_waveform(
+                        source, timeout=3, phrase_time_limit=get_phrase_time_limit()
+                    )
+
+            audio = await loop.run_in_executor(None, _do_listen)
 
             if audio is None:
                 print("[STT] No audio captured", flush=True)
@@ -1742,58 +1768,66 @@ async def listen(display, state_task, stop_event):
 
             register_all_display_activity()
 
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-                tmp_path = tmp.name
+            def _do_transcribe():
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                    tmp_path = tmp.name
 
-            raw_data = audio.get_raw_data()
-            sample_rate = audio.sample_rate
-            sample_width = audio.sample_width
-            audio_duration_sec = len(raw_data) / (sample_rate * sample_width)
-            print(
-                f"[STT] Audio: {audio_duration_sec:.2f}s, {sample_rate}Hz, width={sample_width}",
-                flush=True,
-            )
-
-            target_rate = 16000
-            if sample_rate != target_rate:
-                raw_data, _ = audioop.ratecv(
-                    raw_data, sample_width, 1, sample_rate, target_rate, None
-                )
-                sample_rate = target_rate
-                print(f"[STT] Resampled to {target_rate}Hz", flush=True)
-
-            with wave.open("/tmp/debug_stt.wav", "wb") as debug_wav:
-                debug_wav.setnchannels(1)
-                debug_wav.setsampwidth(sample_width)
-                debug_wav.setframerate(sample_rate)
-                debug_wav.writeframes(raw_data)
-            print("[STT] Debug audio saved to /tmp/debug_stt.wav", flush=True)
-
-            with wave.open(tmp_path, "wb") as wav_file:
-                wav_file.setnchannels(1)
-                wav_file.setsampwidth(sample_width)
-                wav_file.setframerate(sample_rate)
-                wav_file.writeframes(raw_data)
-
-            try:
-                settings = load_settings()
-                keyword = settings.get("keyword", "computer")
+                raw_data = audio.get_raw_data()
+                sample_rate_local = audio.sample_rate
+                sample_width = audio.sample_width
+                audio_duration_sec = len(raw_data) / (sample_rate_local * sample_width)
                 print(
-                    f"[STT] Sending audio to {model} for transcription...", flush=True
+                    f"[STT] Audio: {audio_duration_sec:.2f}s, {sample_rate_local}Hz, width={sample_width}",
+                    flush=True,
                 )
-                with open(tmp_path, "rb") as audio_file:
-                    response = transcription(
-                        model=model,
-                        file=audio_file,
-                        language=stt_language,
-                        prompt=f"Voice assistant wake word: {keyword}.",
-                    )
-                    text = response.text if hasattr(response, "text") else str(response)
-                    print(f"[STT] Transcription result: {text}", flush=True)
 
-                    return text if text else None
-            finally:
-                os.unlink(tmp_path)
+                target_rate = 16000
+                if sample_rate_local != target_rate:
+                    raw_data, _ = audioop.ratecv(
+                        raw_data, sample_width, 1, sample_rate_local, target_rate, None
+                    )
+                    sample_rate_local = target_rate
+                    print(f"[STT] Resampled to {target_rate}Hz", flush=True)
+
+                with wave.open("/tmp/debug_stt.wav", "wb") as debug_wav:
+                    debug_wav.setnchannels(1)
+                    debug_wav.setsampwidth(sample_width)
+                    debug_wav.setframerate(sample_rate_local)
+                    debug_wav.writeframes(raw_data)
+                print("[STT] Debug audio saved to /tmp/debug_stt.wav", flush=True)
+
+                with wave.open(tmp_path, "wb") as wav_file:
+                    wav_file.setnchannels(1)
+                    wav_file.setsampwidth(sample_width)
+                    wav_file.setframerate(sample_rate_local)
+                    wav_file.writeframes(raw_data)
+
+                try:
+                    stg = load_settings()
+                    keyword = stg.get("keyword", "computer")
+                    print(
+                        f"[STT] Sending audio to {model} for transcription...",
+                        flush=True,
+                    )
+                    with open(tmp_path, "rb") as audio_file:
+                        response = transcription(
+                            model=model,
+                            file=audio_file,
+                            language=stt_language,
+                            prompt=f"Voice assistant wake word: {keyword}.",
+                        )
+                        text = (
+                            response.text
+                            if hasattr(response, "text")
+                            else str(response)
+                        )
+                        print(f"[STT] Transcription result: {text}", flush=True)
+
+                        return text if text else None
+                finally:
+                    os.unlink(tmp_path)
+
+            return await loop.run_in_executor(None, _do_transcribe)
 
         except sr.WaitTimeoutError:
             print("[STT] Listen timeout - no speech detected", flush=True)
@@ -1810,17 +1844,21 @@ async def listen(display, state_task, stop_event):
         try:
             mic_index = _find_microphone_device_index()
             print(f"[STT-GOOGLE] Using microphone index: {mic_index}", flush=True)
-            with sr.Microphone(device_index=mic_index) as source:
-                if source.stream is None:
-                    raise RuntimeError("Microphone not initialized.")
-                print(
-                    f"[STT-GOOGLE] Using fixed energy_threshold={r.energy_threshold:.0f}, starting listen...",
-                    flush=True,
-                )
 
-                audio = _listen_with_streaming_waveform(
-                    source, timeout=3, phrase_time_limit=get_phrase_time_limit()
-                )
+            def _do_listen():
+                with sr.Microphone(device_index=mic_index) as source:
+                    if source.stream is None:
+                        raise RuntimeError("Microphone not initialized.")
+                    print(
+                        f"[STT-GOOGLE] Using fixed energy_threshold={r.energy_threshold:.0f}, starting listen...",
+                        flush=True,
+                    )
+
+                    return _listen_with_streaming_waveform(
+                        source, timeout=3, phrase_time_limit=get_phrase_time_limit()
+                    )
+
+            audio = await loop.run_in_executor(None, _do_listen)
 
             if audio is None:
                 print("[STT-GOOGLE] No audio captured", flush=True)
@@ -1839,10 +1877,13 @@ async def listen(display, state_task, stop_event):
 
             register_all_display_activity()
 
-            print("[STT-GOOGLE] Sending to Google for transcription...", flush=True)
-            text = r.recognize_google(audio)
-            print(f"[STT-GOOGLE] Transcription result: {text}", flush=True)
-            return text if text else None
+            def _do_recognize():
+                print("[STT-GOOGLE] Sending to Google for transcription...", flush=True)
+                text = r.recognize_google(audio)
+                print(f"[STT-GOOGLE] Transcription result: {text}", flush=True)
+                return text if text else None
+
+            return await loop.run_in_executor(None, _do_recognize)
 
         except sr.WaitTimeoutError:
             print("[STT-GOOGLE] Listen timeout - no speech detected", flush=True)
@@ -1851,18 +1892,33 @@ async def listen(display, state_task, stop_event):
             print("[STT-GOOGLE] Could not understand audio", flush=True)
             return None
 
-    text = None
-    if stt_engine == "litellm" and litellm_stt_available():
-        text = await recognize_audio_litellm()
+    try:
+        from src.audio_capture import start_mic_capture, stop_mic_capture
 
-    if text is None:
-        text = await recognize_audio_google()
+        await loop.run_in_executor(None, stop_mic_capture)
+    except Exception:
+        pass
 
-    if text:
-        state_task.cancel()
+    try:
+        text = None
+        if stt_engine == "litellm" and litellm_stt_available():
+            text = await recognize_audio_litellm()
 
-    await restore_volume()
-    return text
+        if text is None:
+            text = await recognize_audio_google()
+
+        if text:
+            state_task.cancel()
+
+        await restore_volume()
+        return text
+    finally:
+        try:
+            from src.audio_capture import start_mic_capture
+
+            await loop.run_in_executor(None, start_mic_capture)
+        except Exception:
+            pass
 
 
 async def _notify_backend_user_listening(start: bool):

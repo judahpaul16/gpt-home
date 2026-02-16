@@ -1797,6 +1797,8 @@ class DisplayManager:
         self._has_tool_animation = False
         self._tool_animation_start = 0.0
         self._state = AnimationState.IDLE
+        self._waveform_active = False
+        self._waveform_explicitly_started = False
 
         await self._stop_render()
         print(f"[DISPLAY] resume_idle: starting mode loop", flush=True)

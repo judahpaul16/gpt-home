@@ -65,7 +65,7 @@ async def clock_loop(
                     d.show_sync()
 
             # Sleep AFTER releasing lock - faster for waveform, slower for clock
-            await asyncio.sleep(0.016 if is_waveform_mode else 0.5)
+            await asyncio.sleep(0.016 if is_waveform_mode else 0.25)
     except asyncio.CancelledError:
         pass
 

@@ -98,6 +98,7 @@ services:
             - /sys/class/graphics:/sys/class/graphics:ro
             - /sys/class/drm:/sys/class/drm:ro
             - /run/gpt-home:/run/gpt-home:ro
+            - /boot:/boot
             - spotifyd-cache:/root/.spotifyd/cache:ro
             - /run/dbus:/host/run/dbus:ro
         depends_on:

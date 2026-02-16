@@ -85,6 +85,13 @@ def _check_audio_level_sync() -> tuple:
         Tuple of (has_voice, db_level, threshold)
     """
     try:
+        from src.audio_capture import start_mic_capture, stop_mic_capture
+
+        stop_mic_capture()
+    except Exception:
+        pass
+
+    try:
         settings = load_settings()
         vad_threshold_db = settings.get("vadThresholdDb", -50.0)
 
@@ -150,6 +157,13 @@ def _check_audio_level_sync() -> tuple:
     except Exception as e:
         print(f"[IDLE] Audio level check error: {e}", flush=True)
         return False, -100.0, -50.0
+    finally:
+        try:
+            from src.audio_capture import start_mic_capture
+
+            start_mic_capture()
+        except Exception:
+            pass
 
 
 async def check_audio_level_above_threshold() -> bool:
@@ -442,11 +456,22 @@ async def startup():
     await _init_tables()
 
     try:
-        from src.waveform import get_waveform_mediator
+        from src.waveform import WaveformSource, get_waveform_mediator
 
         mediator = get_waveform_mediator()
         if get_audio_activity_detector:
             mediator.set_audio_detector(get_audio_activity_detector())
+
+        # Wire continuous mic capture to waveform mediator for always-on visualization
+        from src.audio_capture import set_mic_callback, start_mic_capture
+
+        def _continuous_mic_callback(values: list):
+            mediator.update_from_values(values)
+
+        set_mic_callback(_continuous_mic_callback)
+        mediator.start(WaveformSource.MICROPHONE)
+        start_mic_capture()
+        print("[APP] Continuous mic capture started for waveform", flush=True)
     except Exception as e:
         print(f"[APP] Waveform mediator init failed: {e}", flush=True)
 

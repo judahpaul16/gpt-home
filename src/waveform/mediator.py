@@ -187,6 +187,33 @@ class WaveformMediator:
     # Data Management (Single Source of Truth)
     # -------------------------------------------------------------------------
 
+    def update_from_values(self, values: List[float]) -> None:
+        """Update waveform from pre-computed amplitude values (thread-safe).
+
+        Used by AudioCapture's continuous mic capture to feed the mediator
+        without requiring sr.AudioData conversion.
+
+        Args:
+            values: List of 32 float values (0.0 - 1.0)
+        """
+        if not self.is_active:
+            return
+
+        if len(values) != 32:
+            return
+
+        has_voice = max(values) > 0.02
+
+        with self._data_lock:
+            self._values = list(values)
+            self._has_voice = has_voice
+
+        now = time.time()
+        if now - self._last_notify_time >= self._min_notify_interval:
+            self._last_notify_time = now
+            data = self._create_snapshot()
+            self._notify_observers(data)
+
     def update_from_audio_chunk(self, audio_chunk: sr.AudioData) -> None:
         if not self.is_active:
             return
