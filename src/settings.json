@@ -12,6 +12,7 @@
     "dark_mode": true,
     "sayHeard": false,
     "display_mode": "smart",
+    "i2c_rotation": 2,
     "gallery_interval": 10,
     "weather_update_interval": 300,
     "screensaver_enabled": true,

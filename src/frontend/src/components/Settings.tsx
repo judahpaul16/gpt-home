@@ -277,6 +277,11 @@ const Settings: React.FC = () => {
         "hdmi" | "tft" | "unknown" | "conflict"
     >("unknown");
     const [isChangingHardwareMode, setIsChangingHardwareMode] = useState(false);
+    const [displayRotation, setDisplayRotation] = useState({
+        tft_rotation: 0,
+        i2c_rotation: 2,
+    });
+    const [rotationRebootPending, setRotationRebootPending] = useState(false);
     const [audioState, setAudioState] = useState<AudioState>({
         devices: [],
         current: null,
@@ -437,7 +442,6 @@ const Settings: React.FC = () => {
         }
     }, [fetchedDisplayStatus]);
 
-    // Fetch hardware display mode on mount
     useEffect(() => {
         const fetchHardwareMode = async () => {
             try {
@@ -449,7 +453,16 @@ const Settings: React.FC = () => {
                 console.error("Failed to fetch hardware display mode:", err);
             }
         };
+        const fetchRotation = async () => {
+            try {
+                const response = await axios.get("/api/display/rotation");
+                setDisplayRotation(response.data);
+            } catch (err) {
+                console.error("Failed to fetch display rotation:", err);
+            }
+        };
         fetchHardwareMode();
+        fetchRotation();
     }, []);
 
     useEffect(() => {
@@ -699,6 +712,41 @@ const Settings: React.FC = () => {
             },
             { confirmText: "Switch & Reboot", variant: "danger" },
         );
+    };
+
+    const handleTftRotationChange = async (rotation: number) => {
+        try {
+            const response = await axios.post("/api/display/rotation", {
+                tft_rotation: rotation,
+            });
+            if (response.data.success) {
+                setDisplayRotation((prev) => ({
+                    ...prev,
+                    tft_rotation: rotation,
+                }));
+                if (response.data.reboot_required) {
+                    setRotationRebootPending(true);
+                }
+            }
+        } catch (err) {
+            console.error("Failed to set TFT rotation:", err);
+        }
+    };
+
+    const handleI2cRotationChange = async (rotation: number) => {
+        try {
+            const response = await axios.post("/api/display/rotation", {
+                i2c_rotation: rotation,
+            });
+            if (response.data.success) {
+                setDisplayRotation((prev) => ({
+                    ...prev,
+                    i2c_rotation: rotation,
+                }));
+            }
+        } catch (err) {
+            console.error("Failed to set I2C rotation:", err);
+        }
     };
 
     const handleScreensaverSettingChange = (
@@ -2547,6 +2595,65 @@ const Settings: React.FC = () => {
                                     </p>
                                 )}
                             </div>
+                        </div>
+
+                        {/* Display Rotation */}
+                        <div className="mt-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-2">
+                                Display Rotation
+                            </label>
+                            <div className="space-y-2">
+                                {(hardwareDisplayMode === "tft" ||
+                                    hardwareDisplayMode === "conflict") && (
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                                            TFT / HDMI
+                                        </span>
+                                        <select
+                                            value={displayRotation.tft_rotation}
+                                            onChange={(e) =>
+                                                handleTftRotationChange(
+                                                    parseInt(
+                                                        e.target.value,
+                                                        10,
+                                                    ),
+                                                )
+                                            }
+                                            className="input-field text-sm w-32"
+                                        >
+                                            <option value={0}>0°</option>
+                                            <option value={90}>90°</option>
+                                            <option value={180}>180°</option>
+                                            <option value={270}>270°</option>
+                                        </select>
+                                    </div>
+                                )}
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                                        I2C OLED
+                                    </span>
+                                    <select
+                                        value={displayRotation.i2c_rotation}
+                                        onChange={(e) =>
+                                            handleI2cRotationChange(
+                                                parseInt(e.target.value, 10),
+                                            )
+                                        }
+                                        className="input-field text-sm w-32"
+                                    >
+                                        <option value={0}>0°</option>
+                                        <option value={1}>90°</option>
+                                        <option value={2}>180°</option>
+                                        <option value={3}>270°</option>
+                                    </select>
+                                </div>
+                            </div>
+                            {rotationRebootPending && (
+                                <p className="text-xs text-amber-500 mt-2">
+                                    TFT rotation changed. Reboot required to
+                                    apply.
+                                </p>
+                            )}
                         </div>
 
                         {/* Divider */}

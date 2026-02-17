@@ -1278,7 +1278,7 @@ def init_i2c_display():
 
         i2c = busio.I2C(SCL, SDA)
         display = adafruit_ssd1306.SSD1306_I2C(128, 32, i2c)
-        display.rotation = 2
+        display.rotation = load_settings().get("i2c_rotation", 2)
         display.fill(0)
         draw_i2c_header(display)
         display.show()

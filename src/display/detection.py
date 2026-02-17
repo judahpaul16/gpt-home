@@ -431,6 +431,14 @@ def _detect_i2c_oled() -> List[DisplayInfo]:
     if not Path("/dev/i2c-1").exists():
         return displays
 
+    i2c_rotation = 2
+    try:
+        from src.common import load_settings
+
+        i2c_rotation = load_settings().get("i2c_rotation", 2)
+    except Exception:
+        pass
+
     oled_addresses = [0x3C, 0x3D]
 
     for addr in oled_addresses:
@@ -443,6 +451,7 @@ def _detect_i2c_oled() -> List[DisplayInfo]:
                     height=height,
                     bus=1,
                     address=addr,
+                    rotation=i2c_rotation,
                     driver="ssd1306",
                 )
             )

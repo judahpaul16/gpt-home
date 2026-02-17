@@ -268,7 +268,7 @@ if [ -n "$CONFIG_TXT" ]; then
     echo "Configuring display overlay for KMS/DRM support..."
     sudo sed -i '/dtoverlay=vc4-fkms-v3d/d' "$CONFIG_TXT"
 
-    if ! grep -q "^dtoverlay=vc4-kms-v3d" "$CONFIG_TXT"; then
+    if ! grep -q "dtoverlay=vc4-kms-v3d" "$CONFIG_TXT"; then
         echo "Adding dtoverlay=vc4-kms-v3d to $CONFIG_TXT"
         echo "dtoverlay=vc4-kms-v3d" | sudo tee -a "$CONFIG_TXT" > /dev/null
     fi

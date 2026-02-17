@@ -3240,6 +3240,13 @@ async def get_display_hardware_mode():
             if any(f"dtoverlay={name}" in stripped for name in _TFT_OVERLAY_NAMES):
                 has_active_tft = True
 
+        logger.debug(
+            "Hardware mode detection: has_vc4=%s, has_tft=%s, config=%s",
+            has_active_vc4,
+            has_active_tft,
+            config_path,
+        )
+
         if has_active_tft and not has_active_vc4:
             mode = "tft"
         elif has_active_vc4 and not has_active_tft:
@@ -3263,6 +3270,139 @@ async def get_display_hardware_mode():
         return JSONResponse(
             content={"mode": "unknown", "error": str(e)}, status_code=500
         )
+
+
+@app.get("/api/display/rotation")
+async def get_display_rotation():
+    """Get current display rotation settings."""
+    tft_rotation = 0
+    try:
+        config_paths = ["/boot/firmware/config.txt", "/boot/config.txt"]
+        for path in config_paths:
+            if os.path.exists(path):
+                with open(path, "r") as f:
+                    for line in f:
+                        stripped = line.strip()
+                        if stripped.startswith("#"):
+                            continue
+                        if any(
+                            f"dtoverlay={name}" in stripped
+                            for name in _TFT_OVERLAY_NAMES
+                        ):
+                            match = re.search(r"rotate=(\d+)", stripped)
+                            if match:
+                                tft_rotation = int(match.group(1))
+                break
+    except Exception as e:
+        logger.error(f"Error reading TFT rotation: {e}")
+
+    from src.common import load_settings
+
+    settings = load_settings()
+    i2c_rotation = settings.get("i2c_rotation", 2)
+
+    return JSONResponse(
+        content={"tft_rotation": tft_rotation, "i2c_rotation": i2c_rotation}
+    )
+
+
+@app.post("/api/display/rotation")
+async def set_display_rotation(request: Request):
+    """Set display rotation. TFT rotation modifies config.txt (reboot required).
+    I2C rotation is applied live via settings.json."""
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse(
+            content={"success": False, "message": "Invalid JSON"},
+            status_code=400,
+        )
+
+    result = {"success": True, "reboot_required": False}
+
+    if "tft_rotation" in data:
+        rotation = int(data["tft_rotation"])
+        if rotation not in (0, 90, 180, 270):
+            return JSONResponse(
+                content={
+                    "success": False,
+                    "message": "TFT rotation must be 0, 90, 180, or 270",
+                },
+                status_code=400,
+            )
+
+        config_paths = ["/boot/firmware/config.txt", "/boot/config.txt"]
+        config_path = None
+        for path in config_paths:
+            if os.path.exists(path):
+                config_path = path
+                break
+
+        if not config_path:
+            return JSONResponse(
+                content={
+                    "success": False,
+                    "message": "Could not find config.txt",
+                },
+                status_code=404,
+            )
+
+        with open(config_path, "r") as f:
+            lines = f.readlines()
+
+        new_lines = []
+        for line in lines:
+            stripped = line.strip()
+            uncommented = stripped.lstrip("#")
+            if any(f"dtoverlay={name}" in uncommented for name in _TFT_OVERLAY_NAMES):
+                parts = uncommented.split(",")
+                parts = [p for p in parts if not p.startswith("rotate=")]
+                if rotation != 0:
+                    parts.append(f"rotate={rotation}")
+                rebuilt = ",".join(parts) + "\n"
+                if stripped.startswith("#"):
+                    rebuilt = "#" + rebuilt
+                new_lines.append(rebuilt)
+            else:
+                new_lines.append(line)
+
+        with open(config_path, "w") as f:
+            f.writelines(new_lines)
+
+        result["reboot_required"] = True
+        result["message"] = f"TFT rotation set to {rotation}°. Reboot required."
+        logger.info(f"TFT rotation set to {rotation}°")
+
+    if "i2c_rotation" in data:
+        i2c_rot = int(data["i2c_rotation"])
+        if i2c_rot not in (0, 1, 2, 3):
+            return JSONResponse(
+                content={
+                    "success": False,
+                    "message": "I2C rotation must be 0, 1, 2, or 3",
+                },
+                status_code=400,
+            )
+
+        from src.common import load_settings, save_settings
+
+        settings = load_settings()
+        settings["i2c_rotation"] = i2c_rot
+        save_settings(settings)
+
+        from src.common import _i2c_display_ref
+
+        if _i2c_display_ref is not None:
+            try:
+                _i2c_display_ref.rotation = i2c_rot
+                _i2c_display_ref.show()
+            except Exception as e:
+                logger.warning(f"Could not apply I2C rotation live: {e}")
+
+        result["message"] = f"I2C rotation set to {i2c_rot * 90}°"
+        logger.info(f"I2C rotation set to {i2c_rot} ({i2c_rot * 90}°)")
+
+    return JSONResponse(content=result)
 
 
 @app.get("/api/display/multi")
