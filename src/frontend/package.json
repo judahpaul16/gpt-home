@@ -46,6 +46,7 @@
         "prebuild": "node scripts/generate-version.js",
         "start": "cross-env NODE_ENV=development react-scripts start",
         "build": "react-scripts build",
+        "check": "tsc --noEmit && echo 'Types OK' && eslint src/ && echo 'Lint OK'",
         "test": "react-scripts test",
         "eject": "react-scripts eject"
     },

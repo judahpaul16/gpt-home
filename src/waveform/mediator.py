@@ -64,6 +64,10 @@ class WaveformMediator:
         # Audio activity detector reference (for VAD)
         self._detector = None
 
+        # Adaptive gain for update_from_audio_chunk (matches AudioCapture approach)
+        self._recent_peak = 0.0
+        self._peak_decay = 0.95
+
         self._initialized = True
 
     @classmethod
@@ -227,6 +231,13 @@ class WaveformMediator:
             if len(raw) < 64:
                 return
 
+            overall_rms = audioop.rms(raw, sample_width)
+            if overall_rms > self._recent_peak:
+                self._recent_peak = float(overall_rms)
+            else:
+                self._recent_peak *= self._peak_decay
+            divisor = max(500.0, min(2000.0, self._recent_peak * 1.2))
+
             chunk_size = len(raw) // 32
             new_values = []
 
@@ -236,8 +247,7 @@ class WaveformMediator:
                 chunk = raw[start:end]
                 try:
                     rms = audioop.rms(chunk, sample_width)
-                    max_val = (1 << (8 * sample_width - 1)) - 1
-                    normalized = min(1.0, rms / (max_val * 0.35))
+                    normalized = min(1.0, rms / divisor)
                     new_values.append(normalized)
                 except Exception:
                     new_values.append(0.0)
@@ -295,6 +305,7 @@ class WaveformMediator:
         with self._data_lock:
             self._values = [0.0] * 32
             self._has_voice = False
+            self._recent_peak = 0.0
 
 
 def get_waveform_mediator() -> WaveformMediator:

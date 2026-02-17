@@ -401,7 +401,7 @@ class AudioCapture:
                 # Use adaptive normalization: divide by recent peak with a floor
                 # Floor of 800 prevents noise from being amplified too much
                 # Ceiling of 3000 prevents very loud audio from under-scaling
-                divisor = max(800.0, min(3000.0, self._recent_peak * 1.2))
+                divisor = max(500.0, min(2000.0, self._recent_peak * 1.2))
                 rms = min(1.0, raw_rms / divisor)
 
             self._prev_values.pop(0)

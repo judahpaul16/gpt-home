@@ -120,7 +120,7 @@ const Integrations: React.FC<IntegrationsProps> = ({
                 );
 
                 if (apiStatus !== undefined) {
-                    const [_, newStatusValue] = apiStatus;
+                    const [, newStatusValue] = apiStatus;
 
                     // ONLY update if the status has actually changed
                     // This breaks the infinite loop

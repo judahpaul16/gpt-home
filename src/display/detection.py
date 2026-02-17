@@ -328,7 +328,6 @@ def _detect_spi_tft() -> Optional[DisplayInfo]:
             continue
 
         if width > 0 and height > 0:
-            logger.debug("SPI TFT detected at %s: %dx%d", fb_path, width, height)
             return DisplayInfo(
                 screen_type=ScreenType.SPI_TFT,
                 width=width,

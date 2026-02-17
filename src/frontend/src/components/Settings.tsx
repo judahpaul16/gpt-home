@@ -279,9 +279,17 @@ const Settings: React.FC = () => {
     const [isChangingHardwareMode, setIsChangingHardwareMode] = useState(false);
     const [displayRotation, setDisplayRotation] = useState({
         tft_rotation: 0,
+        hdmi_rotation: 0,
         i2c_rotation: 2,
     });
     const [rotationRebootPending, setRotationRebootPending] = useState(false);
+    const [availableResolutions, setAvailableResolutions] = useState<string[]>(
+        [],
+    );
+    const [currentResolution, setCurrentResolution] = useState("");
+    const [resolutionConfigurable, setResolutionConfigurable] = useState(false);
+    const [resolutionRebootPending, setResolutionRebootPending] =
+        useState(false);
     const [audioState, setAudioState] = useState<AudioState>({
         devices: [],
         current: null,
@@ -461,8 +469,19 @@ const Settings: React.FC = () => {
                 console.error("Failed to fetch display rotation:", err);
             }
         };
+        const fetchResolutions = async () => {
+            try {
+                const response = await axios.get("/api/display/resolutions");
+                setAvailableResolutions(response.data.resolutions || []);
+                setCurrentResolution(response.data.current || "");
+                setResolutionConfigurable(response.data.configurable || false);
+            } catch (err) {
+                console.error("Failed to fetch display resolutions:", err);
+            }
+        };
         fetchHardwareMode();
         fetchRotation();
+        fetchResolutions();
     }, []);
 
     useEffect(() => {
@@ -746,6 +765,41 @@ const Settings: React.FC = () => {
             }
         } catch (err) {
             console.error("Failed to set I2C rotation:", err);
+        }
+    };
+
+    const handleHdmiRotationChange = async (rotation: number) => {
+        try {
+            const response = await axios.post("/api/display/rotation", {
+                hdmi_rotation: rotation,
+            });
+            if (response.data.success) {
+                setDisplayRotation((prev) => ({
+                    ...prev,
+                    hdmi_rotation: rotation,
+                }));
+                if (response.data.reboot_required) {
+                    setRotationRebootPending(true);
+                }
+            }
+        } catch (err) {
+            console.error("Failed to set HDMI rotation:", err);
+        }
+    };
+
+    const handleResolutionChange = async (resolution: string) => {
+        try {
+            const response = await axios.post("/api/display/resolution", {
+                resolution,
+            });
+            if (response.data.success) {
+                setCurrentResolution(resolution);
+                if (response.data.reboot_required) {
+                    setResolutionRebootPending(true);
+                }
+            }
+        } catch (err) {
+            console.error("Failed to set resolution:", err);
         }
     };
 
@@ -2246,392 +2300,484 @@ const Settings: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Display subsection */}
+                        {/* Primary Display */}
                         <div className="mb-4 sm:mb-6">
-                            <div className="flex flex-wrap items-center gap-2 mb-3">
-                                <div className="flex items-center gap-2">
-                                    <Icons.Monitor className="w-4 h-4 text-slate-500 flex-shrink-0" />
-                                    <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                        Display
-                                    </h3>
-                                </div>
-                                {displayStatus &&
-                                    displayStatus.displays.length > 0 && (
-                                        <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline">
-                                            {displayStatus.displays.find(
-                                                (d) =>
-                                                    d.type ===
-                                                    displayStatus.current_display_type,
-                                            )?.name ||
-                                                displayStatus.displays[0]
-                                                    .name ||
-                                                `${displayStatus.displays[0].width}x${displayStatus.displays[0].height} ${displayStatus.displays[0].type}`}
-                                        </span>
-                                    )}
-                                {displayStatus &&
-                                    hasOnlySimpleDisplay(displayStatus) && (
-                                        <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
-                                            Text Only
-                                        </span>
-                                    )}
-                                {displayStatus &&
-                                    displayStatus.active &&
-                                    shouldShowDisplayModes(displayStatus) && (
-                                        <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
-                                            Active
-                                        </span>
-                                    )}
-                                {displayStatus && !displayStatus.available && (
-                                    <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
-                                        No Display
-                                    </span>
-                                )}
-                                <div className="ml-auto flex items-center gap-1 sm:gap-2">
-                                    <button
-                                        onClick={handleRefreshDisplay}
-                                        disabled={isRefreshingDisplay}
-                                        className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-dark-600 transition-colors"
-                                        title="Refresh display detection"
-                                    >
-                                        {isRefreshingDisplay ? (
-                                            <Spinner size="sm" />
-                                        ) : (
-                                            <Icons.Refresh className="w-4 h-4 text-slate-400" />
+                            <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                                {/* Header bar with connector toggle + status + actions */}
+                                <div className="bg-slate-50 dark:bg-slate-800/70 px-4 py-2.5 flex flex-wrap items-center gap-2">
+                                    <div className="inline-flex rounded-lg bg-slate-200 dark:bg-slate-700 p-0.5">
+                                        <button
+                                            onClick={() =>
+                                                handleHardwareModeChange("hdmi")
+                                            }
+                                            disabled={
+                                                isChangingHardwareMode ||
+                                                hardwareDisplayMode ===
+                                                    "hdmi" ||
+                                                hardwareDisplayMode ===
+                                                    "unknown"
+                                            }
+                                            className={cn(
+                                                "px-3 py-1 rounded-md text-xs font-medium transition-all",
+                                                hardwareDisplayMode ===
+                                                    "hdmi" ||
+                                                    hardwareDisplayMode ===
+                                                        "unknown"
+                                                    ? "bg-white dark:bg-slate-600 text-slate-900 dark:text-white shadow-sm"
+                                                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200",
+                                                isChangingHardwareMode &&
+                                                    "opacity-50 cursor-not-allowed",
+                                            )}
+                                        >
+                                            {isChangingHardwareMode &&
+                                            hardwareDisplayMode !== "hdmi" ? (
+                                                <Spinner size="sm" />
+                                            ) : (
+                                                "HDMI"
+                                            )}
+                                        </button>
+                                        <button
+                                            onClick={() =>
+                                                handleHardwareModeChange("tft")
+                                            }
+                                            disabled={
+                                                isChangingHardwareMode ||
+                                                hardwareDisplayMode === "tft"
+                                            }
+                                            className={cn(
+                                                "px-3 py-1 rounded-md text-xs font-medium transition-all",
+                                                hardwareDisplayMode === "tft"
+                                                    ? "bg-white dark:bg-slate-600 text-slate-900 dark:text-white shadow-sm"
+                                                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200",
+                                                isChangingHardwareMode &&
+                                                    "opacity-50 cursor-not-allowed",
+                                            )}
+                                        >
+                                            {isChangingHardwareMode &&
+                                            hardwareDisplayMode !== "tft" ? (
+                                                <Spinner size="sm" />
+                                            ) : (
+                                                "TFT"
+                                            )}
+                                        </button>
+                                    </div>
+                                    {displayStatus &&
+                                        displayStatus.displays.length > 0 && (
+                                            <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline">
+                                                {currentResolution ||
+                                                    `${displayStatus.displays[0].width}x${displayStatus.displays[0].height}`}
+                                            </span>
                                         )}
-                                    </button>
-                                    <button
-                                        onClick={handlePowerOnDisplay}
-                                        disabled={isPoweringDisplay}
-                                        className="btn-secondary text-xs flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3"
-                                        title="Power on display"
-                                    >
-                                        {isPoweringDisplay ? (
-                                            <Spinner size="sm" />
-                                        ) : (
-                                            <Icons.Power className="w-3.5 h-3.5" />
-                                        )}
-                                        <span className="hidden xs:inline">
-                                            Power
-                                        </span>{" "}
-                                        On
-                                    </button>
-                                </div>
-                            </div>
-
-                            {displayStatus && !displayStatus.available && (
-                                <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
-                                    Connect an HDMI display, SPI/TFT LCD, or I2C
-                                    display.
-                                </p>
-                            )}
-
-                            {displayStatus &&
-                                hasOnlySimpleDisplay(displayStatus) && (
-                                    <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 mb-3">
-                                        <p className="text-xs text-amber-600 dark:text-amber-400">
-                                            I2C display detected - text output
-                                            only. Display modes require HDMI or
-                                            TFT LCD.
-                                        </p>
-                                    </div>
-                                )}
-
-                            {/* Multi-display controls - show when multiple full displays detected */}
-                            {displayStatus &&
-                                displayStatus.displays.filter(
-                                    (d) => d.supports_modes,
-                                ).length > 1 && (
-                                    <div className="mb-4 space-y-3">
-                                        {/* Mirror Mode Toggle */}
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block">
-                                                    Mirror Displays
-                                                </label>
-                                                <p className="text-xs text-slate-500 dark:text-slate-500">
-                                                    Show same content on all
-                                                    displays
-                                                </p>
-                                            </div>
-                                            <button
-                                                onClick={() =>
-                                                    handleMirrorToggle(
-                                                        !displayStatus.mirror_enabled,
-                                                    )
-                                                }
-                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                                    displayStatus.mirror_enabled
-                                                        ? "bg-indigo-600"
-                                                        : "bg-slate-200 dark:bg-slate-700"
-                                                }`}
-                                            >
-                                                <span
-                                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                                        displayStatus.mirror_enabled
-                                                            ? "translate-x-6"
-                                                            : "translate-x-1"
-                                                    }`}
-                                                />
-                                            </button>
-                                        </div>
-
-                                        {/* Per-display enable/disable */}
-                                        <div>
-                                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2 block">
-                                                Enabled Displays
-                                            </label>
-                                            <div className="space-y-2">
-                                                {displayStatus.displays
-                                                    .filter(
-                                                        (d) => d.supports_modes,
-                                                    )
-                                                    .map((display) => (
-                                                        <div
-                                                            key={display.id}
-                                                            className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50"
-                                                        >
-                                                            <div className="flex items-center gap-2">
-                                                                <Icons.Monitor className="w-4 h-4 text-slate-400" />
-                                                                <span className="text-sm text-slate-700 dark:text-slate-300">
-                                                                    {
-                                                                        display.name
-                                                                    }
-                                                                </span>
-                                                            </div>
-                                                            <button
-                                                                onClick={() =>
-                                                                    handleDisplayEnable(
-                                                                        display.id,
-                                                                        !display.enabled,
-                                                                    )
-                                                                }
-                                                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                                                                    display.enabled !==
-                                                                    false
-                                                                        ? "bg-emerald-500"
-                                                                        : "bg-slate-300 dark:bg-slate-600"
-                                                                }`}
-                                                            >
-                                                                <span
-                                                                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                                                                        display.enabled !==
-                                                                        false
-                                                                            ? "translate-x-4"
-                                                                            : "translate-x-1"
-                                                                    }`}
-                                                                />
-                                                            </button>
-                                                        </div>
-                                                    ))}
-                                            </div>
-                                            <p className="text-xs text-slate-500 mt-1">
-                                                Disabled displays show TTY
-                                                console
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
-
-                            {displayStatus &&
-                                displayStatus.available &&
-                                shouldShowDisplayModes(displayStatus) && (
-                                    <div className="flex items-center gap-5">
-                                        <div className="w-full">
-                                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">
-                                                Display Mode
-                                            </label>
-                                            <div className="relative">
-                                                <select
-                                                    value={
-                                                        settings.display_mode ||
-                                                        "smart"
-                                                    }
-                                                    onChange={(e) =>
-                                                        handleDisplayModeChange(
-                                                            e.target.value,
-                                                        )
-                                                    }
-                                                    className="select-field text-sm mr-4 w-full"
-                                                >
-                                                    {DISPLAY_MODES.map(
-                                                        (mode) => (
-                                                            <option
-                                                                key={mode.value}
-                                                                value={
-                                                                    mode.value
-                                                                }
-                                                            >
-                                                                {mode.label}
-                                                            </option>
-                                                        ),
-                                                    )}
-                                                </select>
-                                                <Icons.ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none w-4 h-4" />
-                                            </div>
-                                        </div>
-
-                                        {settings.display_mode ===
-                                            "gallery" && (
-                                            <div className="w-full">
-                                                <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">
-                                                    Interval (seconds)
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    min="3"
-                                                    max="60"
-                                                    value={
-                                                        settings.gallery_interval ||
-                                                        10
-                                                    }
-                                                    onChange={(e) =>
-                                                        setSettings({
-                                                            ...settings,
-                                                            gallery_interval:
-                                                                parseInt(
-                                                                    e.target
-                                                                        .value,
-                                                                    10,
-                                                                ),
-                                                        })
-                                                    }
-                                                    className="input-field w-24 text-sm w-full"
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                            {/* Hardware Display Mode Toggle */}
-                            <div className="mt-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                                <div className="flex items-center justify-between mb-2">
-                                    <div>
-                                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block">
-                                            Hardware Display Mode
-                                        </label>
-                                        <p className="text-xs text-slate-500 dark:text-slate-500">
-                                            Switch between HDMI and TFT display
-                                            (requires reboot)
-                                        </p>
-                                    </div>
                                     {hardwareDisplayMode === "conflict" && (
                                         <span className="text-xs px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400">
                                             Conflict
                                         </span>
                                     )}
+                                    {displayStatus &&
+                                        displayStatus.active &&
+                                        shouldShowDisplayModes(
+                                            displayStatus,
+                                        ) && (
+                                            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
+                                                Active
+                                            </span>
+                                        )}
+                                    {displayStatus &&
+                                        !displayStatus.available && (
+                                            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                                                No Display
+                                            </span>
+                                        )}
+                                    <div className="ml-auto flex items-center gap-1">
+                                        <button
+                                            onClick={handleRefreshDisplay}
+                                            disabled={isRefreshingDisplay}
+                                            className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                                            title="Refresh display detection"
+                                        >
+                                            {isRefreshingDisplay ? (
+                                                <Spinner size="sm" />
+                                            ) : (
+                                                <Icons.Refresh className="w-3.5 h-3.5 text-slate-400" />
+                                            )}
+                                        </button>
+                                        <button
+                                            onClick={handlePowerOnDisplay}
+                                            disabled={isPoweringDisplay}
+                                            className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                                            title="Power on display"
+                                        >
+                                            {isPoweringDisplay ? (
+                                                <Spinner size="sm" />
+                                            ) : (
+                                                <Icons.Power className="w-3.5 h-3.5 text-slate-400" />
+                                            )}
+                                        </button>
+                                    </div>
                                 </div>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() =>
-                                            handleHardwareModeChange("hdmi")
-                                        }
-                                        disabled={
-                                            isChangingHardwareMode ||
-                                            hardwareDisplayMode === "hdmi" ||
-                                            hardwareDisplayMode === "unknown"
-                                        }
-                                        className={cn(
-                                            "flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors",
-                                            hardwareDisplayMode === "hdmi" ||
-                                                hardwareDisplayMode ===
-                                                    "unknown"
-                                                ? "bg-primary-500 text-white"
-                                                : "bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600",
-                                            (isChangingHardwareMode ||
-                                                hardwareDisplayMode ===
-                                                    "hdmi" ||
-                                                hardwareDisplayMode ===
-                                                    "unknown") &&
-                                                "cursor-not-allowed",
-                                            isChangingHardwareMode &&
-                                                "opacity-50",
-                                        )}
-                                    >
-                                        {isChangingHardwareMode ? (
-                                            <Spinner size="sm" />
-                                        ) : (
-                                            <>
-                                                <Icons.Monitor className="w-4 h-4 inline mr-1.5" />
-                                                HDMI
-                                            </>
-                                        )}
-                                    </button>
-                                    <button
-                                        onClick={() =>
-                                            handleHardwareModeChange("tft")
-                                        }
-                                        disabled={
-                                            isChangingHardwareMode ||
-                                            hardwareDisplayMode === "tft"
-                                        }
-                                        className={cn(
-                                            "flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors",
-                                            hardwareDisplayMode === "tft"
-                                                ? "bg-primary-500 text-white"
-                                                : "bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600",
-                                            (isChangingHardwareMode ||
-                                                hardwareDisplayMode ===
-                                                    "tft") &&
-                                                "cursor-not-allowed",
-                                            isChangingHardwareMode &&
-                                                "opacity-50",
-                                        )}
-                                    >
-                                        {isChangingHardwareMode ? (
-                                            <Spinner size="sm" />
-                                        ) : (
-                                            <>
-                                                <Icons.Cpu className="w-4 h-4 inline mr-1.5" />
-                                                TFT (SPI)
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
+
                                 {hardwareDisplayMode === "conflict" && (
-                                    <p className="text-xs text-rose-500 mt-2">
-                                        Both HDMI and TFT overlays are active.
-                                        This will cause boot issues. Select one
-                                        mode to fix.
-                                    </p>
+                                    <div className="px-4 py-2 bg-rose-50 dark:bg-rose-900/10 border-t border-rose-200 dark:border-rose-800">
+                                        <p className="text-xs text-rose-600 dark:text-rose-400">
+                                            Both HDMI and TFT overlays are
+                                            active. Select one to fix.
+                                        </p>
+                                    </div>
                                 )}
+
+                                {/* Body */}
+                                <div className="px-4 py-3">
+                                    {displayStatus &&
+                                        !displayStatus.available && (
+                                            <p className="text-sm text-slate-500 dark:text-slate-400">
+                                                Connect an HDMI display or
+                                                SPI/TFT LCD.
+                                            </p>
+                                        )}
+
+                                    {displayStatus &&
+                                        hasOnlySimpleDisplay(displayStatus) && (
+                                            <p className="text-xs text-amber-600 dark:text-amber-400">
+                                                I2C display detected — text
+                                                output only. Display modes
+                                                require HDMI or TFT.
+                                            </p>
+                                        )}
+
+                                    {/* Multi-display controls */}
+                                    {displayStatus &&
+                                        displayStatus.displays.filter(
+                                            (d) => d.supports_modes,
+                                        ).length > 1 && (
+                                            <div className="mb-3 space-y-3">
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block">
+                                                            Mirror Displays
+                                                        </label>
+                                                        <p className="text-xs text-slate-500">
+                                                            Show same content on
+                                                            all displays
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() =>
+                                                            handleMirrorToggle(
+                                                                !displayStatus.mirror_enabled,
+                                                            )
+                                                        }
+                                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                                            displayStatus.mirror_enabled
+                                                                ? "bg-indigo-600"
+                                                                : "bg-slate-200 dark:bg-slate-700"
+                                                        }`}
+                                                    >
+                                                        <span
+                                                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                                                displayStatus.mirror_enabled
+                                                                    ? "translate-x-6"
+                                                                    : "translate-x-1"
+                                                            }`}
+                                                        />
+                                                    </button>
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2 block">
+                                                        Enabled Displays
+                                                    </label>
+                                                    <div className="space-y-2">
+                                                        {displayStatus.displays
+                                                            .filter(
+                                                                (d) =>
+                                                                    d.supports_modes,
+                                                            )
+                                                            .map((display) => (
+                                                                <div
+                                                                    key={
+                                                                        display.id
+                                                                    }
+                                                                    className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50"
+                                                                >
+                                                                    <div className="flex items-center gap-2">
+                                                                        <Icons.Monitor className="w-4 h-4 text-slate-400" />
+                                                                        <span className="text-sm text-slate-700 dark:text-slate-300">
+                                                                            {
+                                                                                display.name
+                                                                            }
+                                                                        </span>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={() =>
+                                                                            handleDisplayEnable(
+                                                                                display.id,
+                                                                                !display.enabled,
+                                                                            )
+                                                                        }
+                                                                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                                                                            display.enabled !==
+                                                                            false
+                                                                                ? "bg-emerald-500"
+                                                                                : "bg-slate-300 dark:bg-slate-600"
+                                                                        }`}
+                                                                    >
+                                                                        <span
+                                                                            className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                                                                display.enabled !==
+                                                                                false
+                                                                                    ? "translate-x-4"
+                                                                                    : "translate-x-1"
+                                                                            }`}
+                                                                        />
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                    </div>
+                                                    <p className="text-xs text-slate-500 mt-1">
+                                                        Disabled displays show
+                                                        TTY console
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                    {/* Mode / Resolution / Rotation */}
+                                    {displayStatus &&
+                                        displayStatus.available &&
+                                        shouldShowDisplayModes(
+                                            displayStatus,
+                                        ) && (
+                                            <div className="flex flex-wrap gap-3">
+                                                <div className="flex-1 min-w-[120px]">
+                                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">
+                                                        Mode
+                                                    </label>
+                                                    <div className="relative">
+                                                        <select
+                                                            value={
+                                                                settings.display_mode ||
+                                                                "smart"
+                                                            }
+                                                            onChange={(e) =>
+                                                                handleDisplayModeChange(
+                                                                    e.target
+                                                                        .value,
+                                                                )
+                                                            }
+                                                            className="select-field text-sm"
+                                                        >
+                                                            {DISPLAY_MODES.map(
+                                                                (mode) => (
+                                                                    <option
+                                                                        key={
+                                                                            mode.value
+                                                                        }
+                                                                        value={
+                                                                            mode.value
+                                                                        }
+                                                                    >
+                                                                        {
+                                                                            mode.label
+                                                                        }
+                                                                    </option>
+                                                                ),
+                                                            )}
+                                                        </select>
+                                                        <Icons.ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none w-4 h-4" />
+                                                    </div>
+                                                    {settings.display_mode ===
+                                                        "gallery" && (
+                                                        <div className="mt-1.5 flex items-center gap-2">
+                                                            <label className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                                                Interval
+                                                            </label>
+                                                            <input
+                                                                type="number"
+                                                                min="3"
+                                                                max="60"
+                                                                value={
+                                                                    settings.gallery_interval ||
+                                                                    10
+                                                                }
+                                                                onChange={(e) =>
+                                                                    setSettings(
+                                                                        {
+                                                                            ...settings,
+                                                                            gallery_interval:
+                                                                                parseInt(
+                                                                                    e
+                                                                                        .target
+                                                                                        .value,
+                                                                                    10,
+                                                                                ),
+                                                                        },
+                                                                    )
+                                                                }
+                                                                className="input-field w-16 text-sm"
+                                                            />
+                                                            <span className="text-xs text-slate-400">
+                                                                sec
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {resolutionConfigurable && (
+                                                    <div className="flex-1 min-w-[120px]">
+                                                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">
+                                                            Resolution
+                                                        </label>
+                                                        <div className="relative">
+                                                            <select
+                                                                value={
+                                                                    currentResolution
+                                                                }
+                                                                onChange={(e) =>
+                                                                    handleResolutionChange(
+                                                                        e.target
+                                                                            .value,
+                                                                    )
+                                                                }
+                                                                className="select-field text-sm"
+                                                            >
+                                                                {availableResolutions.map(
+                                                                    (res) => (
+                                                                        <option
+                                                                            key={
+                                                                                res
+                                                                            }
+                                                                            value={
+                                                                                res
+                                                                            }
+                                                                        >
+                                                                            {
+                                                                                res
+                                                                            }
+                                                                        </option>
+                                                                    ),
+                                                                )}
+                                                                {currentResolution &&
+                                                                    !availableResolutions.includes(
+                                                                        currentResolution,
+                                                                    ) && (
+                                                                        <option
+                                                                            value={
+                                                                                currentResolution
+                                                                            }
+                                                                        >
+                                                                            {
+                                                                                currentResolution
+                                                                            }
+                                                                        </option>
+                                                                    )}
+                                                            </select>
+                                                            <Icons.ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none w-4 h-4" />
+                                                        </div>
+                                                        {resolutionRebootPending && (
+                                                            <p className="text-xs text-amber-500 mt-1">
+                                                                Reboot required
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {!resolutionConfigurable &&
+                                                    currentResolution && (
+                                                        <div className="flex-1 min-w-[120px]">
+                                                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">
+                                                                Resolution
+                                                            </label>
+                                                            <p className="text-sm text-slate-500 dark:text-slate-400 py-2">
+                                                                {
+                                                                    currentResolution
+                                                                }{" "}
+                                                                (fixed)
+                                                            </p>
+                                                        </div>
+                                                    )}
+
+                                                <div className="w-24">
+                                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">
+                                                        Rotation
+                                                    </label>
+                                                    <div className="relative">
+                                                        <select
+                                                            value={
+                                                                hardwareDisplayMode ===
+                                                                    "hdmi" ||
+                                                                hardwareDisplayMode ===
+                                                                    "unknown"
+                                                                    ? displayRotation.hdmi_rotation
+                                                                    : displayRotation.tft_rotation
+                                                            }
+                                                            onChange={(e) => {
+                                                                const val =
+                                                                    parseInt(
+                                                                        e.target
+                                                                            .value,
+                                                                        10,
+                                                                    );
+                                                                if (
+                                                                    hardwareDisplayMode ===
+                                                                        "hdmi" ||
+                                                                    hardwareDisplayMode ===
+                                                                        "unknown"
+                                                                ) {
+                                                                    handleHdmiRotationChange(
+                                                                        val,
+                                                                    );
+                                                                } else {
+                                                                    handleTftRotationChange(
+                                                                        val,
+                                                                    );
+                                                                }
+                                                            }}
+                                                            className="select-field text-sm"
+                                                        >
+                                                            <option value={0}>
+                                                                0°
+                                                            </option>
+                                                            <option value={90}>
+                                                                90°
+                                                            </option>
+                                                            <option value={180}>
+                                                                180°
+                                                            </option>
+                                                            <option value={270}>
+                                                                270°
+                                                            </option>
+                                                        </select>
+                                                        <Icons.ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none w-4 h-4" />
+                                                    </div>
+                                                    {rotationRebootPending && (
+                                                        <p className="text-xs text-amber-500 mt-1">
+                                                            Reboot required
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                </div>
                             </div>
                         </div>
 
-                        {/* Display Rotation */}
-                        <div className="mt-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-2">
-                                Display Rotation
-                            </label>
-                            <div className="space-y-2">
-                                {(hardwareDisplayMode === "tft" ||
-                                    hardwareDisplayMode === "conflict") && (
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                                            TFT / HDMI
-                                        </span>
-                                        <select
-                                            value={displayRotation.tft_rotation}
-                                            onChange={(e) =>
-                                                handleTftRotationChange(
-                                                    parseInt(
-                                                        e.target.value,
-                                                        10,
-                                                    ),
-                                                )
-                                            }
-                                            className="input-field text-sm w-32"
-                                        >
-                                            <option value={0}>0°</option>
-                                            <option value={90}>90°</option>
-                                            <option value={180}>180°</option>
-                                            <option value={270}>270°</option>
-                                        </select>
-                                    </div>
-                                )}
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs text-slate-500 dark:text-slate-400">
-                                        I2C OLED
+                        {/* I2C Display */}
+                        <div className="mb-4 sm:mb-6 rounded-lg border border-dashed border-slate-200 dark:border-slate-700 px-3 py-2.5 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Icons.Cpu className="w-3.5 h-3.5 text-slate-400" />
+                                <div>
+                                    <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                                        I2C Display
                                     </span>
+                                    <span className="text-[10px] text-slate-400 dark:text-slate-500 ml-1.5">
+                                        Auxiliary display
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                                    Rotation
+                                </span>
+                                <div className="relative w-20">
                                     <select
                                         value={displayRotation.i2c_rotation}
                                         onChange={(e) =>
@@ -2639,21 +2785,16 @@ const Settings: React.FC = () => {
                                                 parseInt(e.target.value, 10),
                                             )
                                         }
-                                        className="input-field text-sm w-32"
+                                        className="select-field text-xs py-1"
                                     >
                                         <option value={0}>0°</option>
                                         <option value={1}>90°</option>
                                         <option value={2}>180°</option>
                                         <option value={3}>270°</option>
                                     </select>
+                                    <Icons.ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none w-3.5 h-3.5" />
                                 </div>
                             </div>
-                            {rotationRebootPending && (
-                                <p className="text-xs text-amber-500 mt-2">
-                                    TFT rotation changed. Reboot required to
-                                    apply.
-                                </p>
-                            )}
                         </div>
 
                         {/* Divider */}

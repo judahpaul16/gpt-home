@@ -3272,6 +3272,180 @@ async def get_display_hardware_mode():
         )
 
 
+def _get_cmdline_path() -> str | None:
+    for path in ["/boot/firmware/cmdline.txt", "/boot/cmdline.txt"]:
+        if os.path.exists(path):
+            return path
+    return None
+
+
+def _parse_video_param(cmdline: str) -> dict | None:
+    match = re.search(r"video=(\S+)", cmdline)
+    if not match:
+        return None
+    param = match.group(1)
+    result = {"raw": match.group(0)}
+    conn_match = re.match(r"([^:]+):(.+)", param)
+    if conn_match:
+        result["connector"] = conn_match.group(1)
+        mode_str = conn_match.group(2)
+    else:
+        mode_str = param
+    res_match = re.search(r"(\d+)x(\d+)", mode_str)
+    if res_match:
+        result["resolution"] = f"{res_match.group(1)}x{res_match.group(2)}"
+    rot_match = re.search(r"rotate=(\d+)", mode_str)
+    result["rotate"] = int(rot_match.group(1)) if rot_match else 0
+    return result
+
+
+def _build_video_param(connector: str, resolution: str, rotate: int = 0) -> str:
+    param = f"video={connector}:{resolution}M@60"
+    if rotate:
+        param += f",rotate={rotate}"
+    return param
+
+
+def _update_cmdline_video(cmdline: str, new_video: str) -> str:
+    if re.search(r"video=\S+", cmdline):
+        return re.sub(r"video=\S+", new_video, cmdline)
+    return cmdline.rstrip() + " " + new_video
+
+
+def _get_hdmi_modes() -> tuple[list[str], str | None]:
+    drm_class = Path("/sys/class/drm")
+    if not drm_class.exists():
+        return [], None
+    for connector in drm_class.iterdir():
+        if "hdmi" not in connector.name.lower():
+            continue
+        status_file = connector / "status"
+        if status_file.exists():
+            try:
+                if status_file.read_text().strip() != "connected":
+                    continue
+            except Exception:
+                continue
+        modes_file = connector / "modes"
+        if not modes_file.exists():
+            continue
+        try:
+            lines = modes_file.read_text().strip().split("\n")
+            seen = set()
+            modes = []
+            for line in lines:
+                m = re.search(r"(\d+)x(\d+)", line.strip())
+                if m:
+                    res = f"{m.group(1)}x{m.group(2)}"
+                    if res not in seen:
+                        seen.add(res)
+                        modes.append(res)
+            conn_name = re.sub(r"^card\d+-", "", connector.name)
+            return modes, conn_name
+        except Exception:
+            continue
+    return [], None
+
+
+@app.get("/api/display/resolutions")
+async def get_display_resolutions():
+    modes, connector = _get_hdmi_modes()
+    current = None
+    configurable = len(modes) > 0
+
+    cmdline_path = _get_cmdline_path()
+    if cmdline_path and connector:
+        try:
+            with open(cmdline_path, "r") as f:
+                parsed = _parse_video_param(f.read().strip())
+            if parsed and "resolution" in parsed:
+                current = parsed["resolution"]
+        except Exception:
+            pass
+
+    if not current:
+        try:
+            from src.display.detection import detect_displays
+
+            displays = detect_displays()
+            if displays:
+                current = f"{displays[0].width}x{displays[0].height}"
+        except Exception:
+            pass
+
+    if not current and modes:
+        current = modes[0]
+
+    return JSONResponse(
+        content={
+            "resolutions": modes,
+            "current": current or "unknown",
+            "connector": connector,
+            "configurable": configurable,
+        }
+    )
+
+
+@app.post("/api/display/resolution")
+async def set_display_resolution(request: Request):
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse(
+            content={"success": False, "message": "Invalid JSON"}, status_code=400
+        )
+
+    resolution = data.get("resolution")
+    if not resolution or not re.match(r"^\d+x\d+$", resolution):
+        return JSONResponse(
+            content={"success": False, "message": "Invalid resolution format"},
+            status_code=400,
+        )
+
+    modes, connector = _get_hdmi_modes()
+    if not connector:
+        return JSONResponse(
+            content={"success": False, "message": "No HDMI connector found"},
+            status_code=404,
+        )
+
+    if modes and resolution not in modes:
+        return JSONResponse(
+            content={
+                "success": False,
+                "message": f"Resolution {resolution} not supported",
+            },
+            status_code=400,
+        )
+
+    cmdline_path = _get_cmdline_path()
+    if not cmdline_path:
+        return JSONResponse(
+            content={"success": False, "message": "cmdline.txt not found"},
+            status_code=404,
+        )
+
+    with open(cmdline_path, "r") as f:
+        cmdline = f.read().strip()
+
+    existing = _parse_video_param(cmdline)
+    rotate = existing["rotate"] if existing else 0
+    new_video = _build_video_param(connector, resolution, rotate)
+    cmdline = _update_cmdline_video(cmdline, new_video)
+
+    with open(cmdline_path, "w") as f:
+        f.write(cmdline + "\n")
+
+    logger.info(f"HDMI resolution set to {resolution}")
+    return JSONResponse(
+        content={
+            "success": True,
+            "reboot_required": True,
+            "message": f"Resolution set to {resolution}. Reboot required.",
+        }
+    )
+
+
 @app.get("/api/display/rotation")
 async def get_display_rotation():
     """Get current display rotation settings."""
@@ -3296,20 +3470,34 @@ async def get_display_rotation():
     except Exception as e:
         logger.error(f"Error reading TFT rotation: {e}")
 
+    hdmi_rotation = 0
+    cmdline_path = _get_cmdline_path()
+    if cmdline_path:
+        try:
+            with open(cmdline_path, "r") as f:
+                parsed = _parse_video_param(f.read().strip())
+            if parsed:
+                hdmi_rotation = parsed.get("rotate", 0)
+        except Exception:
+            pass
+
     from src.common import load_settings
 
     settings = load_settings()
     i2c_rotation = settings.get("i2c_rotation", 2)
 
     return JSONResponse(
-        content={"tft_rotation": tft_rotation, "i2c_rotation": i2c_rotation}
+        content={
+            "tft_rotation": tft_rotation,
+            "hdmi_rotation": hdmi_rotation,
+            "i2c_rotation": i2c_rotation,
+        }
     )
 
 
 @app.post("/api/display/rotation")
 async def set_display_rotation(request: Request):
-    """Set display rotation. TFT rotation modifies config.txt (reboot required).
-    I2C rotation is applied live via settings.json."""
+    """Set display rotation. TFT/HDMI require reboot. I2C is applied live."""
     try:
         data = await request.json()
     except Exception:
@@ -3372,6 +3560,62 @@ async def set_display_rotation(request: Request):
         result["reboot_required"] = True
         result["message"] = f"TFT rotation set to {rotation}°. Reboot required."
         logger.info(f"TFT rotation set to {rotation}°")
+
+    if "hdmi_rotation" in data:
+        rotation = int(data["hdmi_rotation"])
+        if rotation not in (0, 90, 180, 270):
+            return JSONResponse(
+                content={
+                    "success": False,
+                    "message": "HDMI rotation must be 0, 90, 180, or 270",
+                },
+                status_code=400,
+            )
+
+        _, connector = _get_hdmi_modes()
+        if not connector:
+            return JSONResponse(
+                content={"success": False, "message": "No HDMI connector found"},
+                status_code=404,
+            )
+
+        cmdline_path = _get_cmdline_path()
+        if not cmdline_path:
+            return JSONResponse(
+                content={"success": False, "message": "cmdline.txt not found"},
+                status_code=404,
+            )
+
+        with open(cmdline_path, "r") as f:
+            cmdline = f.read().strip()
+
+        existing = _parse_video_param(cmdline)
+        resolution = (
+            existing["resolution"] if existing and "resolution" in existing else None
+        )
+
+        if not resolution:
+            try:
+                from src.display.detection import detect_displays
+
+                displays = detect_displays()
+                if displays:
+                    resolution = f"{displays[0].width}x{displays[0].height}"
+            except Exception:
+                pass
+
+        if not resolution:
+            resolution = "1920x1080"
+
+        new_video = _build_video_param(connector, resolution, rotation)
+        cmdline = _update_cmdline_video(cmdline, new_video)
+
+        with open(cmdline_path, "w") as f:
+            f.write(cmdline + "\n")
+
+        result["reboot_required"] = True
+        result["message"] = f"HDMI rotation set to {rotation}°. Reboot required."
+        logger.info(f"HDMI rotation set to {rotation}°")
 
     if "i2c_rotation" in data:
         i2c_rot = int(data["i2c_rotation"])
