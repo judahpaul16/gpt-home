@@ -1,17 +1,14 @@
 """Clock display mode loop."""
 
 import asyncio
-import logging
 from datetime import datetime
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING, Callable
 
 from ..base import Color, DisplayMode
 from ..renderers import draw_host_ip_overlay
 
 if TYPE_CHECKING:
     from ..manager import DisplayManager
-
-logger = logging.getLogger(__name__)
 
 
 async def clock_loop(
@@ -30,20 +27,11 @@ async def clock_loop(
             if stop_check() or screensaver_check():
                 break
 
-            # Determine sleep time before acquiring lock
             is_waveform_mode = (
                 (manager._waveform_active or manager._waveform_explicitly_started)
                 and manager._mode == DisplayMode.SMART
                 and not manager._spotify_active
             )
-
-            # Log waveform state occasionally
-            if manager._frame % 120 == 0:
-                logger.debug(
-                    f"clock_loop: waveform_active={manager._waveform_active}, "
-                    f"explicitly_started={manager._waveform_explicitly_started}, "
-                    f"is_waveform_mode={is_waveform_mode}"
-                )
 
             async with manager._render_lock:
                 d = manager._display

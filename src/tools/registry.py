@@ -1,6 +1,9 @@
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Callable, List, Optional
+
+logger = logging.getLogger("tools.registry")
 
 from langchain_core.tools import Tool, tool
 
@@ -135,5 +138,5 @@ def get_all_tools() -> List[Tool]:
     )
 
     available = registry.get_available()
-    print(f"[TOOLS] Available tools: {[t.name for t in available]}", flush=True)
+    logger.info("Available tools: %s", [t.name for t in available])
     return available

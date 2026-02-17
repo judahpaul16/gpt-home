@@ -11,7 +11,7 @@ from PIL import Image
 
 from ..base import BaseDisplay, Color, Colors, DisplayInfo
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("display.kmsdrm")
 
 
 @contextmanager
@@ -40,7 +40,7 @@ class KmsdrmDisplay(BaseDisplay):
         self._initialized = False
 
     async def initialize(self) -> bool:
-        logger.info("Initializing KMSDRM display...")
+        logger.debug("Initializing KMSDRM display...")
 
         os.environ["SDL_VIDEODRIVER"] = "kmsdrm"
         os.environ["SDL_KMSDRM_REQUIRE_DRM_MASTER"] = "0"
@@ -66,17 +66,16 @@ class KmsdrmDisplay(BaseDisplay):
             self._running = True
             self._initialized = True
 
-            logger.info(
-                f"KMSDRM display initialized: {self.width}x{self.height} "
-                f"(driver: {pygame.display.get_driver()})"
+            logger.debug(
+                "KMSDRM initialized: %dx%d (driver: %s)",
+                self.width,
+                self.height,
+                pygame.display.get_driver(),
             )
             return True
 
         except Exception as e:
-            logger.error(f"KMSDRM init failed: {e}")
-            import traceback
-
-            logger.debug(traceback.format_exc())
+            logger.error("KMSDRM init failed: %s", e)
             if self._pygame:
                 try:
                     self._pygame.quit()
@@ -291,7 +290,7 @@ class KmsdrmDisplay(BaseDisplay):
                 if self._back_buffer:
                     self._back_buffer.blit(img, (x, y))
         except Exception as e:
-            logger.error(f"Failed to load image {image_path}: {e}")
+            logger.error("Failed to load image %s: %s", image_path, e)
 
     def show_sync(self) -> None:
         if not self._screen or not self._back_buffer or not self._pygame:
@@ -305,22 +304,20 @@ class KmsdrmDisplay(BaseDisplay):
         self.show_sync()
 
     async def shutdown(self) -> None:
-        logger.info("Shutting down KMSDRM display...")
+        logger.debug("Shutting down KMSDRM display")
         self._running = False
         self._initialized = False
 
         if self._pygame:
             try:
                 self._pygame.quit()
-            except Exception as e:
-                logger.warning(f"Error during pygame shutdown: {e}")
+            except Exception:
+                pass
             self._pygame = None
 
         self._screen = None
         self._back_buffer = None
         self._font_cache.clear()
-
-        logger.info("KMSDRM display shutdown complete")
 
 
 def check_drm_support() -> dict:

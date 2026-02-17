@@ -7,6 +7,7 @@ warnings.filterwarnings("ignore", message="Pydantic serializer warnings")
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 # Suppress LangChain deprecation warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="langchain")
+warnings.filterwarnings("ignore", category=UserWarning, module="pkg_resources")
 
 import asyncio
 import audioop
@@ -18,6 +19,7 @@ import re
 import string
 import struct
 import subprocess
+import sys
 import tempfile
 import textwrap
 import threading
@@ -322,11 +324,18 @@ class FlushingFileHandler(logging.FileHandler):
         self.flush()
 
 
-# Configure logging with immediate flush for SSE real-time updates
+_log_fmt = logging.Formatter("%(levelname)s:%(name)s:%(message)s")
+
 handler = FlushingFileHandler(log_file_path)
 handler.setLevel(logging.DEBUG)
-handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
+handler.setFormatter(_log_fmt)
 logging.root.addHandler(handler)
+
+_stdout_handler = logging.StreamHandler(sys.stdout)
+_stdout_handler.setLevel(logging.DEBUG)
+_stdout_handler.setFormatter(_log_fmt)
+logging.root.addHandler(_stdout_handler)
+
 logging.root.setLevel(logging.DEBUG)
 
 logger = logging.getLogger(__name__)
@@ -340,6 +349,11 @@ logging.getLogger("langsmith").setLevel(logging.WARNING)
 logging.getLogger("LiteLLM").setLevel(logging.ERROR)
 logging.getLogger("LiteLLM Proxy").setLevel(logging.ERROR)
 logging.getLogger("litellm").setLevel(logging.ERROR)
+logging.getLogger("asyncio").setLevel(logging.WARNING)
+logging.getLogger("PIL").setLevel(logging.WARNING)
+logging.getLogger("matplotlib").setLevel(logging.WARNING)
+logging.getLogger("uvicorn").setLevel(logging.INFO)
+logging.getLogger("uvicorn.access").setLevel(logging.INFO)
 
 try:
     from board import SCL, SDA
@@ -355,8 +369,6 @@ except Exception as e:
     )
 
 executor = ThreadPoolExecutor()
-
-import sys
 
 sys.modules["common"] = sys.modules[__name__]
 if "src.common" in sys.modules:
@@ -394,7 +406,7 @@ async def show_tool_animation(tool_name: str, context: dict = None):
             - spotify: {"track": "...", "artist": "..."}
             - lights: {"action": "on"}
     """
-    print(f"[TOOL_ANIMATION] Tool: {tool_name}, Context: {context}", flush=True)
+    logger.debug("Tool animation: %s, context: %s", tool_name, context)
     dm = get_display_manager()
     if dm and dm.is_available:
         await dm.show_tool_animation(tool_name, context or {}, "")
@@ -407,7 +419,7 @@ def show_tool_animation_sync(tool_name: str, context: dict = None):
     """
     import asyncio
 
-    print(f"[TOOL_ANIMATION_SYNC] Tool: {tool_name}, Context: {context}", flush=True)
+    logger.debug("Tool animation (sync): %s, context: %s", tool_name, context)
     dm = get_display_manager()
     if dm and dm.is_available:
         try:
@@ -509,8 +521,6 @@ def _find_pyaudio_index_for_alsa_card(alsa_card: int):
         p = pyaudio.PyAudio()
         device_count = p.get_device_count()
 
-        print(f"[STT] PyAudio device count: {device_count}", flush=True)
-
         # First pass: look for exact hw:N match in device name
         for i in range(device_count):
             try:
@@ -520,11 +530,6 @@ def _find_pyaudio_index_for_alsa_card(alsa_card: int):
                 sample_rate = info.get("defaultSampleRate", 0)
 
                 if max_input > 0:
-                    print(
-                        f"[STT]   Input device {i}: {name} (inputs={max_input}, rate={sample_rate})",
-                        flush=True,
-                    )
-
                     # Match patterns like "hw:1,0" or "(hw:1,0)" in device name
                     if f"hw:{alsa_card}," in name or f"hw:{alsa_card})" in name:
                         p.terminate()
@@ -572,7 +577,7 @@ def _find_pyaudio_index_for_alsa_card(alsa_card: int):
         return best_idx
 
     except Exception as e:
-        print(f"[STT] Error enumerating PyAudio devices: {e}", flush=True)
+        logger.error("Error enumerating PyAudio devices: %s", e)
         return None
 
 
@@ -684,9 +689,8 @@ def audio_has_speech(
         duration = len(raw_data) / (audio_data.sample_rate * audio_data.sample_width)
 
         if duration < min_duration:
-            print(
-                f"[VAD] Audio too short: {duration:.2f}s < {min_duration}s, rejecting",
-                flush=True,
+            logger.debug(
+                "Audio too short: %.2fs < %.1fs, rejecting", duration, min_duration
             )
             return False
 
@@ -701,14 +705,17 @@ def audio_has_speech(
         max_val = (1 << (8 * audio_data.sample_width - 1)) - 1
         peak_val = audioop.max(raw_data, audio_data.sample_width)
         peak_ratio = peak_val / max_val
-        if peak_ratio < 0.005:
-            print(f"[VAD] Peak too low: {peak_ratio:.3f}, rejecting", flush=True)
+        if peak_ratio < 0.05:
+            logger.debug("Peak too low: %.3f, rejecting", peak_ratio)
             has_speech = False
 
-        print(
-            f"[VAD] dB={metrics.db_level:.1f}, threshold={threshold_db}, "
-            f"duration={duration:.2f}s, peak={peak_ratio:.3f}, has_speech={has_speech}",
-            flush=True,
+        logger.debug(
+            "VAD: dB=%.1f, threshold=%s, duration=%.2fs, peak=%.3f, has_speech=%s",
+            metrics.db_level,
+            threshold_db,
+            duration,
+            peak_ratio,
+            has_speech,
         )
         return has_speech
 
@@ -797,7 +804,7 @@ def i2c_display_register_activity():
         _i2c_display_screensaver_render_task
     _i2c_display_last_activity_time = time.time()
     if _i2c_display_screensaver_active:
-        print("[I2C_SCREENSAVER] Waking I2C screensaver due to activity", flush=True)
+        logger.debug("Waking I2C screensaver due to activity")
         _i2c_display_screensaver_active = False
         if (
             _i2c_display_screensaver_render_task
@@ -842,8 +849,8 @@ async def i2c_display_check_screensaver(display):
 
     if elapsed >= timeout:
         _i2c_display_screensaver_active = True
-        logger.info(
-            f"I2C display screensaver activated after {elapsed:.0f}s of inactivity"
+        logger.debug(
+            "I2C display screensaver activated after %.0fs of inactivity", elapsed
         )
         _i2c_display_screensaver_render_task = asyncio.create_task(
             _i2c_display_screensaver_animation(display)
@@ -1391,7 +1398,7 @@ def _get_i2c_waveform_observer():
             mediator = get_waveform_mediator()
             mediator.register_observer(_i2c_waveform_observer)
         except Exception as e:
-            print(f"[I2C] Failed to init waveform observer: {e}", flush=True)
+            logger.error("Failed to init waveform observer: %s", e)
     return _i2c_waveform_observer
 
 
@@ -1402,7 +1409,7 @@ def _update_waveform_from_chunk(audio_chunk: sr.AudioData):
         mediator = get_waveform_mediator()
         mediator.update_from_audio_chunk(audio_chunk)
     except Exception as e:
-        print(f"[WAVEFORM] chunk update error: {e}", flush=True)
+        logger.error("Waveform chunk update error: %s", e)
 
 
 def _notify_waveform_start_sync():
@@ -1413,7 +1420,7 @@ def _notify_waveform_start_sync():
         # Mediator stays in LISTENING_MIC from startup; just clear values for fresh listen
         mediator.clear()
     except Exception as e:
-        print(f"[WAVEFORM] mediator clear failed: {e}", flush=True)
+        logger.error("Waveform mediator clear failed: %s", e)
 
     dm = get_display_manager()
     if dm and dm.is_available:
@@ -1475,8 +1482,6 @@ def _listen_with_streaming_waveform(source, timeout=3, phrase_time_limit=15):
     silence_threshold = 100
 
     try:
-        print(f"[LISTEN] Starting (silence={silence_seconds}s)", flush=True)
-
         for audio_chunk in r.listen(
             source,
             timeout=timeout,
@@ -1511,9 +1516,12 @@ def _listen_with_streaming_waveform(source, timeout=3, phrase_time_limit=15):
                     silence_chunks = 0
                     speech_chunks = 0
                     speech_frames.extend(pre_speech_buffer)
-                    print(
-                        f"[LISTEN] Speech at chunk {chunk_count}, rms={rms}, thresh={speech_threshold:.0f}, baseline={baseline_rms:.0f}",
-                        flush=True,
+                    logger.debug(
+                        "Speech at chunk %d, rms=%d, thresh=%.0f, baseline=%.0f",
+                        chunk_count,
+                        rms,
+                        speech_threshold,
+                        baseline_rms,
                     )
                     register_all_display_activity()
 
@@ -1526,9 +1534,10 @@ def _listen_with_streaming_waveform(source, timeout=3, phrase_time_limit=15):
                         speech_chunks >= min_speech_chunks
                         and silence_chunks >= silence_chunks_needed
                     ):
-                        print(
-                            f"[LISTEN] Silence at chunk {chunk_count}, speech_chunks={speech_chunks}",
-                            flush=True,
+                        logger.debug(
+                            "Silence at chunk %d, speech_chunks=%d",
+                            chunk_count,
+                            speech_chunks,
                         )
                         break
                 else:
@@ -1541,12 +1550,11 @@ def _listen_with_streaming_waveform(source, timeout=3, phrase_time_limit=15):
         combined_raw = b"".join(speech_frames)
         duration = len(combined_raw) / (source.SAMPLE_RATE * source.SAMPLE_WIDTH)
         combined_rms = audioop.rms(combined_raw, source.SAMPLE_WIDTH)
-        print(f"[LISTEN] Done: {duration:.2f}s, rms={combined_rms}", flush=True)
+        logger.debug("Listen done: %.2fs, rms=%d", duration, combined_rms)
 
         return sr.AudioData(combined_raw, source.SAMPLE_RATE, source.SAMPLE_WIDTH)
 
     except sr.WaitTimeoutError:
-        print("[LISTEN] Timeout", flush=True)
         raise
     finally:
         _clear_waveform_values()
@@ -1585,12 +1593,13 @@ async def duck_volume() -> None:
                                 json={"volume": ducked_vol},
                                 timeout=aiohttp.ClientTimeout(total=2),
                             ) as _:
-                                print(
-                                    f"[DUCK] System volume ducked from {current_vol}% to {ducked_vol}%",
-                                    flush=True,
+                                logger.debug(
+                                    "System volume ducked from %d%% to %d%%",
+                                    current_vol,
+                                    ducked_vol,
                                 )
             except Exception as e:
-                print(f"[DUCK] Failed to duck system volume: {e}", flush=True)
+                logger.error("Failed to duck system volume: %s", e)
 
             # Duck Spotify volume if playing
             try:
@@ -1602,9 +1611,10 @@ async def duck_volume() -> None:
                         data = await resp.json()
                         is_playing = data.get("is_playing")
                         current_spotify_vol = data.get("volume")
-                        print(
-                            f"[DUCK] Spotify check: is_playing={is_playing}, volume={current_spotify_vol}",
-                            flush=True,
+                        logger.debug(
+                            "Spotify check: is_playing=%s, volume=%s",
+                            is_playing,
+                            current_spotify_vol,
                         )
                         if is_playing:
                             # Volume comes directly from MPRIS as "volume" (0-100)
@@ -1622,15 +1632,16 @@ async def duck_volume() -> None:
                                     json={"command": f"volume {ducked_spotify_vol}"},
                                     timeout=aiohttp.ClientTimeout(total=3),
                                 ) as _:
-                                    print(
-                                        f"[DUCK] Spotify volume ducked from {current_spotify_vol}% to {ducked_spotify_vol}%",
-                                        flush=True,
+                                    logger.debug(
+                                        "Spotify volume ducked from %d%% to %d%%",
+                                        current_spotify_vol,
+                                        ducked_spotify_vol,
                                     )
             except Exception as e:
-                print(f"[DUCK] Failed to duck Spotify volume: {e}", flush=True)
+                logger.error("Failed to duck Spotify volume: %s", e)
 
     except Exception as e:
-        print(f"[DUCK] Failed to duck volume: {e}", flush=True)
+        logger.error("Failed to duck volume: %s", e)
 
 
 async def restore_volume() -> None:
@@ -1648,13 +1659,10 @@ async def restore_volume() -> None:
                         json={"volume": _original_volume},
                         timeout=aiohttp.ClientTimeout(total=2),
                     ) as _:
-                        print(
-                            f"[DUCK] System volume restored to {_original_volume}%",
-                            flush=True,
-                        )
+                        logger.debug("System volume restored to %d%%", _original_volume)
                     _original_volume = None
                 except Exception as e:
-                    print(f"[DUCK] Failed to restore system volume: {e}", flush=True)
+                    logger.error("Failed to restore system volume: %s", e)
 
             # Restore Spotify volume
             if _original_spotify_volume is not None:
@@ -1664,16 +1672,15 @@ async def restore_volume() -> None:
                         json={"command": f"volume {_original_spotify_volume}"},
                         timeout=aiohttp.ClientTimeout(total=3),
                     ) as _:
-                        print(
-                            f"[DUCK] Spotify volume restored to {_original_spotify_volume}%",
-                            flush=True,
+                        logger.debug(
+                            "Spotify volume restored to %d%%", _original_spotify_volume
                         )
                     _original_spotify_volume = None
                 except Exception as e:
-                    print(f"[DUCK] Failed to restore Spotify volume: {e}", flush=True)
+                    logger.error("Failed to restore Spotify volume: %s", e)
 
     except Exception as e:
-        print(f"[DUCK] Failed to restore volume: {e}", flush=True)
+        logger.error("Failed to restore volume: %s", e)
 
 
 async def listen(display, state_task, stop_event):
@@ -1699,7 +1706,6 @@ async def listen(display, state_task, stop_event):
             from litellm import transcription
 
             provider = get_litellm_provider()
-            print(f"[STT] Using LiteLLM provider: {provider}", flush=True)
 
             if provider == "openai":
                 model = "openai/whisper-1"
@@ -1711,39 +1717,11 @@ async def listen(display, state_task, stop_event):
                 raise ValueError(f"No STT support for provider: {provider}")
 
             mic_index = _find_microphone_device_index()
-            print(f"[STT] Using microphone index: {mic_index}", flush=True)
 
             def _do_listen():
-                import pyaudio
-
-                pa = pyaudio.PyAudio()
-                print(
-                    f"[STT] PyAudio device count: {pa.get_device_count()}", flush=True
-                )
-                for i in range(pa.get_device_count()):
-                    try:
-                        info = pa.get_device_info_by_index(i)
-                        if info.get("maxInputChannels", 0) > 0:
-                            print(
-                                f"[STT]   Input device {i}: {info.get('name')} "
-                                f"(inputs={info.get('maxInputChannels')}, rate={info.get('defaultSampleRate')})",
-                                flush=True,
-                            )
-                    except Exception:
-                        pass
-                pa.terminate()
-
                 with sr.Microphone(device_index=mic_index) as source:
-                    print(
-                        f"[STT] Mic details: rate={source.SAMPLE_RATE}Hz, width={source.SAMPLE_WIDTH}, chunk={source.CHUNK}",
-                        flush=True,
-                    )
                     if source.stream is None:
                         raise RuntimeError("Microphone not initialized.")
-                    print(
-                        f"[STT] Using fixed energy_threshold={r.energy_threshold:.0f}, starting listen...",
-                        flush=True,
-                    )
 
                     return _listen_with_streaming_waveform(
                         source, timeout=3, phrase_time_limit=get_phrase_time_limit()
@@ -1752,16 +1730,13 @@ async def listen(display, state_task, stop_event):
             audio = await loop.run_in_executor(None, _do_listen)
 
             if audio is None:
-                print("[STT] No audio captured", flush=True)
                 return None
 
             if not audio_has_speech(audio, threshold_db=vad_threshold_db):
-                print(
-                    f"[STT] Audio rejected by VAD (threshold: {vad_threshold_db} dB)",
-                    flush=True,
+                logger.debug(
+                    "Audio rejected by VAD (threshold: %s dB)", vad_threshold_db
                 )
                 return None
-            print("[STT] Audio passed VAD check", flush=True)
 
             # Duck Spotify volume
             await duck_volume()
@@ -1775,11 +1750,6 @@ async def listen(display, state_task, stop_event):
                 raw_data = audio.get_raw_data()
                 sample_rate_local = audio.sample_rate
                 sample_width = audio.sample_width
-                audio_duration_sec = len(raw_data) / (sample_rate_local * sample_width)
-                print(
-                    f"[STT] Audio: {audio_duration_sec:.2f}s, {sample_rate_local}Hz, width={sample_width}",
-                    flush=True,
-                )
 
                 target_rate = 16000
                 if sample_rate_local != target_rate:
@@ -1787,14 +1757,12 @@ async def listen(display, state_task, stop_event):
                         raw_data, sample_width, 1, sample_rate_local, target_rate, None
                     )
                     sample_rate_local = target_rate
-                    print(f"[STT] Resampled to {target_rate}Hz", flush=True)
 
                 with wave.open("/tmp/debug_stt.wav", "wb") as debug_wav:
                     debug_wav.setnchannels(1)
                     debug_wav.setsampwidth(sample_width)
                     debug_wav.setframerate(sample_rate_local)
                     debug_wav.writeframes(raw_data)
-                print("[STT] Debug audio saved to /tmp/debug_stt.wav", flush=True)
 
                 with wave.open(tmp_path, "wb") as wav_file:
                     wav_file.setnchannels(1)
@@ -1805,9 +1773,9 @@ async def listen(display, state_task, stop_event):
                 try:
                     stg = load_settings()
                     keyword = stg.get("keyword", "computer")
-                    print(
-                        f"[STT] Sending audio to {model} for transcription...",
-                        flush=True,
+                    logger.debug(
+                        "Sending audio to %s for transcription...",
+                        model,
                     )
                     with open(tmp_path, "rb") as audio_file:
                         response = transcription(
@@ -1821,7 +1789,7 @@ async def listen(display, state_task, stop_event):
                             if hasattr(response, "text")
                             else str(response)
                         )
-                        print(f"[STT] Transcription result: {text}", flush=True)
+                        logger.debug("Transcription result: %s", text)
 
                         return text if text else None
                 finally:
@@ -1830,29 +1798,22 @@ async def listen(display, state_task, stop_event):
             return await loop.run_in_executor(None, _do_transcribe)
 
         except sr.WaitTimeoutError:
-            print("[STT] Listen timeout - no speech detected", flush=True)
             return None
         except sr.UnknownValueError:
-            print("[STT] Could not understand audio", flush=True)
             return None
         except Exception as e:
-            print(f"[STT] LiteLLM STT failed: {e}, falling back to Google", flush=True)
+            logger.error("LiteLLM STT failed: %s, falling back to Google", e)
             return None
 
     async def recognize_audio_google():
         """Fallback to Google speech recognition with real-time streaming waveform."""
         try:
             mic_index = _find_microphone_device_index()
-            print(f"[STT-GOOGLE] Using microphone index: {mic_index}", flush=True)
 
             def _do_listen():
                 with sr.Microphone(device_index=mic_index) as source:
                     if source.stream is None:
                         raise RuntimeError("Microphone not initialized.")
-                    print(
-                        f"[STT-GOOGLE] Using fixed energy_threshold={r.energy_threshold:.0f}, starting listen...",
-                        flush=True,
-                    )
 
                     return _listen_with_streaming_waveform(
                         source, timeout=3, phrase_time_limit=get_phrase_time_limit()
@@ -1861,16 +1822,14 @@ async def listen(display, state_task, stop_event):
             audio = await loop.run_in_executor(None, _do_listen)
 
             if audio is None:
-                print("[STT-GOOGLE] No audio captured", flush=True)
                 return None
 
             if not audio_has_speech(audio, threshold_db=vad_threshold_db):
-                print(
-                    f"[STT-GOOGLE] Audio rejected by VAD (threshold: {vad_threshold_db} dB)",
-                    flush=True,
+                logger.debug(
+                    "Google STT: audio rejected by VAD (threshold: %s dB)",
+                    vad_threshold_db,
                 )
                 return None
-            print("[STT-GOOGLE] Audio passed VAD check", flush=True)
 
             # Duck Spotify volume
             await duck_volume()
@@ -1878,18 +1837,15 @@ async def listen(display, state_task, stop_event):
             register_all_display_activity()
 
             def _do_recognize():
-                print("[STT-GOOGLE] Sending to Google for transcription...", flush=True)
                 text = r.recognize_google(audio)
-                print(f"[STT-GOOGLE] Transcription result: {text}", flush=True)
+                logger.debug("Google transcription result: %s", text)
                 return text if text else None
 
             return await loop.run_in_executor(None, _do_recognize)
 
         except sr.WaitTimeoutError:
-            print("[STT-GOOGLE] Listen timeout - no speech detected", flush=True)
             return None
         except sr.UnknownValueError:
-            print("[STT-GOOGLE] Could not understand audio", flush=True)
             return None
 
     try:
@@ -1942,7 +1898,7 @@ async def display_state(state, display, stop_event):
     dm = get_display_manager()
     if dm and dm.is_available:
         if dm._screensaver_active:
-            print(f"[DISPLAY_STATE] Waking screensaver for state: {state}", flush=True)
+            logger.debug("Waking screensaver for state: %s", state)
             await dm.register_activity_async()
         else:
             # Still register activity to reset timer
@@ -2067,11 +2023,10 @@ async def speak(text, stop_event=asyncio.Event(), word_callback=None):
         def _speak_litellm():
             """Use LiteLLM for TTS with provider auto-detection."""
             try:
-                print("[TTS] Starting LiteLLM TTS...", flush=True)
                 from litellm import speech
 
                 provider = get_litellm_provider()
-                print(f"[TTS] Provider: {provider}", flush=True)
+                logger.debug("TTS starting with provider: %s", provider)
 
                 # Select model based on provider
                 if provider == "openai":
@@ -2091,10 +2046,7 @@ async def speak(text, stop_event=asyncio.Event(), word_callback=None):
                     raise ValueError(f"No TTS support for provider: {provider}")
 
                 # Generate speech
-                print(
-                    f"[TTS] Generating speech with {model}, voice={voice}...",
-                    flush=True,
-                )
+                logger.debug("Generating speech with %s, voice=%s", model, voice)
                 with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
                     response = speech(model=model, voice=voice, input=text)
                     response.stream_to_file(tmp.name)
@@ -2111,7 +2063,7 @@ async def speak(text, stop_event=asyncio.Event(), word_callback=None):
                     # Play audio - use 'default' device which routes through asound.conf
                     # asound.conf handles HDMI IEC958 conversion automatically
                     audio_device = "default"
-                    print(f"[TTS] Playing audio on device: {audio_device}", flush=True)
+                    logger.debug("TTS playing audio on device: %s", audio_device)
                     audio_proc = subprocess.Popen(
                         f"ffmpeg -i {tmp.name} -f wav -acodec pcm_s16le -ar 44100 - 2>/dev/null | aplay -D {audio_device}",
                         shell=True,
@@ -2152,15 +2104,10 @@ async def speak(text, stop_event=asyncio.Event(), word_callback=None):
                     if stderr:
                         stderr_text = stderr.decode("utf-8", errors="ignore").strip()
                         if stderr_text:
-                            print(f"[TTS] Audio stderr: {stderr_text}", flush=True)
-
-                    print(
-                        f"[TTS] Audio playback finished (exit code: {audio_proc.returncode})",
-                        flush=True,
-                    )
+                            logger.warning("TTS audio stderr: %s", stderr_text)
                     os.unlink(tmp.name)
 
-                print(f"[TTS] LiteLLM TTS completed with {model}", flush=True)
+                logger.debug("TTS completed with %s", model)
             except Exception as e:
                 logger.warning(f"LiteLLM TTS failed: {e}, falling back to pyttsx3")
                 _speak_pyttsx3()

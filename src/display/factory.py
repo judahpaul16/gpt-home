@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple
 from .base import BaseDisplay, DisplayInfo, ScreenType
 from .detection import detect_displays
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("display.factory")
 
 
 class DisplayFactory:
@@ -20,50 +20,44 @@ class DisplayFactory:
 
     @staticmethod
     def _create_kmsdrm_display(info: DisplayInfo) -> Optional[BaseDisplay]:
-        logger.info(f"Creating KMSDRM display: {info.width}x{info.height}")
+        logger.debug("Creating KMSDRM display: %dx%d", info.width, info.height)
         try:
             from .drivers.kmsdrm import KmsdrmDisplay
 
-            display = KmsdrmDisplay(info)
-            return display
-        except ImportError as e:
-            logger.error(f"Failed to import KmsdrmDisplay: {e}")
+            return KmsdrmDisplay(info)
         except Exception as e:
-            logger.error(f"Failed to create KmsdrmDisplay: {e}")
+            logger.error("Failed to create KmsdrmDisplay: %s", e)
         return None
 
     @staticmethod
     def _create_fbdev_display(info: DisplayInfo) -> Optional[BaseDisplay]:
-        # If detected via DRM (mipi-dbi-spi), use KMSDRM driver instead of fbdev
         if info.driver == "kmsdrm":
-            logger.info(
-                f"Creating KMSDRM display for TFT: {info.width}x{info.height} "
-                f"on {info.device_path}"
+            logger.debug(
+                "Creating KMSDRM display for TFT: %dx%d on %s",
+                info.width,
+                info.height,
+                info.device_path,
             )
             try:
                 from .drivers.kmsdrm import KmsdrmDisplay
 
-                display = KmsdrmDisplay(info)
-                return display
-            except ImportError as e:
-                logger.error(f"Failed to import KmsdrmDisplay: {e}")
+                return KmsdrmDisplay(info)
             except Exception as e:
-                logger.error(f"Failed to create KmsdrmDisplay for TFT: {e}")
+                logger.error("Failed to create KmsdrmDisplay for TFT: %s", e)
             return None
 
-        # Otherwise use standard fbdev driver for fbtft-based TFTs
-        logger.info(
-            f"Creating framebuffer display: {info.width}x{info.height} on {info.device_path}"
+        logger.debug(
+            "Creating framebuffer display: %dx%d on %s",
+            info.width,
+            info.height,
+            info.device_path,
         )
         try:
             from .drivers.fbdev import FbdevDisplay
 
-            display = FbdevDisplay(info)
-            return display
-        except ImportError as e:
-            logger.error(f"Failed to import FbdevDisplay: {e}")
+            return FbdevDisplay(info)
         except Exception as e:
-            logger.error(f"Failed to create FbdevDisplay: {e}")
+            logger.error("Failed to create FbdevDisplay: %s", e)
         return None
 
     @staticmethod

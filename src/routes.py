@@ -23,7 +23,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.store.memory import InMemoryStore
 
 from src.agent import AgentConfig, GPTHomeAgent
-from src.common import logger, load_integration_statuses
+from src.common import load_integration_statuses, logger
 from src.memory import MemoryManager
 
 # LangGraph store uses OpenAI SDK directly for embeddings, not LiteLLM
@@ -32,7 +32,7 @@ _litellm_key = os.getenv("LITELLM_API_KEY", "")
 _embedding_model = os.getenv("EMBEDDING_MODEL", "openai:text-embedding-3-small")
 if _litellm_key and _embedding_model.startswith("openai:"):
     os.environ["OPENAI_API_KEY"] = _litellm_key
-    logger.info("Set OPENAI_API_KEY from LITELLM_API_KEY for embeddings")
+    logger.debug("Set OPENAI_API_KEY from LITELLM_API_KEY for embeddings")
 
 _agent_instance: Optional[GPTHomeAgent] = None
 _memory_manager: Optional[MemoryManager] = None
@@ -58,8 +58,8 @@ async def _close_persistence():
         if _connection_pool is not None:
             await _connection_pool.close()
             logger.info("PostgreSQL connection pool closed for reconnection")
-    except Exception as e:
-        logger.debug(f"Error closing connection pool: {e}")
+    except Exception:
+        pass
 
     _checkpointer = None
     _store = None
@@ -212,8 +212,6 @@ async def action_router(
     """
     global _agent_instance, _checkpointer, _store, _connection_pool
 
-    logger.debug(f"[action_router] Received text: {text!r}")
-
     if thread_id is None:
         thread_id = f"session_{user_id}"
 
@@ -221,15 +219,17 @@ async def action_router(
 
     for attempt in range(max_retries):
         try:
-            logger.debug(f"[action_router] Getting agent (attempt {attempt + 1})")
             agent = await _get_agent()
             statuses = await load_integration_statuses()
-            logger.debug(f"[action_router] Invoking agent with text: {text!r}")
             response = await asyncio.wait_for(
-                agent.invoke(text=text, user_id=user_id, thread_id=thread_id, service_status=statuses),
+                agent.invoke(
+                    text=text,
+                    user_id=user_id,
+                    thread_id=thread_id,
+                    service_status=statuses,
+                ),
                 timeout=60.0,
             )
-            logger.debug(f"[action_router] Agent response: {response!r}")
 
             asyncio.create_task(_background_memory_processing(text, response, user_id))
 
@@ -276,8 +276,8 @@ async def _background_memory_processing(user_input: str, response: str, user_id:
             {"role": "assistant", "content": response},
         ]
         await memory_manager.process_conversation_background(messages, user_id)
-    except Exception as e:
-        logger.debug(f"Background memory processing failed: {e}")
+    except Exception:
+        pass
 
 
 async def search_memories(query: str, user_id: str = "default", limit: int = 5) -> list:

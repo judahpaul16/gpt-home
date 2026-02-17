@@ -7,9 +7,42 @@ from typing import List, Optional
 
 from .base import DisplayInfo, ScreenType
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("display.detection")
 
-_logged_no_drm = False
+_logged_no_displays = False
+
+_TFT_OVERLAY_NAMES = ["piscreen", "waveshare35a", "tft35a", "pitft35"]
+
+
+def _read_hardware_mode() -> Optional[str]:
+    for path in ["/boot/firmware/config.txt", "/boot/config.txt"]:
+        if not Path(path).exists():
+            continue
+        try:
+            has_tft = False
+            has_vc4 = False
+            with open(path) as f:
+                for line in f:
+                    stripped = line.strip()
+                    if stripped.startswith("#"):
+                        continue
+                    if any(
+                        f"dtoverlay={name}" in stripped for name in _TFT_OVERLAY_NAMES
+                    ):
+                        has_tft = True
+                    if (
+                        "dtoverlay=vc4-kms-v3d" in stripped
+                        or "dtoverlay=vc4-fkms-v3d" in stripped
+                    ):
+                        has_vc4 = True
+            if has_tft and has_vc4:
+                return "conflict"
+            if has_tft:
+                return "tft"
+            return "hdmi"
+        except Exception:
+            pass
+    return None
 
 
 def detect_displays() -> List[DisplayInfo]:
@@ -19,12 +52,10 @@ def detect_displays() -> List[DisplayInfo]:
     if drm_display:
         displays.append(drm_display)
 
-    # Try DRM-based TFT detection first (modern mipi-dbi-spi creates DRM devices)
     drm_tft_display = _detect_drm_tft()
     if drm_tft_display:
         displays.append(drm_tft_display)
     else:
-        # Fall back to framebuffer-based TFT detection (legacy fbtft)
         spi_tft_display = _detect_spi_tft()
         if spi_tft_display:
             displays.append(spi_tft_display)
@@ -32,7 +63,59 @@ def detect_displays() -> List[DisplayInfo]:
     i2c_displays = _detect_i2c_oled()
     displays.extend(i2c_displays)
 
+    hw_mode = _read_hardware_mode()
+    if hw_mode == "tft":
+        tft_displays = [d for d in displays if d.screen_type == ScreenType.SPI_TFT]
+        if tft_displays:
+            displays = tft_displays + [
+                d for d in displays if d.screen_type == ScreenType.I2C
+            ]
+    elif hw_mode == "hdmi":
+        displays = [d for d in displays if d.screen_type != ScreenType.SPI_TFT]
+
+    global _logged_no_displays
+    if not displays:
+        if not _logged_no_displays:
+            _log_detection_diagnostics()
+            _logged_no_displays = True
+    else:
+        _logged_no_displays = False
+
     return displays
+
+
+def _log_detection_diagnostics() -> None:
+    """One-shot diagnostics when no displays are found."""
+    parts = []
+    dri = Path("/dev/dri")
+    if dri.exists():
+        parts.append(f"/dev/dri: {[c.name for c in sorted(dri.iterdir())]}")
+    else:
+        parts.append("/dev/dri: absent")
+
+    for fb in ["fb0", "fb1"]:
+        p = Path(f"/dev/{fb}")
+        if p.exists():
+            rw = os.access(p, os.R_OK | os.W_OK)
+            parts.append(f"/dev/{fb}: exists (rw={rw})")
+
+    drm_class = Path("/sys/class/drm")
+    if drm_class.exists():
+        connectors = [c.name for c in drm_class.iterdir() if "-" in c.name]
+        parts.append(f"DRM connectors: {connectors}")
+
+    fb_class = Path("/sys/class/graphics")
+    if fb_class.exists():
+        fbs = []
+        for fb_dir in fb_class.iterdir():
+            if fb_dir.name.startswith("fb"):
+                name_file = fb_dir / "name"
+                name = name_file.read_text().strip() if name_file.exists() else "?"
+                fbs.append(f"{fb_dir.name}={name}")
+        if fbs:
+            parts.append(f"Framebuffers: {fbs}")
+
+    logger.warning("No displays detected. %s", "; ".join(parts))
 
 
 def detect_full_displays() -> List[DisplayInfo]:
@@ -46,45 +129,35 @@ def detect_simple_displays() -> List[DisplayInfo]:
 
 
 def _detect_drm() -> Optional[DisplayInfo]:
-    global _logged_no_drm
-
-    """Detect DRM/KMS display devices.
-
-    Tries multiple methods in order:
-    1. Direct /dev/dri/card* access check
-    2. Sysfs HDMI connection status
-    3. SDL/pygame KMSDRM initialization probe
-    """
     dri_path = Path("/dev/dri")
-    accessible_card = None
+    drm_class = Path("/sys/class/drm")
 
-    # Method 1: Check /dev/dri directory directly
-    if dri_path.exists():
-        drm_cards = list(dri_path.glob("card*"))
-        for card in sorted(drm_cards):
-            if os.access(card, os.R_OK | os.W_OK):
-                accessible_card = card
-                break
-            else:
-                logger.debug(f"No read/write access to {card}")
+    if dri_path.exists() and drm_class.exists():
+        hdmi_cards = set()
+        for connector in drm_class.iterdir():
+            if "hdmi" in connector.name.lower():
+                card_match = re.match(r"(card\d+)", connector.name)
+                if card_match:
+                    hdmi_cards.add(card_match.group(1))
 
-    if accessible_card:
-        _logged_no_drm = False
-        width, height = _get_drm_resolution(accessible_card)
-        return DisplayInfo(
-            screen_type=ScreenType.HDMI,
-            width=width,
-            height=height,
-            device_path=str(accessible_card),
-            driver="kmsdrm",
-        )
+        for card_name in sorted(hdmi_cards):
+            card_path = dri_path / card_name
+            if card_path.exists() and os.access(card_path, os.R_OK | os.W_OK):
+                width, height = _get_drm_resolution(card_path)
+                return DisplayInfo(
+                    screen_type=ScreenType.HDMI,
+                    width=width,
+                    height=height,
+                    device_path=str(card_path),
+                    driver="kmsdrm",
+                )
 
-    # Method 2: Check sysfs HDMI connection status
     hdmi_connector = _check_hdmi_connected()
     if hdmi_connector:
-        _logged_no_drm = False
         width, height = _get_drm_resolution_from_sysfs()
-        logger.info(f"HDMI connected via sysfs ({hdmi_connector}): {width}x{height}")
+        logger.debug(
+            "HDMI connected via sysfs (%s): %dx%d", hdmi_connector, width, height
+        )
         return DisplayInfo(
             screen_type=ScreenType.HDMI,
             width=width,
@@ -93,52 +166,10 @@ def _detect_drm() -> Optional[DisplayInfo]:
             driver="kmsdrm",
         )
 
-    # Method 3: Try pygame KMSDRM probe as last resort
-    # This can detect displays even when /dev/dri permissions are tricky
-    try:
-        import pygame
-
-        os.environ["SDL_VIDEODRIVER"] = "kmsdrm"
-        os.environ["SDL_KMSDRM_REQUIRE_DRM_MASTER"] = "0"
-        os.environ.setdefault("XDG_RUNTIME_DIR", "/tmp")
-
-        pygame.display.init()
-        driver = pygame.display.get_driver()
-
-        if "kmsdrm" in driver.lower():
-            info = pygame.display.Info()
-            width = info.current_w if info.current_w > 0 else 1920
-            height = info.current_h if info.current_h > 0 else 1080
-            pygame.display.quit()
-
-            logger.info(f"SDL KMSDRM probe successful: {width}x{height}")
-            return DisplayInfo(
-                screen_type=ScreenType.HDMI,
-                width=width,
-                height=height,
-                device_path="/dev/dri/card0",
-                driver="kmsdrm",
-            )
-
-        pygame.display.quit()
-    except Exception:
-        pass
-
-    if not _logged_no_drm:
-        logger.debug("No DRM display detected")
-        _log_display_debug_info()
-        _logged_no_drm = True
-
     return None
 
 
 def _detect_drm_tft() -> Optional[DisplayInfo]:
-    """Detect TFT displays via DRM (mipi-dbi-spi creates DRM devices, not framebuffers).
-
-    The modern mipi-dbi-spi overlay creates a DRM device that appears in /sys/class/drm
-    with connector names like "card1-SPI-1" or "card0-Unknown-1" rather than a
-    framebuffer device at /dev/fb1.
-    """
     drm_class = Path("/sys/class/drm")
     if not drm_class.exists():
         return None
@@ -146,20 +177,13 @@ def _detect_drm_tft() -> Optional[DisplayInfo]:
     for connector in drm_class.iterdir():
         name = connector.name.lower()
 
-        # Skip non-connector entries (like "card0" without connector suffix)
         if "-" not in connector.name:
             continue
-
-        # Skip HDMI connectors - those are handled by _detect_drm()
         if "hdmi" in name:
             continue
-
-        # mipi-dbi-spi creates connectors like "card1-SPI-1" or "card0-Unknown-1"
-        # Also check for "panel" which some drivers use
         if not any(x in name for x in ["spi", "panel", "unknown"]):
             continue
 
-        # Check connection status
         status_file = connector / "status"
         if status_file.exists():
             try:
@@ -169,7 +193,6 @@ def _detect_drm_tft() -> Optional[DisplayInfo]:
             except Exception:
                 pass
 
-        # Get resolution from modes file
         modes_file = connector / "modes"
         if not modes_file.exists():
             continue
@@ -184,34 +207,26 @@ def _detect_drm_tft() -> Optional[DisplayInfo]:
             if match:
                 w, h = int(match.group(1)), int(match.group(2))
 
-                # TFT displays are small (typically 480x320 or similar)
-                # Skip if resolution is too large (likely not a TFT)
                 if w > 800 or h > 600:
-                    logger.debug(
-                        f"Skipping DRM connector {connector.name} - "
-                        f"resolution {w}x{h} too large for TFT"
-                    )
                     continue
 
-                # Extract card number from connector name (e.g., "card1-SPI-1" -> "card1")
                 card_match = re.match(r"(card\d+)", connector.name)
                 if card_match:
                     card_path = f"/dev/dri/{card_match.group(1)}"
                 else:
                     card_path = "/dev/dri/card1"
 
-                # Verify the DRM device exists and is accessible
                 if not Path(card_path).exists():
-                    logger.debug(f"DRM device {card_path} does not exist")
                     continue
-
                 if not os.access(card_path, os.R_OK | os.W_OK):
-                    logger.debug(f"No read/write access to {card_path}")
                     continue
 
-                logger.info(
-                    f"DRM TFT display detected: {w}x{h} at {card_path} "
-                    f"(connector: {connector.name})"
+                logger.debug(
+                    "DRM TFT detected: %dx%d at %s (connector: %s)",
+                    w,
+                    h,
+                    card_path,
+                    connector.name,
                 )
                 return DisplayInfo(
                     screen_type=ScreenType.SPI_TFT,
@@ -220,10 +235,9 @@ def _detect_drm_tft() -> Optional[DisplayInfo]:
                     device_path=card_path,
                     driver="kmsdrm",
                 )
-        except Exception as e:
-            logger.debug(f"Error reading modes for {connector.name}: {e}")
+        except Exception:
+            pass
 
-    logger.debug("No DRM-based TFT display detected")
     return None
 
 
@@ -274,35 +288,6 @@ def _get_drm_resolution_from_sysfs() -> tuple[int, int]:
     return 1920, 1080
 
 
-def _log_display_debug_info():
-    """Log debug information about display detection (debug level only)."""
-    dri_path = Path("/dev/dri")
-    if dri_path.exists():
-        try:
-            contents = list(dri_path.iterdir())
-            logger.debug(f"/dev/dri contents: {[c.name for c in contents]}")
-        except Exception as e:
-            logger.debug(f"Error listing /dev/dri: {e}")
-    else:
-        logger.debug("/dev/dri does not exist")
-
-    # Check sysfs for connected displays
-    drm_class = Path("/sys/class/drm")
-    if drm_class.exists():
-        try:
-            for connector in drm_class.iterdir():
-                if "card" in connector.name:
-                    status_file = connector / "status"
-                    if status_file.exists():
-                        try:
-                            status = status_file.read_text().strip()
-                            logger.debug(f"  {connector.name}: {status}")
-                        except Exception:
-                            pass
-        except Exception:
-            pass
-
-
 def _get_drm_resolution(card_path: Path) -> tuple[int, int]:
     width, height = 1920, 1080
 
@@ -329,36 +314,21 @@ def _get_drm_resolution(card_path: Path) -> tuple[int, int]:
 
 
 def _detect_spi_tft() -> Optional[DisplayInfo]:
-    """Detect SPI TFT displays (typically 3.5" LCD screens).
-
-    SPI TFT displays use framebuffer devices (/dev/fb0 or /dev/fb1) rather than DRM.
-    They're commonly connected via GPIO/SPI and use drivers like fbtft.
-    On some systems, the TFT may be fb0 if no HDMI is connected.
-    """
-    # Check both fb0 and fb1 for TFT displays
-    # TFT displays typically have smaller resolutions (480x320, 320x240)
     for fb_name in ["fb1", "fb0"]:
         fb_path = Path(f"/dev/{fb_name}")
 
         if not fb_path.exists():
-            logger.debug(f"Framebuffer {fb_path} does not exist")
             continue
-
         if not os.access(fb_path, os.R_OK | os.W_OK):
-            logger.debug(f"No read/write access to {fb_path}")
             continue
 
         width, height = _get_fb_resolution(fb_path)
-        logger.debug(f"Framebuffer {fb_path} resolution: {width}x{height}")
 
-        # TFT displays are typically small (under 800x600)
-        # Skip if this looks like an HDMI display (large resolution)
         if width >= 800 or height >= 600:
-            logger.debug(f"Skipping {fb_path} - resolution too large for TFT")
             continue
 
         if width > 0 and height > 0:
-            logger.info(f"SPI TFT display detected at {fb_path}: {width}x{height}")
+            logger.debug("SPI TFT detected at %s: %dx%d", fb_path, width, height)
             return DisplayInfo(
                 screen_type=ScreenType.SPI_TFT,
                 width=width,
@@ -367,19 +337,15 @@ def _detect_spi_tft() -> Optional[DisplayInfo]:
                 driver="fbdev",
             )
 
-    # Also check sysfs for fbtft devices
     fbtft_path = Path("/sys/class/graphics")
     if fbtft_path.exists():
         for fb_dir in fbtft_path.iterdir():
             if not fb_dir.name.startswith("fb"):
                 continue
-            # Check if this is an fbtft device
             name_file = fb_dir / "name"
             if name_file.exists():
                 try:
                     name = name_file.read_text().strip()
-                    logger.debug(f"Framebuffer {fb_dir.name} name: {name}")
-                    # fbtft devices have names like "fb_ili9486", "flexfb", etc.
                     if any(
                         x in name.lower()
                         for x in ["ili", "tft", "st7", "flexfb", "waveshare"]
@@ -388,8 +354,12 @@ def _detect_spi_tft() -> Optional[DisplayInfo]:
                         if fb_path.exists() and os.access(fb_path, os.R_OK | os.W_OK):
                             width, height = _get_fb_resolution(fb_path)
                             if width > 0 and height > 0:
-                                logger.info(
-                                    f"fbtft display detected: {name} at {fb_path}: {width}x{height}"
+                                logger.debug(
+                                    "fbtft detected: %s at %s: %dx%d",
+                                    name,
+                                    fb_path,
+                                    width,
+                                    height,
                                 )
                                 return DisplayInfo(
                                     screen_type=ScreenType.SPI_TFT,
@@ -398,10 +368,9 @@ def _detect_spi_tft() -> Optional[DisplayInfo]:
                                     device_path=str(fb_path),
                                     driver="fbdev",
                                 )
-                except Exception as e:
-                    logger.debug(f"Error reading {name_file}: {e}")
+                except Exception:
+                    pass
 
-    logger.debug("No SPI TFT display detected")
     return None
 
 

@@ -31,7 +31,7 @@ services:
             backend:
                 condition: service_started
         healthcheck:
-            test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+            test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/health"]
             interval: 30s
             timeout: 10s
             retries: 3
@@ -91,7 +91,6 @@ services:
             - ./src/settings.json:/app/src/settings.json
             - ./.env:/app/.env
             - /etc/localtime:/etc/localtime:ro
-            - /etc/timezone:/etc/timezone:ro
             - /dev/shm:/dev/shm
             - /usr/share/alsa:/usr/share/alsa
             - /var/run/docker.sock:/var/run/docker.sock

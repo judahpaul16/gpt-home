@@ -6,8 +6,11 @@ Uses the user's configured speech engine for reminder announcements.
 """
 
 import json
+import logging
 import os
 import re
+
+logger = logging.getLogger("tools.alarm")
 import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -98,8 +101,9 @@ def _speak_reminder(reminder_text: str):
     settings = _load_settings()
     speech_engine = settings.get("ttsEngine", "gtts")
 
-    print(f"[Reminder] Speaking reminder with engine: {speech_engine}", flush=True)
-    print(f"[Reminder] Text: {reminder_text}", flush=True)
+    logger.info(
+        "Speaking reminder with engine: %s, text: %s", speech_engine, reminder_text
+    )
 
     if speech_engine == "litellm":
         # Use litellm TTS via the common speak function
@@ -117,10 +121,7 @@ def _speak_reminder(reminder_text: str):
                 loop.close()
             return
         except Exception as e:
-            print(
-                f"[Reminder] LiteLLM TTS failed: {e}, falling back to pyttsx3",
-                flush=True,
-            )
+            logger.warning("LiteLLM TTS failed: %s, falling back to pyttsx3", e)
 
     elif speech_engine == "gtts":
         # Use Google TTS
@@ -142,7 +143,7 @@ def _speak_reminder(reminder_text: str):
                 os.unlink(tmp.name)
             return
         except Exception as e:
-            print(f"[Reminder] gTTS failed: {e}, falling back to pyttsx3", flush=True)
+            logger.warning("gTTS failed: %s, falling back to pyttsx3", e)
 
     # Default to pyttsx3
     try:
@@ -153,7 +154,7 @@ def _speak_reminder(reminder_text: str):
         engine.say(f"Reminder: {reminder_text}")
         engine.runAndWait()
     except Exception as e:
-        print(f"[Reminder] pyttsx3 failed: {e}", flush=True)
+        logger.error("pyttsx3 failed: %s", e)
 
 
 @tool
@@ -231,9 +232,8 @@ def alarm_tool(command: str) -> str:
                     f"{hours} hours and {mins} minutes" if mins else f"{hours} hours"
                 )
 
-            print(
-                f"[Alarm] Set for {alarm_time} (in {delay_str}, delay={delay}s)",
-                flush=True,
+            logger.info(
+                "Alarm set for %s (in %s, delay=%ds)", alarm_time, delay_str, delay
             )
             return f"Alarm set for {formatted_time} (in {delay_str})."
 
@@ -287,9 +287,12 @@ def alarm_tool(command: str) -> str:
                 if mins:
                     delay_str += f" and {mins} minute{'s' if mins > 1 else ''}"
 
-            print(
-                f"[Reminder] Set for {reminder_time} (in {delay_str}, delay={delay}s): {reminder_text}",
-                flush=True,
+            logger.info(
+                "Reminder set for %s (in %s, delay=%ds): %s",
+                reminder_time,
+                delay_str,
+                delay,
+                reminder_text,
             )
             return f"I'll remind you to {reminder_text} in {delay_str}."
 
@@ -320,7 +323,7 @@ def alarm_tool(command: str) -> str:
         alarm_id = f"snooze_{snooze_time.strftime('%Y%m%d%H%M%S')}"
         _alarms[alarm_id] = timer
 
-        print(f"[Alarm] Snoozed for {snooze_minutes} minutes", flush=True)
+        logger.info("Alarm snoozed for %d minutes", snooze_minutes)
         return f"Alarm snoozed for {snooze_minutes} minutes."
 
     return "I didn't understand that alarm command. Try 'set alarm for 7:00 AM' or 'remind me in 10 minutes to take a break'."

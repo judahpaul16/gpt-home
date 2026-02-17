@@ -1,8 +1,12 @@
-from typing import Optional, Any
+import logging
+import os
+from typing import Any, Optional
+
 from langgraph.store.base import BaseStore
 from langgraph.store.memory import InMemoryStore
 from langgraph.store.postgres import AsyncPostgresStore
-import os
+
+logger = logging.getLogger("memory.store")
 
 
 async def create_memory_store(
@@ -11,36 +15,37 @@ async def create_memory_store(
     embedding_dims: int = 1536,
 ) -> BaseStore:
     """Factory function to create appropriate memory store.
-    
+
     Uses Strategy pattern to select between PostgreSQL and in-memory storage.
-    
+
     Args:
         database_url: PostgreSQL connection string. If None, uses in-memory store.
         embedding_model: Model for semantic search embeddings.
         embedding_dims: Dimensions of embedding vectors.
-    
+
     Returns:
         Configured BaseStore instance.
     """
     if database_url is None:
         database_url = os.getenv("DATABASE_URL")
-    
+
     index_config = {
         "dims": embedding_dims,
         "embed": embedding_model,
         "fields": ["content", "summary", "$"],
     }
-    
+
     if database_url:
         try:
             store = AsyncPostgresStore.from_conn_string(
-                database_url,
-                index=index_config
+                database_url, index=index_config
             )
             await store.setup()
             return store
         except Exception as e:
-            print(f"Warning: PostgreSQL store initialization failed: {e}")
-            print("Falling back to in-memory store.")
-    
+            logger.warning(
+                "PostgreSQL store initialization failed: %s, falling back to in-memory store",
+                e,
+            )
+
     return InMemoryStore(index=index_config)

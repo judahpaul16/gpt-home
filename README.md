@@ -860,71 +860,37 @@ echo -e "${GREEN}DRM display configuration complete.${NC}"
 # without any extra steps from the user.
 
 if [ -n "$CONFIG_TXT" ]; then
-    if grep -qE "^dtoverlay=(waveshare35a|tft35a|piscreen|pitft35)" "$CONFIG_TXT" 2>/dev/null; then
-        echo -e "${GREEN}SPI TFT display overlay already configured${NC}"
-    else
-        echo "Configuring SPI TFT display support..."
+    echo "Configuring SPI TFT display support..."
 
-        # Detect overlays directory
-        OVERLAYS_DIR=""
-        if [ -d /boot/firmware/overlays ]; then
-            OVERLAYS_DIR="/boot/firmware/overlays"
-        elif [ -d /boot/overlays ]; then
-            OVERLAYS_DIR="/boot/overlays"
+    OVERLAYS_DIR=""
+    if [ -d /boot/firmware/current/overlays ]; then
+        OVERLAYS_DIR="/boot/firmware/current/overlays"
+    elif [ -d /boot/overlays ]; then
+        OVERLAYS_DIR="/boot/overlays"
+    elif [ -d /boot/firmware/overlays ]; then
+        OVERLAYS_DIR="/boot/firmware/overlays"
+    fi
+
+    if [ -n "$OVERLAYS_DIR" ]; then
+        if [ -f "$OVERLAYS_DIR/piscreen.dtbo" ]; then
+            echo -e "${GREEN}TFT overlay file already installed${NC}"
+        else
+            if curl -fsSL https://github.com/raspberrypi/firmware/raw/master/boot/overlays/piscreen.dtbo -o "$OVERLAYS_DIR/piscreen.dtbo" 2>/dev/null; then
+                echo -e "${GREEN}TFT overlay file installed${NC}"
+            else
+                echo -e "${YELLOW}Could not download piscreen.dtbo (non-fatal)${NC}"
+            fi
         fi
 
-        if [ -n "$OVERLAYS_DIR" ]; then
-            # Install the overlay file if not already present
-            if [ ! -f "$OVERLAYS_DIR/waveshare35a.dtbo" ]; then
-                OVERLAY_INSTALLED=false
-
-                # Try Waveshare official overlay first
-                if curl -fsSL https://files.waveshare.com/wiki/common/Waveshare35a.zip -o /tmp/Waveshare35a.zip 2>/dev/null; then
-                    if unzip -o /tmp/Waveshare35a.zip -d /tmp/waveshare35a_overlay >/dev/null 2>&1; then
-                        if [ -f /tmp/waveshare35a_overlay/waveshare35a.dtbo ]; then
-                            sudo cp /tmp/waveshare35a_overlay/waveshare35a.dtbo "$OVERLAYS_DIR/waveshare35a.dtbo"
-                            OVERLAY_INSTALLED=true
-                        fi
-                    fi
-                    rm -f /tmp/Waveshare35a.zip
-                    rm -rf /tmp/waveshare35a_overlay
-                fi
-
-                # Fallback to goodtft
-                if [ "$OVERLAY_INSTALLED" = false ]; then
-                    if git clone --depth 1 https://github.com/goodtft/LCD-show.git /tmp/LCD-show 2>/dev/null; then
-                        if [ -f /tmp/LCD-show/usr/tft35a-overlay.dtb ]; then
-                            sudo cp /tmp/LCD-show/usr/tft35a-overlay.dtb "$OVERLAYS_DIR/waveshare35a.dtbo"
-                            OVERLAY_INSTALLED=true
-                        fi
-                        rm -rf /tmp/LCD-show
-                    fi
-                fi
-
-                if [ "$OVERLAY_INSTALLED" = true ]; then
-                    echo -e "${GREEN}TFT display overlay installed${NC}"
-                else
-                    echo -e "${YELLOW}Could not download TFT overlay (non-fatal)${NC}"
-                fi
-            fi
-
-            # Enable SPI
-            if ! grep -q "^dtparam=spi=on" "$CONFIG_TXT"; then
-                echo "dtparam=spi=on" | sudo tee -a "$CONFIG_TXT" > /dev/null
-            fi
-
-            # Add TFT overlay to config.txt
-            if ! grep -qE "^dtoverlay=(waveshare35a|tft35a)" "$CONFIG_TXT"; then
-                if ! grep -q "^# GPT Home TFT display configuration" "$CONFIG_TXT"; then
-                    echo "" | sudo tee -a "$CONFIG_TXT" > /dev/null
-                    echo "# GPT Home TFT display configuration" | sudo tee -a "$CONFIG_TXT" > /dev/null
-                fi
-                echo "dtoverlay=waveshare35a" | sudo tee -a "$CONFIG_TXT" > /dev/null
-            fi
-
-            echo -e "${GREEN}SPI TFT display support configured${NC}"
-            TFT_NEEDS_REBOOT=true
+        if ! grep -q "dtparam=spi=on" "$CONFIG_TXT"; then
+            echo "#dtparam=spi=on" | sudo tee -a "$CONFIG_TXT" > /dev/null
         fi
+
+        if ! grep -qE "dtoverlay=(piscreen|waveshare35a|tft35a)" "$CONFIG_TXT"; then
+            echo "#dtoverlay=piscreen,drm" | sudo tee -a "$CONFIG_TXT" > /dev/null
+        fi
+
+        echo -e "${GREEN}SPI TFT display support configured${NC}"
     fi
 fi
 
@@ -1049,22 +1015,7 @@ if [[ "$NO_BUILD" == "true" ]]; then
     $COMPOSE ps
 fi
 
-if [ "$TFT_NEEDS_REBOOT" = true ]; then
-    echo ""
-    echo -e "${YELLOW}================================================================${NC}"
-    echo -e "${YELLOW}  REBOOT REQUIRED: The 3.5\" TFT display driver was installed.${NC}"
-    echo -e "${YELLOW}  The display won't work until you reboot your Raspberry Pi.${NC}"
-    echo -e "${YELLOW}  GPT Home will restart automatically after reboot.${NC}"
-    echo -e "${YELLOW}================================================================${NC}"
-    echo ""
-    read -t 30 -p "Reboot now? [Y/n] " reboot_answer </dev/tty || reboot_answer="y"
-    if [[ ! "$reboot_answer" =~ ^[Nn]$ ]]; then
-        echo "Rebooting..."
-        sudo reboot
-    else
-        echo -e "${YELLOW}Remember to reboot later with: sudo reboot${NC}"
-    fi
-fi
+
 ```
 
 </p>

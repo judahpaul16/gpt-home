@@ -8,6 +8,7 @@ to the display manager for visualization. Supports two modes:
 """
 
 import asyncio
+import logging
 import math
 import os
 import re
@@ -19,6 +20,10 @@ from enum import Enum
 from typing import Callable, Optional
 
 import numpy as np
+
+logger = logging.getLogger("audio_capture")
+
+_logged_alsa_card = None
 
 
 class CaptureMode(Enum):
@@ -46,25 +51,20 @@ def _check_alsa_input_devices_at_startup() -> bool:
             timeout=5,
         )
         if result.returncode != 0:
-            print("[AudioCapture] No ALSA input devices (arecord failed)", flush=True)
+            logger.warning("No ALSA input devices (arecord failed)")
             return False
         if "card" not in result.stdout.lower():
-            print("[AudioCapture] No ALSA input devices found", flush=True)
+            logger.warning("No ALSA input devices found")
             return False
 
-        # Just check if input devices exist - don't set global ALSA_CARD env vars
-        # Setting ALSA_CARD globally would interfere with audio output which may
-        # use a different card (e.g., HDMI on card 2 vs USB mic on card 1)
         card_match = re.search(r"card\s+(\d+):", result.stdout.lower())
         if card_match:
             card_num = card_match.group(1)
-            print(
-                f"[AudioCapture] Found ALSA input device on card {card_num}", flush=True
-            )
+            logger.debug("Found ALSA input device on card %s", card_num)
 
         return True
     except Exception as e:
-        print(f"[AudioCapture] ALSA check failed: {e}", flush=True)
+        logger.error("ALSA check failed: %s", e)
         return False
 
 
@@ -88,18 +88,16 @@ def _get_pyaudio():
 
     if "pyaudio" in sys.modules:
         _pyaudio_module = sys.modules["pyaudio"]
-        print("[AudioCapture] PyAudio module reused from sys.modules", flush=True)
         return _pyaudio_module
 
     try:
         import pyaudio
 
         _pyaudio_module = pyaudio
-        print("[AudioCapture] PyAudio module imported", flush=True)
         return pyaudio
     except ImportError:
         PYAUDIO_AVAILABLE = False
-        print("[AudioCapture] PyAudio not available", flush=True)
+        logger.error("PyAudio not available")
         return None
 
 
@@ -116,10 +114,9 @@ def _get_pyaudio_instance():
 
         try:
             _pyaudio_instance = pyaudio.PyAudio()
-            print("[AudioCapture] PyAudio instance created", flush=True)
             return _pyaudio_instance
         except Exception as e:
-            print(f"[AudioCapture] Failed to create PyAudio instance: {e}", flush=True)
+            logger.error("Failed to create PyAudio instance: %s", e)
             return None
 
 
@@ -130,9 +127,8 @@ def _release_pyaudio_instance():
         if _pyaudio_instance is not None:
             try:
                 _pyaudio_instance.terminate()
-                print("[AudioCapture] PyAudio instance terminated", flush=True)
             except Exception as e:
-                print(f"[AudioCapture] Error terminating PyAudio: {e}", flush=True)
+                logger.error("Error terminating PyAudio: %s", e)
             _pyaudio_instance = None
 
 
@@ -194,41 +190,28 @@ class AudioCapture:
         best_device = None
         best_priority = -1
 
-        print("[AudioCapture] Scanning audio devices...", flush=True)
-
         for i in range(p.get_device_count()):
             try:
                 info = p.get_device_info_by_index(i)
                 name = info.get("name", "").lower()
                 max_input = info.get("maxInputChannels", 0)
 
-                print(
-                    f"[AudioCapture]   Device {i}: {info.get('name')} (inputs={max_input})",
-                    flush=True,
-                )
-
                 if max_input > 0:
                     for keyword, priority in monitor_priorities:
                         if keyword in name and priority > best_priority:
                             best_device = i
                             best_priority = priority
-                            print(
-                                f"[AudioCapture]   -> Candidate monitor: {info['name']} (priority {priority})",
-                                flush=True,
-                            )
                             break
-            except Exception as e:
-                print(f"[AudioCapture]   Device {i}: Error - {e}", flush=True)
+            except Exception:
                 continue
 
         if best_device is not None:
             info = p.get_device_info_by_index(best_device)
-            print(
-                f"[AudioCapture] Selected monitor device: {info['name']} (index {best_device})",
-                flush=True,
+            logger.debug(
+                "Selected monitor device: %s (index %d)", info["name"], best_device
             )
         else:
-            print("[AudioCapture] No monitor device found", flush=True)
+            logger.debug("No monitor device found")
 
         return best_device
 
@@ -238,13 +221,14 @@ class AudioCapture:
             default_info = p.get_default_input_device_info()
             if default_info and default_info.get("maxInputChannels", 0) > 0:
                 idx = default_info.get("index")
-                print(
-                    f"[AudioCapture] Using default input device: {default_info.get('name')} (index {idx})",
-                    flush=True,
+                logger.debug(
+                    "Using default input device: %s (index %s)",
+                    default_info.get("name"),
+                    idx,
                 )
                 return idx
-        except Exception as e:
-            print(f"[AudioCapture] No default input device: {e}", flush=True)
+        except Exception:
+            pass
         return None
 
     def _find_microphone_device_alsa(self) -> Optional[int]:
@@ -263,7 +247,6 @@ class AudioCapture:
             )
 
             if result.returncode != 0:
-                print("[AudioCapture] arecord -l failed", flush=True)
                 return None
 
             mic_priorities = [
@@ -302,22 +285,19 @@ class AudioCapture:
                 except (ValueError, AttributeError):
                     pass
 
-            if best_card is not None:
-                print(
-                    f"[AudioCapture] Found microphone via ALSA: card {best_card}",
-                    flush=True,
-                )
+            global _logged_alsa_card
+            if best_card is not None and best_card != _logged_alsa_card:
+                logger.debug("Found microphone via ALSA: card %d", best_card)
+                _logged_alsa_card = best_card
 
             return best_card
 
         except subprocess.TimeoutExpired:
-            print("[AudioCapture] arecord -l timed out", flush=True)
             return None
         except FileNotFoundError:
-            print("[AudioCapture] arecord not found", flush=True)
             return None
         except Exception as e:
-            print(f"[AudioCapture] Error finding microphone via ALSA: {e}", flush=True)
+            logger.error("Error finding microphone via ALSA: %s", e)
             return None
 
     def _find_pyaudio_index_for_card(
@@ -333,17 +313,11 @@ class AudioCapture:
 
                     if max_input > 0:
                         if f"hw:{card_num}" in name or f"plughw:{card_num}" in name:
-                            print(
-                                f"[AudioCapture] Matched card {card_num} to PyAudio index {i}: {info['name']}",
-                                flush=True,
-                            )
                             return i
                 except Exception:
                     continue
         except Exception as e:
-            print(
-                f"[AudioCapture] Error mapping card to PyAudio index: {e}", flush=True
-            )
+            logger.error("Error mapping card to PyAudio index: %s", e)
 
         return None
 
@@ -355,10 +329,7 @@ class AudioCapture:
             if pyaudio_idx is not None:
                 return pyaudio_idx
 
-        print(
-            "[AudioCapture] ALSA detection failed, trying PyAudio enumeration",
-            flush=True,
-        )
+        logger.debug("ALSA detection failed, trying PyAudio enumeration")
 
         mic_priorities = [
             ("usb", 100),
@@ -390,14 +361,13 @@ class AudioCapture:
                 except Exception:
                     continue
         except Exception as e:
-            print(f"[AudioCapture] PyAudio enumeration error: {e}", flush=True)
+            logger.error("PyAudio enumeration error: %s", e)
 
         if best_device is not None:
             try:
                 info = p.get_device_info_by_index(best_device)
-                print(
-                    f"[AudioCapture] Selected microphone: {info['name']} (index {best_device})",
-                    flush=True,
+                logger.debug(
+                    "Selected microphone: %s (index %d)", info["name"], best_device
                 )
             except Exception:
                 pass
@@ -440,7 +410,7 @@ class AudioCapture:
             return list(self._prev_values)
 
         except Exception as e:
-            print(f"[AudioCapture] Error calculating bars: {e}", flush=True)
+            logger.error("Error calculating bars: %s", e)
             return [0.0] * self.NUM_BARS
 
     def _calculate_rms(self, data: bytes) -> float:
@@ -463,23 +433,16 @@ class AudioCapture:
             max_input = info.get("maxInputChannels", 0)
 
             if max_input <= 0:
-                print(f"[AudioCapture] Device {name} has no input channels", flush=True)
                 return False
 
-            print(
-                f"[AudioCapture] Device {name} validated (inputs={max_input})",
-                flush=True,
-            )
             return True
-        except Exception as e:
-            print(f"[AudioCapture] Device validation error: {e}", flush=True)
+        except Exception:
             return False
 
     def _capture_loop(self):
         """Main capture loop running in separate thread."""
         pyaudio = _get_pyaudio()
         if pyaudio is None:
-            print("[AudioCapture] PyAudio not available, cannot capture", flush=True)
             self._running = False
             return
 
@@ -491,30 +454,21 @@ class AudioCapture:
         try:
             self._pyaudio = _get_pyaudio_instance()
             if self._pyaudio is None:
-                print("[AudioCapture] Failed to get PyAudio instance", flush=True)
                 self._running = False
                 return
 
             if self._mode == CaptureMode.MICROPHONE:
                 device_index = self._find_microphone_device(self._pyaudio)
                 if device_index is None:
-                    print("[AudioCapture] No microphone device found", flush=True)
                     self._running = False
                     return
                 if not self._validate_device(self._pyaudio, device_index):
-                    print(
-                        "[AudioCapture] Microphone device validation failed", flush=True
-                    )
                     self._running = False
                     return
             else:
                 device_index = self._find_monitor_device(self._pyaudio)
 
                 if device_index is None:
-                    print(
-                        "[AudioCapture] No monitor device found, attempting PulseAudio setup...",
-                        flush=True,
-                    )
                     self._setup_pulseaudio_monitor()
 
                     self._pyaudio.terminate()
@@ -524,12 +478,10 @@ class AudioCapture:
                 if device_index is None:
                     device_index = self._find_default_input(self._pyaudio)
                     if device_index is None:
-                        print("[AudioCapture] No input device found at all", flush=True)
                         self._running = False
                         return
 
                 if not self._validate_device(self._pyaudio, device_index):
-                    print("[AudioCapture] Output device validation failed", flush=True)
                     self._running = False
                     return
 
@@ -546,13 +498,9 @@ class AudioCapture:
                     frames_per_buffer=self.CHUNK,
                 )
             except Exception as e:
-                print(f"[AudioCapture] Failed to open stream: {e}", flush=True)
+                logger.error("Failed to open stream: %s", e)
                 self._running = False
                 return
-
-            print(
-                f"[AudioCapture] Started capturing audio at {sample_rate}Hz", flush=True
-            )
 
             while self._running:
                 try:
@@ -565,14 +513,11 @@ class AudioCapture:
                 except IOError as e:
                     continue
                 except Exception as e:
-                    print(f"[AudioCapture] Error in capture loop: {e}", flush=True)
+                    logger.error("Error in capture loop: %s", e)
                     break
 
         except Exception as e:
-            print(f"[AudioCapture] Failed to start capture: {e}", flush=True)
-            import traceback
-
-            traceback.print_exc()
+            logger.error("Failed to start capture: %s", e, exc_info=True)
         finally:
             self._running = False
             self._cleanup()
@@ -588,7 +533,6 @@ class AudioCapture:
             )
 
             if result.returncode != 0:
-                print("[AudioCapture] PulseAudio not running", flush=True)
                 return
 
             # List sinks to find the default output
@@ -609,34 +553,19 @@ class AudioCapture:
                         else sinks[0].split()[1]
                     )
                     monitor_source = f"{sink_name}.monitor"
-                    print(
-                        f"[AudioCapture] Found PulseAudio sink: {sink_name}", flush=True
-                    )
-                    print(
-                        f"[AudioCapture] Monitor source should be: {monitor_source}",
-                        flush=True,
-                    )
 
-                    # Set the monitor as default source temporarily
                     subprocess.run(
                         ["pactl", "set-default-source", monitor_source],
                         capture_output=True,
                         timeout=5,
                     )
-                    print(
-                        f"[AudioCapture] Set default source to {monitor_source}",
-                        flush=True,
-                    )
 
         except FileNotFoundError:
-            print(
-                "[AudioCapture] pactl not found - PulseAudio tools not installed",
-                flush=True,
-            )
+            pass
         except subprocess.TimeoutExpired:
-            print("[AudioCapture] PulseAudio command timed out", flush=True)
+            pass
         except Exception as e:
-            print(f"[AudioCapture] PulseAudio setup error: {e}", flush=True)
+            logger.error("PulseAudio setup error: %s", e)
 
     def _cleanup(self):
         """Clean up audio resources."""
@@ -645,13 +574,11 @@ class AudioCapture:
                 self._stream.stop_stream()
                 self._stream.close()
             except Exception as e:
-                print(f"[AudioCapture] Error closing stream: {e}", flush=True)
+                logger.error("Error closing stream: %s", e)
             self._stream = None
 
         self._pyaudio = None
-
         self._running = False
-        print("[AudioCapture] Stopped capturing audio", flush=True)
 
     def start(self):
         """Start audio capture in background thread."""
@@ -697,7 +624,6 @@ def start_audio_capture(mode: CaptureMode = CaptureMode.OUTPUT):
     global _audio_capture
 
     if not PYAUDIO_AVAILABLE:
-        print("[AudioCapture] PyAudio not available", flush=True)
         return
 
     if _audio_capture and _audio_capture.is_running():

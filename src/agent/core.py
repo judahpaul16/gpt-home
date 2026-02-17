@@ -1,6 +1,9 @@
+import logging
 import os
 from abc import ABC, abstractmethod
 from typing import Any, Optional
+
+logger = logging.getLogger("agent.core")
 
 from langchain_core.runnables import RunnableConfig
 from langchain_litellm import ChatLiteLLM
@@ -116,6 +119,15 @@ class GPTHomeAgent(BaseAgent):
                         )
             except Exception:
                 pass
+
+        # Build integration availability section from service statuses
+        statuses = getattr(self, "_current_service_status", {})
+        available = [name for name, ok in statuses.items() if ok]
+        if available:
+            integrations_text = "Available integrations: " + ", ".join(available) + "."
+        else:
+            integrations_text = "No integrations are configured yet. Only use tools if the user explicitly asks for something that requires them."
+
         system_content = f"""You are a helpful AI assistant for GPT Home, a smart home voice assistant.
 You help users with various tasks including:
 - Weather information
@@ -126,11 +138,15 @@ You help users with various tasks including:
 
 {self.config.custom_instructions}
 
+## Integration Status
+{integrations_text}
+
 ## Important Tool Usage Guidelines
 - When users ask about weather without specifying a location, ALWAYS call the weather tool immediately. The tool will automatically detect their location - do NOT ask for their location first.
 - When users ask to play music, call the Spotify tool directly.
 - When users ask about their calendar or to set reminders, call the calendar tool directly.
 - Be proactive - call tools first, ask clarifying questions only if the tool fails or returns an error.
+- For simple greetings or general conversation, just respond naturally without mentioning integrations.
 
 ## User Memories
 <memories>
@@ -147,8 +163,9 @@ Be concise but helpful in your responses as they will be spoken aloud."""
         self, text: str, user_id: str = "default", thread_id: str = "default", **kwargs
     ) -> str:
         """Process user input and return response."""
-        logger.debug(f"[GPTHomeAgent.invoke] Called with text: {text!r}")
         await self.initialize()
+
+        self._current_service_status = kwargs.get("service_status", {})
 
         config: RunnableConfig = {
             "configurable": {
@@ -158,34 +175,21 @@ Be concise but helpful in your responses as they will be spoken aloud."""
             "recursion_limit": 15,
         }
 
-        logger.debug(f"[GPTHomeAgent.invoke] Calling ainvoke with config: {config}")
-        logger.debug(
-            f"[GPTHomeAgent.invoke] Service Statuses: {kwargs.get('service_status', {})}"
-        )
-
         result = await self._agent.ainvoke(
             {
                 "messages": [
                     {
                         "role": "user",
-                        "content": f"{text}, Service Statuses: {kwargs.get('service_status', {})}",
+                        "content": text,
                     }
                 ],
             },
             config=config,
         )
-        logger.debug(
-            f"[GPTHomeAgent.invoke] ainvoke result keys: {result.keys() if result else None}"
-        )
 
         if result and result.get("messages"):
-            response = result["messages"][-1].content
-            logger.debug(f"[GPTHomeAgent.invoke] Returning response: {response!r}")
-            return response
+            return result["messages"][-1].content
 
-        logger.warning(
-            "[GPTHomeAgent.invoke] No messages in result, returning default error"
-        )
         return "I'm sorry, I couldn't process that request."
 
     async def stream(
@@ -227,7 +231,7 @@ async def create_agent(config: Optional[AgentConfig] = None) -> GPTHomeAgent:
                 await saver.setup()
                 checkpointer = saver
         except Exception as e:
-            print(f"Warning: Could not initialize PostgreSQL checkpointer: {e}")
+            logger.warning("Could not initialize PostgreSQL checkpointer: %s", e)
 
         try:
             store = AsyncPostgresStore.from_conn_string(
@@ -240,7 +244,7 @@ async def create_agent(config: Optional[AgentConfig] = None) -> GPTHomeAgent:
             )
             await store.setup()
         except Exception as e:
-            print(f"Warning: Could not initialize PostgreSQL store: {e}")
+            logger.warning("Could not initialize PostgreSQL store: %s", e)
 
     agent = GPTHomeAgent(config, checkpointer, store)
     await agent.initialize()

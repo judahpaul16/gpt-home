@@ -15,7 +15,7 @@ from .base import BaseDisplay, Color, Colors, DisplayInfo, DisplayMode, ScreenTy
 from .detection import detect_displays
 from .factory import DisplayFactory
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("display.multi")
 
 SETTINGS_PATH = Path(__file__).parent.parent / "settings.json"
 
@@ -51,8 +51,8 @@ class MultiDisplayConfig:
                         display_id=display_id,
                         enabled=display_cfg.get("enabled", True),
                     )
-        except Exception as e:
-            logger.debug(f"Could not load multi-display config: {e}")
+        except Exception:
+            pass
         return config
 
     def save(self) -> None:
@@ -74,7 +74,7 @@ class MultiDisplayConfig:
             with SETTINGS_PATH.open("w") as f:
                 json.dump(settings, f, indent=2)
         except Exception as e:
-            logger.warning(f"Could not save multi-display config: {e}")
+            logger.error("Could not save multi-display config: %s", e)
 
 
 def get_display_id(info: DisplayInfo) -> str:
@@ -123,7 +123,7 @@ class MirroredDisplay(BaseDisplay):
         if not success:
             for i, r in enumerate(results):
                 if isinstance(r, Exception):
-                    logger.error(f"Display {i} init failed: {r}")
+                    logger.error("Display %d init failed: %s", i, r)
         return success
 
     async def clear(self, color: Color = Colors.BLACK) -> None:
@@ -395,14 +395,14 @@ class MultiDisplayManager:
                 continue
 
             if not self.is_display_enabled(display_id):
-                logger.info(f"Display {display_id} is disabled, skipping")
+                logger.debug("Display %s is disabled, skipping", display_id)
                 continue
 
             display = DisplayFactory.create(info)
             if display and display.supports_modes:
                 self._displays[display_id] = display
                 displays.append(display)
-                logger.info(f"Created display: {display_id}")
+                logger.debug("Created display: %s", display_id)
 
         self._config.save()
         return displays
@@ -458,7 +458,7 @@ class MultiDisplayManager:
             try:
                 await display.shutdown()
             except Exception as e:
-                logger.warning(f"Error shutting down display: {e}")
+                logger.error("Error shutting down display: %s", e)
         self._displays.clear()
 
 

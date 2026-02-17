@@ -15,6 +15,8 @@ from typing import Any, Dict, List, Optional
 
 import aiohttp
 
+logger = logging.getLogger("display.manager")
+
 from .base import BaseDisplay, Color, DisplayMode
 from .detection import detect_displays
 from .factory import DisplayFactory
@@ -84,8 +86,6 @@ def check_and_clear_activity() -> bool:
 SETTINGS_PATH = Path(__file__).parent.parent / "settings.json"
 TARGET_FPS = 120
 FRAME_TIME = 1.0 / TARGET_FPS
-
-logger = logging.getLogger(__name__)
 
 
 class AnimationState(Enum):
@@ -177,15 +177,13 @@ class DisplayManager:
 
     def _init_waveform_observer(self) -> None:
         if FullDisplayWaveformObserver is None or get_waveform_mediator is None:
-            print("[DisplayManager] Waveform imports not available", flush=True)
             return
         try:
             self._waveform_observer = FullDisplayWaveformObserver(voice_gated=True)
             mediator = get_waveform_mediator()
             mediator.register_observer(self._waveform_observer)
-            print(f"[DisplayManager] Waveform observer registered", flush=True)
         except Exception as e:
-            print(f"[DisplayManager] Failed to init waveform observer: {e}", flush=True)
+            logger.error("Failed to init waveform observer: %s", e)
 
     def _update_waveform_observer_mode(self, voice_gated: bool) -> None:
         """Update the waveform observer's voice-gated mode."""
@@ -214,11 +212,11 @@ class DisplayManager:
                         asyncio.create_task(cls._instance.shutdown())
                     else:
                         loop.run_until_complete(cls._instance.shutdown())
-                except Exception as e:
-                    logger.debug(f"Error during display cleanup: {e}")
+                except Exception:
+                    pass
             cls._instance._display = None
             cls._instance._display_initialized = False
-            logger.info("DisplayManager instance reset for reinitialization")
+            logger.debug("Instance reset for reinitialization")
 
     def _get_host_ip(self) -> str:
         """Get host LAN IP address."""
@@ -275,11 +273,12 @@ class DisplayManager:
             await multi_mgr.detect_and_create_displays()
             full_display = multi_mgr.get_mirrored_display()
             if full_display:
-                logger.info(
-                    f"Using multi-display manager (mirror={multi_mgr.get_config().mirror_enabled})"
+                logger.debug(
+                    "Using multi-display manager (mirror=%s)",
+                    multi_mgr.get_config().mirror_enabled,
                 )
-        except Exception as e:
-            logger.debug(f"Multi-display manager not available: {e}")
+        except Exception:
+            pass
 
         # Fallback to single display detection
         if not full_display:
@@ -292,7 +291,6 @@ class DisplayManager:
                     display = DisplayFactory.create(info)
                     if display and display.supports_modes:
                         full_display = display
-                        logger.debug(f"Using preferred display type: {preferred_type}")
                         break
 
         if full_display:
@@ -302,24 +300,15 @@ class DisplayManager:
                 self._display_initialized = True
                 self._build_gradient_cache()
 
-                # Load saved display mode from settings
                 saved_mode = self._load_saved_mode()
                 if saved_mode and saved_mode != self._mode:
-                    logger.debug(f"Restoring saved display mode: {saved_mode.name}")
                     self._mode = saved_mode
 
-                # Ensure stop flag is clear before starting
                 self._stop_requested = False
                 self._frame = 0
 
-                # Load screensaver settings
                 self._load_screensaver_settings()
                 self._last_activity_time = time.time()
-
-                # Start the render loop
-                logger.debug(
-                    f"Starting initial render loop for mode: {self._mode.name}"
-                )
                 await self._start_mode_loop()
 
                 # Always start screensaver activity monitor (it checks enabled flag internally)
@@ -329,10 +318,7 @@ class DisplayManager:
                 )
             return success
 
-        logger.debug(
-            "No full display found - display modes disabled (I2C is text-only)"
-        )
-        self._display_initialized = True  # Mark as initialized even if no display
+        self._display_initialized = True
         return False
 
     def _load_saved_mode(self) -> Optional[DisplayMode]:
@@ -351,8 +337,8 @@ class DisplayManager:
                     "off": DisplayMode.OFF,
                 }
                 return mode_map.get(mode_name, DisplayMode.SMART)
-        except Exception as e:
-            logger.debug(f"Could not load saved display mode: {e}")
+        except Exception:
+            pass
         return None
 
     def _load_screensaver_settings(self) -> None:
@@ -366,12 +352,8 @@ class DisplayManager:
                     settings.get("screensaver_timeout", 300)
                 )
                 self._screensaver_style = settings.get("screensaver_style", "starfield")
-                logger.debug(
-                    f"Screensaver settings: enabled={self._screensaver_enabled}, "
-                    f"timeout={self._screensaver_timeout}s, style={self._screensaver_style}"
-                )
-        except Exception as e:
-            logger.debug(f"Could not load screensaver settings: {e}")
+        except Exception:
+            pass
 
     def register_activity(self) -> None:
         """Register user activity to reset screensaver timer.
@@ -391,29 +373,18 @@ class DisplayManager:
             await self._deactivate_screensaver()
 
     async def _activate_screensaver(self) -> None:
-        """Activate screensaver - pauses current mode and shows screensaver animation."""
-        if self._screensaver_active:
-            logger.debug("_activate_screensaver called but already active")
-            return
-        if not self._display:
-            logger.debug("_activate_screensaver called but no display available")
-            return
-        if self._mode == DisplayMode.OFF:
-            logger.debug("_activate_screensaver called but display is OFF")
+        if (
+            self._screensaver_active
+            or not self._display
+            or self._mode == DisplayMode.OFF
+        ):
             return
 
-        logger.info(
-            f"Activating screensaver (current mode: {self._mode.name}, style: {self._screensaver_style})"
-        )
+        logger.debug("Activating screensaver (style: %s)", self._screensaver_style)
         self._screensaver_active = True
 
-        # Stop current render task
-        logger.debug("Stopping current render task for screensaver...")
         await self._stop_render()
-
-        # Start screensaver render task
         self._stop_requested = False
-        logger.debug("Starting screensaver render task...")
         self._load_screensaver_settings()
 
         def stop_check() -> bool:
@@ -431,14 +402,13 @@ class DisplayManager:
                 self._deactivate_screensaver,
             )
         )
-        logger.info("Screensaver render task started")
 
     async def _deactivate_screensaver(self) -> None:
         """Deactivate screensaver and resume the current mode's display."""
         if not self._screensaver_active and self._screensaver_render_task is None:
             return
 
-        logger.info(f"Deactivating screensaver, resuming mode: {self._mode.name}")
+        logger.debug("Deactivating screensaver, resuming mode: %s", self._mode.name)
         self._screensaver_active = False
         self._stop_requested = True
 
@@ -484,12 +454,10 @@ class DisplayManager:
 
         elapsed = time.time() - self._last_activity_time
         if elapsed >= self._screensaver_timeout:
-            logger.info(f"Activating screensaver after {elapsed:.0f}s of inactivity")
+            logger.debug("Activating screensaver after %.0fs of inactivity", elapsed)
             await self._activate_screensaver()
 
     async def _screensaver_monitor_loop(self) -> None:
-        """Background task to monitor inactivity and activate screensaver."""
-        logger.info("Screensaver monitor loop started")
         try:
             while True:
                 await asyncio.sleep(10)
@@ -497,7 +465,7 @@ class DisplayManager:
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            logger.error(f"Screensaver monitor error: {e}")
+            logger.error("Screensaver monitor error: %s", e)
 
     async def reinitialize(self) -> bool:
         """Reinitialize the display manager to detect newly connected displays.
@@ -508,7 +476,7 @@ class DisplayManager:
         Returns:
             True if a full display was found and initialized
         """
-        logger.info("Reinitializing display manager (hotswap)...")
+        logger.debug("Reinitializing display manager (hotswap)...")
         self._display_initialized = False
         return await self.initialize(force_refresh=True)
 
@@ -545,21 +513,16 @@ class DisplayManager:
 
     async def set_mode(self, mode: DisplayMode) -> None:
         if not self._display:
-            logger.warning("set_mode called but no display available")
             return
 
         if self._screensaver_active:
             self._mode = mode
-            logger.debug(
-                f"set_mode: screensaver active, mode stored as {mode.name} but not starting loop"
-            )
             return
 
         if self._mode == mode:
-            logger.debug(f"set_mode: already in mode {mode.name}")
             return
 
-        logger.info(f"Changing display mode from {self._mode.name} to {mode.name}")
+        logger.debug("Changing mode from %s to %s", self._mode.name, mode.name)
 
         # Signal stop BEFORE acquiring lock to avoid deadlock
         # (render loop holds lock while checking stop flag)
@@ -587,7 +550,7 @@ class DisplayManager:
             if mode == DisplayMode.OFF:
                 self._display.show_sync()
                 self._restore_tty()
-                logger.info("Display turned off, TTY restored")
+                logger.debug("Display turned off, TTY restored")
                 return
 
         # Clear stop flag and start new loop
@@ -613,29 +576,23 @@ class DisplayManager:
                 if os.path.exists(tty_path):
                     with open(tty_path, "w") as tty:
                         fcntl.ioctl(tty.fileno(), KDSETMODE, KD_TEXT)
-                    logger.info("TTY restored to text mode")
-            except Exception as e:
-                logger.debug(f"Could not restore TTY: {e}")
+            except Exception:
+                pass
 
     async def _start_mode_loop(self) -> None:
         """Start the render loop for current mode."""
         current_mode = self._mode
 
         if self._screensaver_active:
-            logger.debug("_start_mode_loop: screensaver active, not starting loop")
             return
 
         if current_mode == DisplayMode.OFF:
-            logger.debug("_start_mode_loop: mode is OFF, not starting loop")
             return
 
         if not self._display:
-            logger.warning("_start_mode_loop: no display available")
             return
 
-        # Ensure no existing task is running
         if self._render_task and not self._render_task.done():
-            logger.warning("Render task still running, stopping it first")
             self._stop_requested = True
             self._render_task.cancel()
             try:
@@ -682,20 +639,18 @@ class DisplayManager:
                 waveform_loop(self, stop_check, screensaver_check)
             )
         else:
-            logger.warning(f"Unknown display mode: {current_mode}")
+            logger.warning("Unknown display mode: %s", current_mode)
 
     async def _stop_render(self) -> None:
         """Stop the current render task."""
         self._stop_requested = True
 
         if self._render_task and not self._render_task.done():
-            logger.debug("Cancelling existing render task")
             self._render_task.cancel()
             try:
                 await asyncio.wait_for(self._render_task, timeout=1.0)
             except (asyncio.CancelledError, asyncio.TimeoutError):
                 pass
-            logger.debug("Render task stopped")
 
         self._render_task = None
         self._frame = 0
@@ -971,8 +926,8 @@ class DisplayManager:
                 ) as resp:
                     if resp.status == 200:
                         return await resp.json()
-        except Exception as e:
-            logger.debug(f"Could not fetch Spotify data: {e}")
+        except Exception:
+            pass
         return {}
 
     async def _load_album_art(self, url: str) -> Optional[Any]:
@@ -992,8 +947,8 @@ class DisplayManager:
                         data = await resp.read()
                         img = Image.open(io.BytesIO(data))
                         return img.convert("RGB")
-        except Exception as e:
-            logger.debug(f"Could not load album art: {e}")
+        except Exception:
+            pass
         return None
 
     async def _music_animation(self, context: Dict[str, Any]) -> None:
@@ -1387,7 +1342,7 @@ class DisplayManager:
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            logger.error(f"Music animation error: {e}")
+            logger.error("Music animation error: %s", e)
 
     async def _light_animation(self, context: Dict[str, Any]) -> None:
         try:
@@ -1601,19 +1556,10 @@ class DisplayManager:
                         If False, show bars for any audio (WAVEFORM mode).
         """
         if self._waveform_observer is None:
-            logger.debug("_render_waveform_inline: no waveform observer")
             return
 
         self._waveform_observer.set_voice_gated(voice_gated)
         waveform_snapshot = self._waveform_observer.get_render_values()
-        max_val = max(waveform_snapshot) if waveform_snapshot else 0
-
-        # Log occasionally to avoid spam (every ~60 frames = 1 second at 60fps)
-        if self._frame % 60 == 0:
-            logger.debug(
-                f"_render_waveform_inline: max_val={max_val:.3f}, "
-                f"snapshot_len={len(waveform_snapshot)}"
-            )
 
         cx, cy = d.get_center()
         bar_count = 32
@@ -1674,12 +1620,7 @@ class DisplayManager:
             or self._mode == DisplayMode.OFF
             or self._has_tool_animation
         ):
-            logger.debug(
-                f"start_waveform_sync: skipped (display={self._display is not None}, "
-                f"mode={self._mode}, has_tool={self._has_tool_animation})"
-            )
             return
-        logger.debug("start_waveform_sync: activating waveform display")
         self._waveform_active = True
         self._waveform_explicitly_started = True
         self._last_activity_time = time.time()
@@ -1689,7 +1630,6 @@ class DisplayManager:
 
     def stop_waveform_sync(self) -> None:
         """Synchronously deactivate waveform display."""
-        logger.debug("stop_waveform_sync: deactivating waveform display")
         self._waveform_active = False
         self._waveform_explicitly_started = False
 
@@ -1717,7 +1657,7 @@ class DisplayManager:
 
         # Wake up from screensaver if Spotify starts playing
         if self._screensaver_active:
-            logger.info("Waking from screensaver for Spotify playback")
+            logger.debug("Waking from screensaver for Spotify playback")
             await self._deactivate_screensaver()
 
         # Check if track changed (forces album art reload)
@@ -1753,10 +1693,7 @@ class DisplayManager:
 
         # If not already showing Spotify, start the loop
         if not self._spotify_active:
-            print(
-                f"[show_spotify_now_playing] Starting Spotify display: {track} - {artist}",
-                flush=True,
-            )
+            logger.debug("Starting Spotify display: %s - %s", track, artist)
             self._spotify_active = True
             await self._stop_render()
             self._stop_requested = False
@@ -1785,14 +1722,12 @@ class DisplayManager:
     async def resume_idle(self) -> None:
         """Resume idle state and restart mode loop."""
         if self._screensaver_active:
-            print("[DISPLAY] resume_idle: screensaver active, skipping", flush=True)
             return
 
         if self._state == AnimationState.IDLE and self._render_task:
-            print("[DISPLAY] resume_idle: already idle with render task", flush=True)
             return
 
-        print(f"[DISPLAY] resume_idle: clearing tool animation", flush=True)
+        logger.debug("Resuming idle")
         self._streaming_text = ""
         self._has_tool_animation = False
         self._tool_animation_start = 0.0
@@ -1801,9 +1736,7 @@ class DisplayManager:
         self._waveform_explicitly_started = False
 
         await self._stop_render()
-        print(f"[DISPLAY] resume_idle: starting mode loop", flush=True)
         await self._start_mode_loop()
-        print(f"[DISPLAY] resume_idle: done", flush=True)
 
     def set_gallery_images(self, images: List[str]) -> None:
         self._gallery_images = images
@@ -1816,8 +1749,11 @@ class DisplayManager:
         old_temp = self._weather_data.get("temperature") if self._weather_data else None
         new_temp = data.get("temperature")
         if old_temp != new_temp:
-            logger.info(
-                f"Weather data updated: {new_temp}° {data.get('condition', '')} in {data.get('location', '')}"
+            logger.debug(
+                "Weather updated: %s° %s in %s",
+                new_temp,
+                data.get("condition", ""),
+                data.get("location", ""),
             )
         self._weather_data = data
 

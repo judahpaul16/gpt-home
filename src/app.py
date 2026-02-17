@@ -1,7 +1,11 @@
+import logging
+
 from common import *
 
 from src.backend import get_db_pool
 from src.routes import action_router
+
+logger = logging.getLogger("app")
 
 try:
     from src.audio_activity import get_audio_activity_detector
@@ -155,7 +159,7 @@ def _check_audio_level_sync() -> tuple:
                 return db > vad_threshold_db, db, vad_threshold_db
 
     except Exception as e:
-        print(f"[IDLE] Audio level check error: {e}", flush=True)
+        logger.error("Audio level check error: %s", e)
         return False, -100.0, -50.0
     finally:
         try:
@@ -172,12 +176,7 @@ async def check_audio_level_above_threshold() -> bool:
     has_voice, db, threshold = await loop.run_in_executor(None, _check_audio_level_sync)
 
     if has_voice:
-        print(
-            f"[IDLE] Voice detected: {db:.1f} dB (VAD triggered)",
-            flush=True,
-        )
-    else:
-        print(f"[IDLE] No voice: {db:.1f} dB", flush=True)
+        logger.info("Voice detected: %.1f dB (VAD triggered)", db)
 
     return has_voice
 
@@ -198,26 +197,16 @@ async def idle_loop(display):
     global _idle_mode_active
 
     _idle_mode_active = True
-    check_count = 0
-    print(
-        "[IDLE] Entering idle mode, screensaver will activate based on timeout",
-        flush=True,
-    )
+    logger.info("Entering idle mode")
 
     await restore_display_header(display)
 
     try:
         while _idle_mode_active:
-            check_count += 1
-            print(f"[IDLE] Check #{check_count} - checking audio level...", flush=True)
-
             has_audio = await check_audio_level_above_threshold()
 
             if has_audio:
-                print(
-                    f"[IDLE] Audio detected on check #{check_count}, exiting idle mode",
-                    flush=True,
-                )
+                logger.info("Audio detected, exiting idle mode")
 
                 i2c_display_register_activity()
 
@@ -237,23 +226,14 @@ async def idle_loop(display):
                 return True
 
             await i2c_display_check_screensaver(display)
-
-            print(
-                f"[IDLE] Check #{check_count} complete, waiting {_IDLE_CHECK_INTERVAL}s...",
-                flush=True,
-            )
             await asyncio.sleep(_IDLE_CHECK_INTERVAL)
 
     except asyncio.CancelledError:
-        print("[IDLE] Idle loop cancelled", flush=True)
         _idle_mode_active = False
         await restore_display_header(display)
         raise
     except Exception as e:
-        print(f"[IDLE] Error in idle loop: {e}", flush=True)
-        import traceback
-
-        traceback.print_exc()
+        logger.error("Error in idle loop: %s", e, exc_info=True)
         _idle_mode_active = False
         await restore_display_header(display)
         return True
@@ -268,14 +248,13 @@ async def main():
 
     while True:
         try:
-            print("[APP] Starting new listen cycle", flush=True)
             settings = load_settings()
             keyword = settings.get("keyword", "computer")
 
             if _consecutive_silence_count >= _SILENCE_THRESHOLD_FOR_IDLE:
-                print(
-                    f"[APP] {_consecutive_silence_count} consecutive silent cycles, entering idle mode",
-                    flush=True,
+                logger.debug(
+                    "%d consecutive silent cycles, entering idle mode",
+                    _consecutive_silence_count,
                 )
 
                 should_listen = await idle_loop(i2c_display)
@@ -297,10 +276,6 @@ async def main():
             except Exception as e:
                 logger.error(f"Listening timed out: {traceback.format_exc()}")
                 _consecutive_silence_count += 1
-                print(
-                    f"[APP] Listen timeout, silence count: {_consecutive_silence_count}",
-                    flush=True,
-                )
 
             stop_event.set()
             if state_task:
@@ -322,15 +297,9 @@ async def main():
 
                 if keyword in clean_text:
                     actual_text = clean_text.split(keyword, 1)[1].strip()
-                    print(
-                        f"[APP] Keyword found, actual_text: {actual_text!r}", flush=True
-                    )
+                    logger.info("Keyword found, actual_text: %r", actual_text)
                 else:
                     _consecutive_silence_count += 1
-                    print(
-                        f"[APP] No keyword in text, silence count: {_consecutive_silence_count}",
-                        flush=True,
-                    )
                     continue
 
                 if actual_text:
@@ -343,46 +312,28 @@ async def main():
                     heard_message = f'Heard: "{actual_text}"'
                     logger.success(heard_message)
 
-                    print(
-                        f"[APP] Calling action_router with: {actual_text!r}", flush=True
-                    )
+                    logger.info("Calling action_router with: %r", actual_text)
                     query_task = asyncio.create_task(action_router(actual_text))
 
                     if enable_heard:
                         await speak_with_display(heard_message, i2c_display)
 
-                    print(f"[APP] Waiting for action_router response...", flush=True)
                     response_message = await query_task
-                    print(
-                        f"[APP] action_router returned: {response_message!r}",
-                        flush=True,
-                    )
+                    logger.info("action_router returned: %r", response_message)
                     logger.success(response_message)
 
-                    print(f"[APP] Speaking response...", flush=True)
                     await speak_with_display(response_message, i2c_display)
-                    print(f"[APP] Response spoken", flush=True)
 
                     _consecutive_silence_count = 0
                     dm = get_display_manager()
                     if dm and dm.is_available:
                         await dm.resume_idle()
-                    print(f"[APP] Continuing to next listen cycle", flush=True)
-
             else:
                 _consecutive_silence_count += 1
-                print(
-                    f"[APP] No speech detected, silence count: {_consecutive_silence_count}",
-                    flush=True,
-                )
                 continue
 
         except sr.UnknownValueError:
             _consecutive_silence_count += 1
-            print(
-                f"[APP] Unknown value error, silence count: {_consecutive_silence_count}",
-                flush=True,
-            )
         except sr.RequestError as e:
             error_message = f"Could not request results; {e}"
             await handle_error(error_message, state_task, i2c_display)
@@ -471,9 +422,9 @@ async def startup():
         set_mic_callback(_continuous_mic_callback)
         mediator.start(WaveformSource.MICROPHONE)
         start_mic_capture()
-        print("[APP] Continuous mic capture started for waveform", flush=True)
+        logger.debug("Continuous mic capture started for waveform")
     except Exception as e:
-        print(f"[APP] Waveform mediator init failed: {e}", flush=True)
+        logger.error("Waveform mediator init failed: %s", e)
 
     api_key = os.getenv("LITELLM_API_KEY")
 

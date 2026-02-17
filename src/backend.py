@@ -4,6 +4,8 @@ import hashlib
 import json
 import logging
 import os
+
+logger = logging.getLogger("backend")
 import pty
 import re
 import select
@@ -699,7 +701,7 @@ async def _monitor_display_changes():
         udev_monitor = pyudev.Monitor.from_netlink(context)
         udev_monitor.filter_by(subsystem="drm")
         udev_monitor.start()
-        logger.info("Display monitor: Using udev for instant hotplug detection")
+        logger.debug("Display monitor: Using udev for instant hotplug detection")
     except ImportError:
         logger.debug("Display monitor: pyudev not available, using polling")
     except Exception as e:
@@ -833,7 +835,7 @@ async def _initialize_mic_gain():
                 timeout=5,
             )
             if result.returncode == 0:
-                logger.info(f"Mic gain set to {target_gain}% on card {mic_card}")
+                logger.debug("Mic gain set to %s%% on card %s", target_gain, mic_card)
                 break
     except Exception as e:
         logger.debug(f"Could not initialize mic gain: {e}")
@@ -849,7 +851,7 @@ async def startup_event():
     # Initialize database and migrate gallery images
     try:
         await get_db_pool()
-        logger.info("Gallery database initialized")
+        logger.debug("Gallery database initialized")
     except Exception as e:
         logger.warning(f"Gallery database initialization failed: {e}")
 
@@ -857,12 +859,7 @@ async def startup_event():
     try:
         manager = await ensure_display_initialized()
         if manager and manager.is_available:
-            logger.info("Display manager initialized on startup")
-
-            # Register display manager with common.py for direct access
-            from src.common import set_display_manager
-
-            set_display_manager(manager)
+            logger.debug("Display manager initialized on startup")
 
             # Auto-select HDMI audio when display is available on startup
             await _auto_select_hdmi_audio()
@@ -1913,7 +1910,7 @@ async def _spotify_monitor_loop():
     """Background task to monitor Spotify playback and update display via Web API."""
     global _spotify_playback_cache, _spotify_last_check
 
-    logger.info("Spotify monitor started (Web API)")
+    logger.debug("Spotify monitor started (Web API)")
     last_playing = False
 
     while True:
@@ -1975,7 +1972,7 @@ async def _spotify_monitor_loop():
                 last_playing = False
 
         except asyncio.CancelledError:
-            logger.info("Spotify monitor cancelled")
+            logger.debug("Spotify monitor cancelled")
             break
         except Exception as e:
             logger.debug(f"Spotify monitor error: {e}")
@@ -1987,7 +1984,7 @@ def start_spotify_monitor():
     global _spotify_monitor_task
     if _spotify_monitor_task is None or _spotify_monitor_task.done():
         _spotify_monitor_task = asyncio.create_task(_spotify_monitor_loop())
-        logger.info("Spotify monitor task created")
+        logger.debug("Spotify monitor task created")
 
 
 @app.get("/api/spotify/playback")
@@ -2559,7 +2556,7 @@ async def ensure_display_initialized(force_refresh: bool = False):
                 try:
                     await _display_manager.reinitialize()
                     if _display_manager.is_available:
-                        logger.info("Display manager reinitialized successfully")
+                        logger.debug("Display manager reinitialized successfully")
                         return _display_manager
                     else:
                         logger.info("No full display found after refresh")
@@ -2582,7 +2579,7 @@ async def ensure_display_initialized(force_refresh: bool = False):
                     success = False
                 _display_manager_initialized = True
                 if success:
-                    logger.info("Display manager initialized successfully")
+                    logger.debug("Display manager initialized successfully")
                 else:
                     logger.warning(
                         "Display manager initialization returned False (no full display)"
@@ -2931,6 +2928,44 @@ async def select_display(request: Request):
 _TFT_OVERLAY_NAMES = ["piscreen", "waveshare35a", "tft35a", "pitft35"]
 
 
+_PISCREEN_DTBO_URL = (
+    "https://github.com/raspberrypi/firmware/raw/master/boot/overlays/piscreen.dtbo"
+)
+
+
+def _find_boot_overlays_dir() -> Optional[str]:
+    candidates = [
+        "/boot/firmware/current/overlays",
+        "/boot/firmware/overlays",
+        "/boot/overlays",
+    ]
+    for d in candidates:
+        if os.path.isdir(d):
+            return d
+    return None
+
+
+def _ensure_tft_overlay_installed() -> Optional[str]:
+    overlays_dir = _find_boot_overlays_dir()
+    if not overlays_dir:
+        return "No boot overlays directory found"
+
+    dtbo_path = os.path.join(overlays_dir, "piscreen.dtbo")
+    if os.path.exists(dtbo_path):
+        return None
+
+    import urllib.request
+
+    try:
+        urllib.request.urlretrieve(_PISCREEN_DTBO_URL, dtbo_path)
+        logger.info("Installed piscreen.dtbo to %s", overlays_dir)
+        return None
+    except Exception as e:
+        logger.warning("piscreen.dtbo download failed: %s", e)
+
+    return "Could not download piscreen.dtbo from RPi firmware repo"
+
+
 @app.post("/api/display/hardware-mode")
 async def set_display_hardware_mode(request: Request):
     """Switch between TFT-only and HDMI display hardware modes.
@@ -2956,6 +2991,17 @@ async def set_display_hardware_mode(request: Request):
                 },
                 status_code=400,
             )
+
+        if mode == "tft":
+            error = _ensure_tft_overlay_installed()
+            if error:
+                return JSONResponse(
+                    content={
+                        "success": False,
+                        "message": f"TFT overlay install failed: {error}",
+                    },
+                    status_code=500,
+                )
 
         # Find config.txt location
         config_paths = ["/boot/firmware/config.txt", "/boot/config.txt"]
@@ -2983,6 +3029,8 @@ async def set_display_hardware_mode(request: Request):
         found_vc4_kms = False
         found_tft = False
         found_spi = False
+        found_disable_fw_kms = False
+        found_max_framebuffers = False
 
         for line in config_lines:
             stripped = line.strip()
@@ -2994,17 +3042,23 @@ async def set_display_hardware_mode(request: Request):
             ):
                 found_vc4_kms = True
                 if mode == "tft":
-                    # Comment out for TFT mode
                     if not stripped.startswith("#"):
                         new_lines.append(f"#{line.rstrip()}\n")
                     else:
                         new_lines.append(line)
                 else:
-                    # Uncomment for HDMI mode
                     if stripped.startswith("#"):
                         new_lines.append(line.lstrip("#"))
                     else:
                         new_lines.append(line)
+                continue
+
+            if "max_framebuffers" in stripped:
+                found_max_framebuffers = True
+                if mode == "tft":
+                    new_lines.append("max_framebuffers=0\n")
+                else:
+                    new_lines.append("max_framebuffers=2\n")
                 continue
 
             # Handle TFT overlays (piscreen, waveshare35a, tft35a, pitft35)
@@ -3028,13 +3082,25 @@ async def set_display_hardware_mode(request: Request):
             if "dtparam=spi=on" in stripped:
                 found_spi = True
                 if mode == "hdmi":
-                    # Comment out for HDMI mode (optional, but cleaner)
                     if not stripped.startswith("#"):
                         new_lines.append(f"#{line.rstrip()}\n")
                     else:
                         new_lines.append(line)
                 else:
-                    # Uncomment for TFT mode
+                    if stripped.startswith("#"):
+                        new_lines.append(line.lstrip("#"))
+                    else:
+                        new_lines.append(line)
+                continue
+
+            if "disable_fw_kms_setup" in stripped:
+                found_disable_fw_kms = True
+                if mode == "hdmi":
+                    if not stripped.startswith("#"):
+                        new_lines.append(f"#{line.rstrip()}\n")
+                    else:
+                        new_lines.append(line)
+                else:
                     if stripped.startswith("#"):
                         new_lines.append(line.lstrip("#"))
                     else:
@@ -3043,21 +3109,48 @@ async def set_display_hardware_mode(request: Request):
 
             new_lines.append(line)
 
-        # Add missing entries for TFT mode
         if mode == "tft":
             if not found_spi:
-                new_lines.append("\n# GPT Home TFT Display Configuration\n")
-                new_lines.append("dtparam=spi=on\n")
+                new_lines.append("\ndtparam=spi=on\n")
             if not found_tft:
-                new_lines.append("dtoverlay=waveshare35a\n")
+                new_lines.append("dtoverlay=piscreen,drm\n")
+            if not found_disable_fw_kms:
+                new_lines.append("disable_fw_kms_setup=1\n")
+            if not found_max_framebuffers:
+                new_lines.append("max_framebuffers=0\n")
 
-        # Add missing vc4-kms-v3d for HDMI mode
-        if mode == "hdmi" and not found_vc4_kms:
-            new_lines.append("\n# GPT Home HDMI Configuration\n")
-            new_lines.append("dtoverlay=vc4-kms-v3d\n")
+        if mode == "hdmi":
+            if not found_max_framebuffers:
+                new_lines.append("\nmax_framebuffers=2\n")
+            if not found_vc4_kms:
+                new_lines.append("\ndtoverlay=vc4-kms-v3d\n")
 
         with open(config_path, "w") as f:
             f.writelines(new_lines)
+
+        cmdline_path = os.path.join(os.path.dirname(config_path), "cmdline.txt")
+        if os.path.exists(cmdline_path):
+            with open(cmdline_path, "r") as f:
+                cmdline = f.read().strip()
+            if mode == "tft":
+                if "fbcon=map:11" not in cmdline:
+                    cmdline = (
+                        cmdline.replace(" fbcon=map:1", "")
+                        .replace("fbcon=map:1 ", "")
+                        .replace("fbcon=map:1", "")
+                    )
+                    cmdline += " fbcon=map:11"
+            else:
+                cmdline = (
+                    cmdline.replace(" fbcon=map:11", "")
+                    .replace("fbcon=map:11 ", "")
+                    .replace("fbcon=map:11", "")
+                    .replace(" fbcon=map:1", "")
+                    .replace("fbcon=map:1 ", "")
+                    .replace("fbcon=map:1", "")
+                )
+            with open(cmdline_path, "w") as f:
+                f.write(cmdline + "\n")
 
         logger.info(f"Display hardware mode set to: {mode}")
 
@@ -3152,10 +3245,8 @@ async def get_display_hardware_mode():
         elif has_active_vc4 and not has_active_tft:
             mode = "hdmi"
         elif has_active_vc4 and has_active_tft:
-            # Both active - this will cause conflicts
             mode = "conflict"
         else:
-            # Neither active - default to HDMI
             mode = "hdmi"
 
         return JSONResponse(
@@ -3587,19 +3678,10 @@ async def display_user_message(request: Request):
         data = await request.json()
         message = data.get("message", "")
         duration = data.get("duration", 1.2)
-        print(
-            f"[API] /api/display/user-message: message='{message[:50]}...' duration={duration}",
-            flush=True,
-        )
-
         manager = await ensure_display_initialized()
         if not manager or not manager.is_available:
             return JSONResponse(content={"success": False}, status_code=404)
 
-        print(
-            f"[API] user-message: mode={manager.mode}, calling show_user_message()",
-            flush=True,
-        )
         await manager.show_user_message(message, duration=duration)
         return JSONResponse(content={"success": True})
     except Exception as e:
@@ -3617,19 +3699,10 @@ async def display_tool_animation(request: Request):
         tool_name = data.get("tool_name", "")
         context = data.get("context", {})
         user_message = data.get("user_message")
-        print(
-            f"[API] /api/display/tool-animation: tool={tool_name} context={context}",
-            flush=True,
-        )
-
         manager = await ensure_display_initialized()
         if not manager or not manager.is_available:
             return JSONResponse(content={"success": False}, status_code=404)
 
-        print(
-            f"[API] tool-animation: mode={manager.mode}, calling show_tool_animation()",
-            flush=True,
-        )
         await manager.show_tool_animation(tool_name, context, user_message)
         return JSONResponse(content={"success": True})
     except Exception as e:
@@ -4248,8 +4321,9 @@ async def _auto_select_hdmi_audio() -> bool:
             match = re.search(r"card\s+(\w+)", content)
             if match:
                 current_card = match.group(1)
-                logger.info(
-                    f"User has audio device configured (card {current_card}), skipping HDMI auto-select"
+                logger.debug(
+                    "User has audio device configured (card %s), skipping HDMI auto-select",
+                    current_card,
                 )
                 return False
     except Exception:
