@@ -1,21 +1,17 @@
 FROM node:18-alpine
 
-# Install git for version script and configure safe directory
 RUN apk add --no-cache git && \
     git config --global --add safe.directory /app
 
 WORKDIR /app
 
-# Install frontend dependencies
 COPY src/frontend/package*.json ./
+
 RUN npm ci
 
-COPY src/frontend ./
-
 ENV CHOKIDAR_USEPOLLING=true
-ENV PORT=80
 
-EXPOSE 80
+ENV PORT=3000
+EXPOSE 3000
 
-# Development: React dev server with hot reload
 CMD ["npm", "start"]

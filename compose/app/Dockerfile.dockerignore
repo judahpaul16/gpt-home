@@ -1,2 +1,0 @@
-# Exclude frontend from app service build (it's only needed for web service)
-src/frontend

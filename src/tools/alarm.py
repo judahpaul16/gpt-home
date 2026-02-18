@@ -1,43 +1,89 @@
-from langchain_core.tools import tool
-from datetime import datetime, timedelta
-from threading import Timer
-import subprocess
+"""
+Alarm and reminder tool for GPT Home.
+
+Provides functionality to set, delete, and snooze alarms and reminders.
+Uses the user's configured speech engine for reminder announcements.
+"""
+
+import json
+import logging
+import os
 import re
 
+logger = logging.getLogger("tools.alarm")
+import subprocess
+from datetime import datetime, timedelta
+from pathlib import Path
+from threading import Timer
+
+from langchain_core.tools import tool
 
 _alarms: dict[str, Timer] = {}
+SETTINGS_PATH = Path(__file__).parent.parent / "settings.json"
 
 
-def _parse_time_expression(time_expr: str) -> tuple[int, int, int, int, str]:
-    """Parse time expression into minute, hour, day, month, weekday."""
+def _load_settings() -> dict:
+    """Load settings from settings.json."""
+    try:
+        if SETTINGS_PATH.exists():
+            with open(SETTINGS_PATH, "r") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+
+def _parse_time_expression(time_expr: str) -> datetime:
+    """
+    Parse time expression and return the target datetime directly.
+
+    This avoids the bug where we parse to components and then reconstruct,
+    which can cause timing issues with relative times like "in X minutes".
+    """
     time_expr = time_expr.strip().lower()
-    
-    time_match = re.match(r'(\d{1,2}):(\d{2})\s*(am|pm)?', time_expr)
+    now = datetime.now()
+
+    # Handle "in X minutes" or "X minutes"
+    minutes_match = re.search(r"(\d+)\s*(?:minutes?|mins?)", time_expr)
+    if minutes_match:
+        minutes = int(minutes_match.group(1))
+        return now + timedelta(minutes=minutes)
+
+    # Handle "in X hours" or "X hours"
+    hours_match = re.search(r"(\d+)\s*(?:hours?|hrs?)", time_expr)
+    if hours_match:
+        hours = int(hours_match.group(1))
+        return now + timedelta(hours=hours)
+
+    # Handle "in X hours and Y minutes" or similar
+    hours_mins_match = re.search(
+        r"(\d+)\s*(?:hours?|hrs?)\s*(?:and\s*)?(\d+)\s*(?:minutes?|mins?)", time_expr
+    )
+    if hours_mins_match:
+        hours = int(hours_mins_match.group(1))
+        minutes = int(hours_mins_match.group(2))
+        return now + timedelta(hours=hours, minutes=minutes)
+
+    # Handle absolute time like "7:00 AM" or "7:00"
+    time_match = re.match(r"(\d{1,2}):(\d{2})\s*(am|pm)?", time_expr)
     if time_match:
         hour = int(time_match.group(1))
         minute = int(time_match.group(2))
         meridiem = time_match.group(3)
-        
+
         if meridiem == "pm" and hour != 12:
             hour += 12
         elif meridiem == "am" and hour == 12:
             hour = 0
-        
-        now = datetime.now()
-        return minute, hour, now.day, now.month, "*"
-    
-    minutes_match = re.search(r'(\d+)\s*(?:minutes?|mins?)', time_expr)
-    if minutes_match:
-        minutes = int(minutes_match.group(1))
-        future = datetime.now() + timedelta(minutes=minutes)
-        return future.minute, future.hour, future.day, future.month, "*"
-    
-    hours_match = re.search(r'(\d+)\s*(?:hours?|hrs?)', time_expr)
-    if hours_match:
-        hours = int(hours_match.group(1))
-        future = datetime.now() + timedelta(hours=hours)
-        return future.minute, future.hour, future.day, future.month, "*"
-    
+
+        target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+        # If the time has already passed today, schedule for tomorrow
+        if target <= now:
+            target += timedelta(days=1)
+
+        return target
+
     raise ValueError(f"Could not parse time expression: {time_expr}")
 
 
@@ -46,108 +92,238 @@ def _play_alarm():
     subprocess.Popen(["aplay", "/usr/share/sounds/alarm.wav"])
 
 
+def _speak_reminder(reminder_text: str):
+    """
+    Speak the reminder using the configured speech engine.
+
+    Uses the same speech engine configured in settings.json.
+    """
+    settings = _load_settings()
+    speech_engine = settings.get("ttsEngine", "gtts")
+
+    logger.info(
+        "Speaking reminder with engine: %s, text: %s", speech_engine, reminder_text
+    )
+
+    if speech_engine == "litellm":
+        # Use litellm TTS via the common speak function
+        try:
+            import asyncio
+
+            from common import speak
+
+            # Run async speak function
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(speak(f"Reminder: {reminder_text}"))
+            finally:
+                loop.close()
+            return
+        except Exception as e:
+            logger.warning("LiteLLM TTS failed: %s, falling back to pyttsx3", e)
+
+    elif speech_engine == "gtts":
+        # Use Google TTS
+        try:
+            import tempfile
+
+            from gtts import gTTS
+            from pygame import mixer
+
+            tts = gTTS(text=f"Reminder: {reminder_text}", lang="en")
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+                tts.save(tmp.name)
+                mixer.init()
+                mixer.music.load(tmp.name)
+                mixer.music.play()
+                while mixer.music.get_busy():
+                    pass
+                mixer.quit()
+                os.unlink(tmp.name)
+            return
+        except Exception as e:
+            logger.warning("gTTS failed: %s, falling back to pyttsx3", e)
+
+    # Default to pyttsx3
+    try:
+        import pyttsx3
+
+        engine = pyttsx3.init()
+        engine.setProperty("rate", 145)
+        engine.say(f"Reminder: {reminder_text}")
+        engine.runAndWait()
+    except Exception as e:
+        logger.error("pyttsx3 failed: %s", e)
+
+
 @tool
 def alarm_tool(command: str) -> str:
     """Set, delete, or snooze alarms and reminders.
-    
+
     Args:
         command: Alarm command like "set alarm for 7:00 AM", "wake me up in 30 minutes",
                 "remind me in 10 minutes to take a break", "delete alarm", "snooze for 5 minutes"
-    
+
     Returns:
         Confirmation message about the alarm action
     """
+    # Trigger timer/alarm animation on display
+    try:
+        from common import show_tool_animation_sync
+
+        # Extract duration if present for countdown display
+        duration = 0
+        mins_match = re.search(r"(\d+)\s*(?:minutes?|mins?)", command.lower())
+        hrs_match = re.search(r"(\d+)\s*(?:hours?|hrs?)", command.lower())
+        if mins_match:
+            duration += int(mins_match.group(1)) * 60
+        if hrs_match:
+            duration += int(hrs_match.group(1)) * 3600
+
+        is_reminder = "remind" in command.lower()
+        show_tool_animation_sync(
+            "timer",
+            {
+                "duration": duration if duration > 0 else 0,
+                "name": "Reminder" if is_reminder else "Alarm",
+            },
+        )
+    except Exception:
+        pass
+
     command_lower = command.lower()
-    
+
+    # Handle setting alarms
     set_match = re.search(
-        r'(?:set|create|schedule|wake\s+me\s+up)\s+(?:an?\s+)?(?:alarm)?\s*'
-        r'(?:for|in|at)\s+(.+?)(?:\s+to\s+|$)',
-        command_lower
+        r"(?:set|create|schedule|wake\s+me\s+up)\s+(?:an?\s+)?(?:alarm)?\s*"
+        r"(?:for|in|at)\s+(.+?)(?:\s+to\s+|$)",
+        command_lower,
     )
     if set_match:
         time_expr = set_match.group(1).strip()
         try:
-            minute, hour, day, month, _ = _parse_time_expression(time_expr)
-            
+            alarm_time = _parse_time_expression(time_expr)
             now = datetime.now()
-            alarm_time = now.replace(minute=minute, hour=hour, second=0, microsecond=0)
-            
-            if alarm_time < now:
-                alarm_time += timedelta(days=1)
-            
+
             delay = (alarm_time - now).total_seconds()
+
+            # Sanity check - delay should be positive
+            if delay <= 0:
+                return f"Cannot set alarm for a time in the past. Please specify a future time."
+
             timer = Timer(delay, _play_alarm)
             timer.start()
-            
-            alarm_id = f"alarm_{alarm_time.strftime('%Y%m%d%H%M')}"
+
+            alarm_id = f"alarm_{alarm_time.strftime('%Y%m%d%H%M%S')}"
             _alarms[alarm_id] = timer
-            
-            formatted_time = alarm_time.strftime('%I:%M %p').lstrip('0')
-            return f"Alarm set for {formatted_time}."
-            
+
+            formatted_time = alarm_time.strftime("%I:%M %p").lstrip("0")
+
+            # Calculate human-readable delay
+            if delay < 60:
+                delay_str = f"{int(delay)} seconds"
+            elif delay < 3600:
+                delay_str = f"{int(delay / 60)} minutes"
+            else:
+                hours = int(delay / 3600)
+                mins = int((delay % 3600) / 60)
+                delay_str = (
+                    f"{hours} hours and {mins} minutes" if mins else f"{hours} hours"
+                )
+
+            logger.info(
+                "Alarm set for %s (in %s, delay=%ds)", alarm_time, delay_str, delay
+            )
+            return f"Alarm set for {formatted_time} (in {delay_str})."
+
         except ValueError as e:
             return str(e)
-    
+
+    # Handle reminders
     remind_match = re.search(
-        r'remind\s+(?:me\s+)?(?:in\s+)?(.+?)\s+to\s+(.+)',
-        command_lower
+        r"remind\s+(?:me\s+)?(?:in\s+)?(.+?)\s+to\s+(.+)", command_lower
     )
     if remind_match:
         time_expr = remind_match.group(1).strip()
         reminder_text = remind_match.group(2).strip()
-        
+
         try:
-            minute, hour, day, month, _ = _parse_time_expression(time_expr)
-            
+            reminder_time = _parse_time_expression(time_expr)
             now = datetime.now()
-            reminder_time = now.replace(minute=minute, hour=hour, second=0, microsecond=0)
-            
-            if "minute" in time_expr or "hour" in time_expr:
-                pass
-            elif reminder_time < now:
-                reminder_time += timedelta(days=1)
-            
+
             delay = (reminder_time - now).total_seconds()
-            
-            def speak_reminder():
-                import pyttsx3
-                engine = pyttsx3.init()
-                engine.setProperty("rate", 145)
-                engine.say(f"Reminder: {reminder_text}")
-                engine.runAndWait()
-            
-            timer = Timer(delay, speak_reminder)
+
+            # Sanity check - delay should be positive and reasonable
+            if delay <= 0:
+                return f"Cannot set reminder for a time in the past. Please specify a future time."
+
+            if delay < 5:
+                # If delay is less than 5 seconds, something is wrong
+                return f"Reminder time is too soon ({delay:.1f}s). Please specify a longer time, like 'in 1 minute'."
+
+            # Create a closure to capture reminder_text
+            def make_reminder_callback(text):
+                def callback():
+                    _speak_reminder(text)
+
+                return callback
+
+            timer = Timer(delay, make_reminder_callback(reminder_text))
             timer.start()
-            
-            reminder_id = f"reminder_{reminder_time.strftime('%Y%m%d%H%M')}"
+
+            reminder_id = f"reminder_{reminder_time.strftime('%Y%m%d%H%M%S')}"
             _alarms[reminder_id] = timer
-            
-            return f"I'll remind you to {reminder_text}."
-            
+
+            # Calculate human-readable delay
+            if delay < 60:
+                delay_str = f"{int(delay)} seconds"
+            elif delay < 3600:
+                delay_str = f"{int(delay / 60)} minute{'s' if delay >= 120 else ''}"
+            else:
+                hours = int(delay / 3600)
+                mins = int((delay % 3600) / 60)
+                delay_str = f"{hours} hour{'s' if hours > 1 else ''}"
+                if mins:
+                    delay_str += f" and {mins} minute{'s' if mins > 1 else ''}"
+
+            logger.info(
+                "Reminder set for %s (in %s, delay=%ds): %s",
+                reminder_time,
+                delay_str,
+                delay,
+                reminder_text,
+            )
+            return f"I'll remind you to {reminder_text} in {delay_str}."
+
         except ValueError as e:
             return str(e)
-    
+
+    # Handle deleting/cancelling alarms
     if any(word in command_lower for word in ["delete", "cancel", "remove"]):
         if _alarms:
+            count = len(_alarms)
             for alarm_id, timer in list(_alarms.items()):
                 timer.cancel()
             _alarms.clear()
-            return "All alarms have been cancelled."
+            return f"Cancelled {count} alarm{'s' if count > 1 else ''}."
         return "No alarms to cancel."
-    
-    snooze_match = re.search(r'snooze.*?(\d+)', command_lower)
+
+    # Handle snoozing
+    snooze_match = re.search(r"snooze.*?(\d+)", command_lower)
     if snooze_match:
         snooze_minutes = int(snooze_match.group(1))
-        
-        snooze_time = datetime.now() + timedelta(minutes=snooze_minutes)
+
         delay = snooze_minutes * 60
-        
+
         timer = Timer(delay, _play_alarm)
         timer.start()
-        
-        alarm_id = f"snooze_{snooze_time.strftime('%Y%m%d%H%M')}"
+
+        snooze_time = datetime.now() + timedelta(minutes=snooze_minutes)
+        alarm_id = f"snooze_{snooze_time.strftime('%Y%m%d%H%M%S')}"
         _alarms[alarm_id] = timer
-        
+
+        logger.info("Alarm snoozed for %d minutes", snooze_minutes)
         return f"Alarm snoozed for {snooze_minutes} minutes."
-    
+
     return "I didn't understand that alarm command. Try 'set alarm for 7:00 AM' or 'remind me in 10 minutes to take a break'."

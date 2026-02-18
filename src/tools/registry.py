@@ -1,16 +1,20 @@
+import logging
 from abc import ABC, abstractmethod
-from typing import List, Callable, Any, Optional
-from langchain_core.tools import Tool, tool
 from dataclasses import dataclass
+from typing import Any, Callable, List, Optional
+
+logger = logging.getLogger("tools.registry")
+
+from langchain_core.tools import Tool, tool
 
 
 class ToolCommand(ABC):
     """Abstract Command pattern implementation for tools."""
-    
+
     @abstractmethod
     async def execute(self, *args, **kwargs) -> Any:
         pass
-    
+
     @abstractmethod
     def get_tool(self) -> Tool:
         pass
@@ -18,7 +22,6 @@ class ToolCommand(ABC):
 
 @dataclass
 class ToolMetadata:
-    """Metadata for tool registration."""
     name: str
     description: str
     category: str
@@ -28,36 +31,36 @@ class ToolMetadata:
 
 class ToolRegistry:
     """Registry pattern for managing tools.
-    
+
     Provides centralized tool registration and retrieval.
     Supports dynamic tool loading and categorization.
     """
-    
+
     _instance: Optional["ToolRegistry"] = None
     _tools: dict[str, Tool] = {}
     _metadata: dict[str, ToolMetadata] = {}
-    
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._tools = {}
             cls._metadata = {}
         return cls._instance
-    
+
     def register(self, tool: Tool, metadata: Optional[ToolMetadata] = None):
         """Register a tool with optional metadata."""
         self._tools[tool.name] = tool
         if metadata:
             self._metadata[tool.name] = metadata
-    
+
     def get(self, name: str) -> Optional[Tool]:
         """Get a tool by name."""
         return self._tools.get(name)
-    
+
     def get_all(self) -> List[Tool]:
         """Get all registered tools."""
         return list(self._tools.values())
-    
+
     def get_by_category(self, category: str) -> List[Tool]:
         """Get tools by category."""
         return [
@@ -65,41 +68,32 @@ class ToolRegistry:
             for name, meta in self._metadata.items()
             if meta.category == category
         ]
-    
+
     def get_available(self) -> List[Tool]:
-        """Get tools that have their required API keys configured."""
-        from .env_utils import get_env
-        available = []
-        for name, tool in self._tools.items():
-            meta = self._metadata.get(name)
-            if meta and meta.requires_api_key:
-                if meta.api_key_env_var and get_env(meta.api_key_env_var):
-                    available.append(tool)
-            else:
-                available.append(tool)
-        return available
+        """Get all registered tools."""
+        return list(self._tools.values())
 
 
 def get_all_tools() -> List[Tool]:
-    """Factory function to get all available tools."""
-    from .weather import weather_tool
-    from .spotify import spotify_tool
-    from .lights import lights_tool
-    from .calendar import calendar_tool
+    """Get all registered tools."""
     from .alarm import alarm_tool
-    
+    from .calendar import calendar_tool
+    from .lights import lights_tool
+    from .spotify import spotify_tool
+    from .weather import weather_tool
+
     registry = ToolRegistry()
-    
+
     registry.register(
         weather_tool,
         ToolMetadata(
             name="weather",
             description="Get weather information",
             category="information",
-            requires_api_key=False
-        )
+            requires_api_key=False,
+        ),
     )
-    
+
     registry.register(
         spotify_tool,
         ToolMetadata(
@@ -107,10 +101,10 @@ def get_all_tools() -> List[Tool]:
             description="Control Spotify playback",
             category="entertainment",
             requires_api_key=True,
-            api_key_env_var="SPOTIFY_CLIENT_ID"
-        )
+            api_key_env_var="SPOTIFY_CLIENT_ID",
+        ),
     )
-    
+
     registry.register(
         lights_tool,
         ToolMetadata(
@@ -118,10 +112,10 @@ def get_all_tools() -> List[Tool]:
             description="Control Philips Hue lights",
             category="smart_home",
             requires_api_key=True,
-            api_key_env_var="PHILIPS_HUE_BRIDGE_IP"
-        )
+            api_key_env_var="PHILIPS_HUE_BRIDGE_IP",
+        ),
     )
-    
+
     registry.register(
         calendar_tool,
         ToolMetadata(
@@ -129,18 +123,20 @@ def get_all_tools() -> List[Tool]:
             description="Manage calendar events and tasks",
             category="productivity",
             requires_api_key=True,
-            api_key_env_var="CALDAV_URL"
-        )
+            api_key_env_var="CALDAV_URL",
+        ),
     )
-    
+
     registry.register(
         alarm_tool,
         ToolMetadata(
             name="alarm",
             description="Set alarms and reminders",
             category="productivity",
-            requires_api_key=False
-        )
+            requires_api_key=False,
+        ),
     )
-    
-    return registry.get_available()
+
+    available = registry.get_available()
+    logger.info("Available tools: %s", [t.name for t in available])
+    return available
