@@ -2100,6 +2100,30 @@ async def get_spotify_playback_state():
     return JSONResponse(content={"is_playing": False})
 
 
+async def _notify_spotify_display():
+    await asyncio.sleep(1.5)
+    for _ in range(5):
+        playback = await _web_api_get_playback_status()
+        if playback and playback.get("is_playing"):
+            global _spotify_playback_cache, _spotify_last_check
+            _spotify_playback_cache = playback
+            _spotify_last_check = time.time()
+
+            manager = _display_manager
+            if manager and manager.is_available:
+                await manager.show_spotify_now_playing(
+                    track=playback.get("track", "Unknown"),
+                    artist=playback.get("artist", "Unknown"),
+                    album=playback.get("album", ""),
+                    album_art_url=playback.get("album_art_url"),
+                    progress_pct=playback.get("progress_pct", 0),
+                    progress_ms=playback.get("progress_ms", 0),
+                    duration_ms=playback.get("duration_ms", 0),
+                )
+            return
+        await asyncio.sleep(1)
+
+
 async def _start_playback_with_retry(
     sp: spotipy.Spotify, device_id: str, uris=None, max_retries: int = 3
 ):
@@ -2207,6 +2231,7 @@ async def spotify_control(request: Request):
                             device_id = await _get_gpt_home_device_id(sp)
                             if device_id:
                                 sp.start_playback(device_id=device_id, uris=uris[:50])
+                        asyncio.create_task(_notify_spotify_display())
                         return JSONResponse(content={"message": message})
 
                     if not device_id:
@@ -2217,6 +2242,7 @@ async def spotify_control(request: Request):
                         sp.transfer_playback(device_id=device_id)
                         await asyncio.sleep(0.5)
                     await _start_playback_with_retry(sp, device_id, uris=uris)
+                    asyncio.create_task(_notify_spotify_display())
                     return JSONResponse(content={"message": message})
                 except Exception as e:
                     logger.error(f"Failed to start playback: {e}")
@@ -2238,6 +2264,7 @@ async def spotify_control(request: Request):
 
             try:
                 if await _mpris_play():
+                    asyncio.create_task(_notify_spotify_display())
                     return JSONResponse(content={"message": "Resumed playback."})
 
                 if not device_id:
@@ -2248,6 +2275,7 @@ async def spotify_control(request: Request):
                     sp.transfer_playback(device_id=device_id)
                     await asyncio.sleep(0.5)
                 await _start_playback_with_retry(sp, device_id)
+                asyncio.create_task(_notify_spotify_display())
                 return JSONResponse(content={"message": "Resumed playback."})
             except Exception as e:
                 logger.error(f"Failed to resume: {e}")
