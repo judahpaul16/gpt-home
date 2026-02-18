@@ -32,9 +32,9 @@ jobs:
             matrix:
                 service:
                     - name: frontend
-                      dockerfile: compose/web/Dockerfile
+                      dockerfile: compose/frontend/Dockerfile
                     - name: backend
-                      dockerfile: compose/app/Dockerfile
+                      dockerfile: compose/backend/Dockerfile
                     - name: spotify
                       dockerfile: compose/spotify/Dockerfile
         steps:
