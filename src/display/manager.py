@@ -1146,20 +1146,6 @@ class DisplayManager:
                             track_size,
                         )
                         d.clear_clip()
-                        # Fade gradient on right edge
-                        fade_width = d.scale_x(30)
-                        for i in range(fade_width):
-                            alpha = i / fade_width
-                            fade_color = Color(
-                                int(12 * alpha), int(12 * alpha), int(18 * alpha)
-                            )
-                            d.fill_rect_sync(
-                                w - right_margin - fade_width + i,
-                                track_y - d.scale_y(5),
-                                1,
-                                track_size + d.scale_y(10),
-                                fade_color,
-                            )
                     else:
                         d.draw_text_sync(
                             track_display,
@@ -1204,20 +1190,6 @@ class DisplayManager:
                             artist_size,
                         )
                         d.clear_clip()
-                        # Fade gradient on right edge
-                        fade_width = d.scale_x(25)
-                        for i in range(fade_width):
-                            alpha = i / fade_width
-                            fade_color = Color(
-                                int(12 * alpha), int(12 * alpha), int(18 * alpha)
-                            )
-                            d.fill_rect_sync(
-                                w - right_margin - fade_width + i,
-                                artist_y - d.scale_y(3),
-                                1,
-                                artist_size + d.scale_y(6),
-                                fade_color,
-                            )
                     else:
                         d.draw_text_sync(
                             artist_display,

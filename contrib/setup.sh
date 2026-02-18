@@ -459,8 +459,21 @@ if [[ "$NO_BUILD" == "false" ]]; then
     fi
 
     if [ $? -ne 0 ]; then
-        echo "Docker build failed. Exiting..."
-        exit 1
+        echo -e "${YELLOW}Build failed, resetting buildkit state and retrying...${NC}\n"
+        docker buildx prune -f
+        sudo systemctl stop docker
+        sudo rm -rf /var/lib/docker/buildkit
+        sudo systemctl start docker
+        sleep 3
+        if [[ "$NO_CACHE" == "true" ]]; then
+            DOCKER_DEFAULT_PLATFORM=linux/arm64 $COMPOSE build --no-cache
+        else
+            DOCKER_DEFAULT_PLATFORM=linux/arm64 $COMPOSE build
+        fi
+        if [ $? -ne 0 ]; then
+            echo "Docker build failed. Exiting..."
+            exit 1
+        fi
     fi
 
     $COMPOSE up -d

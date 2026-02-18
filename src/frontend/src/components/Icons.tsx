@@ -317,6 +317,28 @@ export const Icons = {
         </svg>
     ),
 
+    Brain: ({ className }: { className?: string }) => (
+        <svg
+            className={cn("w-4 h-4", className)}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+        >
+            <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9.5 2a3.5 3.5 0 00-3.4 4.35A3.5 3.5 0 004 9.5a3.5 3.5 0 002.1 3.15A3.5 3.5 0 006 14.5a3.5 3.5 0 003.5 3.5h1V2h-1zm5 0a3.5 3.5 0 013.4 4.35A3.5 3.5 0 0120 9.5a3.5 3.5 0 01-2.1 3.15 3.5 3.5 0 01.1 1.85 3.5 3.5 0 01-3.5 3.5h-1V2h1z"
+            />
+            <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 18v4M8 22h8"
+            />
+        </svg>
+    ),
+
     ExternalLink: ({ className }: { className?: string }) => (
         <svg
             className={cn("w-4 h-4", className)}

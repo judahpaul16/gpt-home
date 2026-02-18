@@ -471,7 +471,7 @@ const EventLogs: React.FC = () => {
                     ) : (
                         <div
                             ref={logContainerRef}
-                            className="h-[500px] overflow-y-auto p-4 font-mono text-sm bg-slate-900 dark:bg-dark-950"
+                            className="h-[500px] overflow-y-auto p-4 font-mono text-sm bg-slate-900 dark:bg-dark-950 rounded-xl"
                         >
                             <AnimatePresence initial={false}>
                                 {filteredLogs.length === 0 ? (

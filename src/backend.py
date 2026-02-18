@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import fcntl
 import hashlib
 import json
@@ -560,7 +561,7 @@ async def clear_memory(request: Request):
             content={"success": True, "message": "Memory cleared successfully"}
         )
     except Exception as e:
-        logger.error(f"Failed to clear memory: {e}")
+        logger.error(f"Failed to clear memories: {e}")
         return JSONResponse(
             status_code=500, content={"success": False, "message": str(e)}
         )
@@ -893,6 +894,11 @@ async def startup_event():
     # Initialize mic gain to recommended value if too low
     await _initialize_mic_gain()
 
+    try:
+        await _provision_spotifyd_credentials()
+    except Exception as e:
+        logger.debug(f"Spotifyd credential provisioning skipped: {e}")
+
     # Start voice assistant as background task (same process = shared display manager)
     from src.app import startup as voice_assistant_startup
 
@@ -1008,7 +1014,14 @@ async def set_hashed_password(request: Request):
 
                 # 3. Handle initial setup vs. password change logic
                 if stored_hash:
-                    # If a password exists, the 'old_password' must match its hash
+                    if not old_password:
+                        return JSONResponse(
+                            status_code=401,
+                            content={
+                                "success": False,
+                                "message": "Current password required",
+                            },
+                        )
                     if generate_hashed_password(old_password) != stored_hash:
                         return JSONResponse(
                             status_code=401,
@@ -1174,6 +1187,9 @@ _spotify_monitor_task: Optional[asyncio.Task] = None
 # Path to credentials.json populated by spotifyd via zeroconf
 SPOTIFY_CREDENTIALS_PATH = Path("/root/.spotifyd/cache/zeroconf/credentials.json")
 
+# Path to librespot OAuth credentials used by spotifyd for auto-login
+SPOTIFYD_CREDENTIALS_PATH = Path("/root/.spotifyd/cache/oauth/credentials.json")
+
 # D-Bus MPRIS interface for spotifyd control
 SPOTIFYD_DBUS_PREFIX = "org.mpris.MediaPlayer2.spotifyd"
 MPRIS_PLAYER_INTERFACE = "org.mpris.MediaPlayer2.Player"
@@ -1330,8 +1346,6 @@ async def _refresh_spotify_token() -> Optional[str]:
         return None
 
     try:
-        import base64
-
         auth_header = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
 
         response = requests.post(
@@ -1364,12 +1378,15 @@ async def _refresh_spotify_token() -> Optional[str]:
 
         data = response.json()
 
-        # Store the new tokens
         await _store_spotify_user_token(
             data["access_token"],
             data.get("refresh_token", token_data["refresh_token"]),
             data.get("expires_in", 3600),
         )
+
+        if not SPOTIFYD_CREDENTIALS_PATH.exists():
+            asyncio.create_task(_provision_spotifyd_credentials(data["access_token"]))
+
         return data["access_token"]
     except Exception as e:
         logger.error(f"Failed to refresh Spotify token: {e}")
@@ -1694,6 +1711,61 @@ async def _restore_spotify_credentials_from_db() -> bool:
         return False
 
 
+async def _provision_spotifyd_credentials(
+    access_token: Optional[str] = None,
+) -> bool:
+    if SPOTIFYD_CREDENTIALS_PATH.exists():
+        try:
+            with open(SPOTIFYD_CREDENTIALS_PATH, "r") as f:
+                existing = json.load(f)
+            if existing.get("auth_type") == 1:
+                return True
+        except Exception:
+            pass
+
+    if not access_token:
+        sp = await get_spotify_user_client()
+        if not sp:
+            return False
+        token_data = await _get_spotify_user_token()
+        if not token_data:
+            return False
+        access_token = token_data.get("access_token")
+        if not access_token:
+            return False
+
+    try:
+        sp = spotipy.Spotify(auth=access_token)
+        user_info = sp.current_user()
+        username = user_info.get("id") if user_info else None
+        if not username:
+            logger.warning("Could not get Spotify username for credential provisioning")
+            return False
+    except Exception as e:
+        logger.warning(f"Failed to get Spotify user info: {e}")
+        return False
+
+    try:
+        SPOTIFYD_CREDENTIALS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        creds = {
+            "username": username,
+            "auth_type": 3,
+            "auth_data": base64.b64encode(access_token.encode()).decode(),
+        }
+        with open(SPOTIFYD_CREDENTIALS_PATH, "w") as f:
+            json.dump(creds, f)
+        os.chmod(str(SPOTIFYD_CREDENTIALS_PATH), 0o600)
+
+        logger.info(f"Provisioned spotifyd credentials for user {username}")
+
+        restart_spotifyd()
+        logger.info("Restarted spotifyd to pick up new credentials")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to provision spotifyd credentials: {e}")
+        return False
+
+
 async def get_spotify_client_credentials() -> Optional[Dict[str, str]]:
     """
     Fetch Spotify client credentials (CLIENT ID/SECRET) from the database.
@@ -1840,12 +1912,12 @@ async def spotify_auth_poll():
             return JSONResponse(content={"status": "pending"})
 
         if data.get("status") == "authorized":
-            # Store the tokens locally
             await _store_spotify_user_token(
                 data["access_token"],
                 data["refresh_token"],
                 data.get("expires_in", 3600),
             )
+            asyncio.create_task(_provision_spotifyd_credentials(data["access_token"]))
             return JSONResponse(
                 content={
                     "status": "authorized",
@@ -1892,8 +1964,8 @@ async def spotify_auth_callback(request: Request):
     if not access_token or not refresh_token:
         return JSONResponse(status_code=400, content={"error": "Missing token data"})
 
-    # Store tokens
     await _store_spotify_user_token(access_token, refresh_token, expires_in)
+    asyncio.create_task(_provision_spotifyd_credentials(access_token))
 
     logger.info("Spotify tokens received from broker")
     return JSONResponse(
@@ -2053,29 +2125,48 @@ async def spotify_control(request: Request):
         # Command Routing
         if command == "play" or "play" in command:
             # Use structured query if provided, otherwise parse from legacy text
+            search_client = sp_search or sp
             if query and search_type:
-                # New structured format - search with explicit type
                 logger.debug(f"Spotify search: type={search_type}, query={query}")
                 uris, message = await spotify_search_by_type(
-                    query, search_type, sp_search
+                    query, search_type, search_client
                 )
             elif query:
-                # Query provided but no type - use smart detection
-                uris, message = await spotify_get_track_uris(query, sp_search)
+                uris, message = await spotify_get_track_uris(query, search_client)
             else:
-                # Legacy: extract query from command text
                 song_query = (
                     re.sub(r"^play\s+", "", command).replace("on spotify", "").strip()
                 )
-                if song_query and sp_search:
-                    uris, message = await spotify_get_track_uris(song_query, sp_search)
+                if song_query:
+                    if search_client:
+                        uris, message = await spotify_get_track_uris(
+                            song_query, search_client
+                        )
+                    else:
+                        logger.warning(
+                            "No Spotify search client available (neither client credentials nor user client)"
+                        )
+                        uris, message = [], ""
                 else:
                     uris, message = [], ""
 
             if uris:
                 try:
-                    # Start playback on GPT Home device
-                    # Limit to 50 tracks (Spotify's max per call), but prefer full albums
+                    if await _mpris_open_uri(uris[0]):
+                        if len(uris) > 1:
+                            await asyncio.sleep(0.5)
+                            device_id = await _get_gpt_home_device_id(sp)
+                            if device_id:
+                                sp.start_playback(device_id=device_id, uris=uris[:50])
+                        return JSONResponse(content={"message": message})
+
+                    if not device_id:
+                        _spotifyd_transfer_playback()
+                        await asyncio.sleep(1)
+                        device_id = await _get_gpt_home_device_id(sp)
+                    if device_id:
+                        sp.transfer_playback(device_id=device_id)
+                        await asyncio.sleep(0.3)
                     sp.start_playback(device_id=device_id, uris=uris[:50])
                     return JSONResponse(content={"message": message})
                 except Exception as e:
@@ -2096,8 +2187,17 @@ async def spotify_control(request: Request):
                     content={"message": f"Could not find '{search_term}'"}
                 )
 
-            # No song specified - just resume
             try:
+                if await _mpris_play():
+                    return JSONResponse(content={"message": "Resumed playback."})
+
+                if not device_id:
+                    _spotifyd_transfer_playback()
+                    await asyncio.sleep(1)
+                    device_id = await _get_gpt_home_device_id(sp)
+                if device_id:
+                    sp.transfer_playback(device_id=device_id)
+                    await asyncio.sleep(0.3)
                 sp.start_playback(device_id=device_id)
                 return JSONResponse(content={"message": "Resumed playback."})
             except Exception as e:
@@ -2110,6 +2210,8 @@ async def spotify_control(request: Request):
             k in command for k in ["pause", "stop"]
         ):
             try:
+                if await _mpris_pause():
+                    return JSONResponse(content={"message": "Paused."})
                 sp.pause_playback(device_id=device_id)
                 return JSONResponse(content={"message": "Paused."})
             except Exception as e:
@@ -2119,6 +2221,8 @@ async def spotify_control(request: Request):
 
         elif command in ["next", "skip"] or any(k in command for k in ["next", "skip"]):
             try:
+                if await _mpris_next():
+                    return JSONResponse(content={"message": "Skipping to next track."})
                 sp.next_track(device_id=device_id)
                 return JSONResponse(content={"message": "Skipping to next track."})
             except Exception as e:
@@ -2130,6 +2234,8 @@ async def spotify_control(request: Request):
             k in command for k in ["previous", "back"]
         ):
             try:
+                if await _mpris_previous():
+                    return JSONResponse(content={"message": "Playing previous track."})
                 sp.previous_track(device_id=device_id)
                 return JSONResponse(content={"message": "Playing previous track."})
             except Exception as e:
@@ -2815,6 +2921,7 @@ async def display_status():
                         "height": d.height,
                         "driver": d.driver,
                         "device_path": d.device_path,
+                        "connector": d.connector,
                         "supports_modes": d.screen_type != ScreenType.I2C,
                         "enabled": display_enabled_map.get(get_display_id(d), True),
                     }
@@ -3312,12 +3419,17 @@ def _update_cmdline_video(cmdline: str, new_video: str) -> str:
     return cmdline.rstrip() + " " + new_video
 
 
-def _get_hdmi_modes() -> tuple[list[str], str | None]:
+def _get_hdmi_modes(
+    connector_name: str | None = None,
+) -> tuple[list[str], str | None]:
     drm_class = Path("/sys/class/drm")
     if not drm_class.exists():
         return [], None
     for connector in drm_class.iterdir():
         if "hdmi" not in connector.name.lower():
+            continue
+        conn_name = re.sub(r"^card\d+-", "", connector.name)
+        if connector_name and conn_name != connector_name:
             continue
         status_file = connector / "status"
         if status_file.exists():
@@ -3340,7 +3452,6 @@ def _get_hdmi_modes() -> tuple[list[str], str | None]:
                     if res not in seen:
                         seen.add(res)
                         modes.append(res)
-            conn_name = re.sub(r"^card\d+-", "", connector.name)
             return modes, conn_name
         except Exception:
             continue
@@ -3348,8 +3459,9 @@ def _get_hdmi_modes() -> tuple[list[str], str | None]:
 
 
 @app.get("/api/display/resolutions")
-async def get_display_resolutions():
-    modes, connector = _get_hdmi_modes()
+async def get_display_resolutions(request: Request):
+    requested_connector = request.query_params.get("connector")
+    modes, connector = _get_hdmi_modes(connector_name=requested_connector)
     current = None
     configurable = len(modes) > 0
 
@@ -3402,7 +3514,8 @@ async def set_display_resolution(request: Request):
             status_code=400,
         )
 
-    modes, connector = _get_hdmi_modes()
+    requested_connector = data.get("connector")
+    modes, connector = _get_hdmi_modes(connector_name=requested_connector)
     if not connector:
         return JSONResponse(
             content={"success": False, "message": "No HDMI connector found"},
@@ -4697,19 +4810,17 @@ async def _auto_select_hdmi_audio() -> bool:
         logger.debug("HDMI audio already configured")
         return True
 
-    # Check if user has already configured an audio device - respect their choice
     try:
-        asound_path = Path("/etc/asound.conf")
-        if asound_path.exists():
-            content = asound_path.read_text()
-            match = re.search(r"card\s+(\w+)", content)
-            if match:
-                current_card = match.group(1)
-                logger.debug(
-                    "User has audio device configured (card %s), skipping HDMI auto-select",
-                    current_card,
-                )
-                return False
+        result = subprocess.run(
+            ["aplay", "-l"], capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0:
+            for line in result.stdout.lower().split("\n"):
+                if line.startswith("card ") and "usb" in line:
+                    logger.debug(
+                        "USB audio output device detected, skipping HDMI auto-select"
+                    )
+                    return False
     except Exception:
         pass
 

@@ -1,5 +1,6 @@
 **/node_modules
 **/.git
+!.git
 **/.env
 **/__pycache__
 **/*.pyc

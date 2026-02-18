@@ -48,9 +48,7 @@ def _read_hardware_mode() -> Optional[str]:
 def detect_displays() -> List[DisplayInfo]:
     displays = []
 
-    drm_display = _detect_drm()
-    if drm_display:
-        displays.append(drm_display)
+    displays.extend(_detect_drm_displays())
 
     drm_tft_display = _detect_drm_tft()
     if drm_tft_display:
@@ -128,45 +126,84 @@ def detect_simple_displays() -> List[DisplayInfo]:
     return [d for d in all_displays if d.screen_type == ScreenType.I2C]
 
 
-def _detect_drm() -> Optional[DisplayInfo]:
+def _detect_drm_displays() -> List[DisplayInfo]:
     dri_path = Path("/dev/dri")
     drm_class = Path("/sys/class/drm")
+    displays = []
 
-    if dri_path.exists() and drm_class.exists():
-        hdmi_cards = set()
-        for connector in drm_class.iterdir():
-            if "hdmi" in connector.name.lower():
-                card_match = re.match(r"(card\d+)", connector.name)
-                if card_match:
-                    hdmi_cards.add(card_match.group(1))
+    if not (dri_path.exists() and drm_class.exists()):
+        return displays
 
-        for card_name in sorted(hdmi_cards):
-            card_path = dri_path / card_name
-            if card_path.exists() and os.access(card_path, os.R_OK | os.W_OK):
-                width, height = _get_drm_resolution(card_path)
-                return DisplayInfo(
+    for entry in sorted(drm_class.iterdir(), key=lambda e: e.name):
+        if "hdmi" not in entry.name.lower():
+            continue
+
+        card_match = re.match(r"(card\d+)", entry.name)
+        if not card_match:
+            continue
+
+        card_name = card_match.group(1)
+        card_path = dri_path / card_name
+        if not card_path.exists() or not os.access(card_path, os.R_OK | os.W_OK):
+            continue
+
+        status_file = entry / "status"
+        if status_file.exists():
+            try:
+                if status_file.read_text().strip() != "connected":
+                    continue
+            except Exception:
+                continue
+
+        connector_name = re.sub(r"^card\d+-", "", entry.name)
+
+        modes_file = entry / "modes"
+        width, height = 1920, 1080
+        if modes_file.exists():
+            try:
+                modes = modes_file.read_text().strip()
+                if modes:
+                    first_mode = modes.split("\n")[0]
+                    m = re.search(r"(\d+)x(\d+)", first_mode)
+                    if m:
+                        width, height = int(m.group(1)), int(m.group(2))
+            except Exception:
+                pass
+
+        displays.append(
+            DisplayInfo(
+                screen_type=ScreenType.HDMI,
+                width=width,
+                height=height,
+                device_path=str(card_path),
+                driver="kmsdrm",
+                connector=connector_name,
+            )
+        )
+
+    if not displays:
+        hdmi_connector = _check_hdmi_connected()
+        if hdmi_connector:
+            width, height = _get_drm_resolution_from_sysfs()
+            connector_name = re.sub(r"^card\d+-", "", hdmi_connector)
+            logger.debug(
+                "HDMI connected via sysfs (%s): %dx%d",
+                hdmi_connector,
+                width,
+                height,
+            )
+            displays.append(
+                DisplayInfo(
                     screen_type=ScreenType.HDMI,
                     width=width,
                     height=height,
-                    device_path=str(card_path),
+                    device_path="/dev/dri/card0",
                     driver="kmsdrm",
+                    connector=connector_name,
                 )
+            )
 
-    hdmi_connector = _check_hdmi_connected()
-    if hdmi_connector:
-        width, height = _get_drm_resolution_from_sysfs()
-        logger.debug(
-            "HDMI connected via sysfs (%s): %dx%d", hdmi_connector, width, height
-        )
-        return DisplayInfo(
-            screen_type=ScreenType.HDMI,
-            width=width,
-            height=height,
-            device_path="/dev/dri/card0",
-            driver="kmsdrm",
-        )
-
-    return None
+    return displays
 
 
 def _detect_drm_tft() -> Optional[DisplayInfo]:

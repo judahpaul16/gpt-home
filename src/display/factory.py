@@ -87,12 +87,37 @@ class DisplayFactory:
         displays = detect_displays()
         full_display_types = [ScreenType.HDMI, ScreenType.SPI_TFT]
 
+        preferred_connector = DisplayFactory._get_cmdline_connector()
+        if preferred_connector:
+            for info in displays:
+                if (
+                    info.screen_type == ScreenType.HDMI
+                    and info.connector == preferred_connector
+                ):
+                    display = DisplayFactory.create(info)
+                    if display and display.supports_modes:
+                        return display
+
         for screen_type in full_display_types:
             for info in displays:
                 if info.screen_type == screen_type:
                     display = DisplayFactory.create(info)
                     if display and display.supports_modes:
                         return display
+        return None
+
+    @staticmethod
+    def _get_cmdline_connector() -> Optional[str]:
+        import re
+
+        for path in ["/boot/firmware/cmdline.txt", "/boot/cmdline.txt"]:
+            try:
+                cmdline = open(path).read().strip()
+                match = re.search(r"video=([^:]+):", cmdline)
+                if match:
+                    return match.group(1)
+            except Exception:
+                pass
         return None
 
     @staticmethod

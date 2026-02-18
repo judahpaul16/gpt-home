@@ -48,8 +48,9 @@ services:
         profiles:
             - prod
         network_mode: host
+        command: /bin/sh -c "echo 'server { listen 3000; root /usr/share/nginx/html; index index.html; location / { try_files $$uri /index.html; } }' > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
         expose:
-            - "80"
+            - "3000"
 
     frontend-dev:
         build:
@@ -98,8 +99,8 @@ services:
             - /sys/class/drm:/sys/class/drm:ro
             - /run/gpt-home:/run/gpt-home:ro
             - /boot:/boot
-            - spotifyd-cache:/root/.spotifyd/cache:ro
-            - /run/dbus:/host/run/dbus:ro
+            - spotifyd-cache:/root/.spotifyd/cache
+            - /run/dbus:/host/run/dbus
         depends_on:
             db:
                 condition: service_healthy

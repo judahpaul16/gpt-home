@@ -6,7 +6,7 @@ RUN apk add --no-cache git && \
 
 WORKDIR /app
 COPY src/frontend/package*.json ./
-RUN npm ci
+RUN npm install
 
 COPY .git ./.git
 COPY src/frontend ./
@@ -16,8 +16,4 @@ RUN npm run build
 FROM nginx:alpine
 
 COPY --from=builder /app/build /usr/share/nginx/html
-
-ENV PORT=3000
 EXPOSE 3000
-
-CMD ["nginx", "-g", "daemon off;"]

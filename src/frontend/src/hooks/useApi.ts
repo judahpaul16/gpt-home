@@ -13,6 +13,7 @@ export interface DisplayInfo {
     height: number;
     driver: string | null;
     device_path: string | null;
+    connector?: string | null;
     supports_modes?: boolean;
     enabled?: boolean;
 }

@@ -33,6 +33,7 @@ class DisplayInfo:
     address: Optional[int] = None
     rotation: int = 0
     driver: Optional[str] = None
+    connector: Optional[str] = None
 
 
 @dataclass
