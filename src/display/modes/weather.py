@@ -1,6 +1,7 @@
 """Weather display mode loop."""
 
 import asyncio
+import logging
 import math
 import random
 import time
@@ -60,7 +61,7 @@ async def weather_loop(
                 break
             if (
                 manager._mode == DisplayMode.SMART
-                and manager._state != manager._tool_animation_state
+                and manager._state.name != "TOOL_ANIMATION"
             ):
                 break
             if (
@@ -165,9 +166,9 @@ async def weather_loop(
     except asyncio.CancelledError:
         pass
     except Exception as e:
-        from loguru import logger
-
-        logger.error(f"Weather loop error: {e}", exc_info=True)
+        logging.getLogger("display.modes.weather").error(
+            "Weather loop error: %s", e, exc_info=True
+        )
 
 
 def _init_clouds() -> List[Dict]:

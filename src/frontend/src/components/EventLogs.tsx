@@ -463,15 +463,15 @@ const EventLogs: React.FC = () => {
                 </div>
 
                 {/* Log container */}
-                <div className="card relative">
+                <div className="relative">
                     {isLoading ? (
-                        <div className="flex items-center justify-center h-96">
+                        <div className="card flex items-center justify-center h-96">
                             <Spinner size="lg" />
                         </div>
                     ) : (
                         <div
                             ref={logContainerRef}
-                            className="h-[500px] overflow-y-auto p-4 font-mono text-sm bg-slate-900 dark:bg-dark-950 rounded-xl"
+                            className="h-[500px] overflow-y-auto p-4 font-mono text-sm bg-slate-900 dark:bg-dark-950 rounded-2xl border border-slate-200 dark:border-dark-700 shadow-lg shadow-slate-200/50 dark:shadow-dark-950/50"
                         >
                             <AnimatePresence initial={false}>
                                 {filteredLogs.length === 0 ? (

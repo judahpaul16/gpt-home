@@ -349,11 +349,12 @@ logging.getLogger("langsmith").setLevel(logging.WARNING)
 logging.getLogger("LiteLLM").setLevel(logging.ERROR)
 logging.getLogger("LiteLLM Proxy").setLevel(logging.ERROR)
 logging.getLogger("litellm").setLevel(logging.ERROR)
-logging.getLogger("asyncio").setLevel(logging.WARNING)
+logging.getLogger("asyncio").setLevel(logging.ERROR)
 logging.getLogger("PIL").setLevel(logging.WARNING)
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("uvicorn").setLevel(logging.INFO)
 logging.getLogger("uvicorn.access").setLevel(logging.INFO)
+logging.getLogger("spotipy").setLevel(logging.WARNING)
 
 try:
     from board import SCL, SDA

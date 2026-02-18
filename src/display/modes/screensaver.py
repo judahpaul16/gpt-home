@@ -1,6 +1,7 @@
 """Screensaver display mode implementations."""
 
 import asyncio
+import logging
 import math
 import random
 import time
@@ -530,6 +531,6 @@ async def screensaver_loop(
     except asyncio.CancelledError:
         pass
     except Exception as e:
-        from loguru import logger
-
-        logger.error(f"Screensaver loop error: {e}")
+        logging.getLogger("display.modes.screensaver").error(
+            "Screensaver loop error: %s", e
+        )

@@ -952,9 +952,8 @@ class DisplayManager:
         return None
 
     async def _music_animation(self, context: Dict[str, Any]) -> None:
-        """Spotify music animation with modern, appealing design and scrolling text."""
+        """Spotify music tool animation — vertical layout that scales to any resolution."""
         try:
-            # Try to get real Spotify data first
             spotify_data = await self._fetch_spotify_data()
 
             track = spotify_data.get("track") or context.get("track", "")
@@ -963,17 +962,15 @@ class DisplayManager:
                 spotify_data.get("album_art_url") or context.get("album_art_url") or ""
             )
 
-            # Load album art
             album_art_img = (
                 await self._load_album_art(album_art_url) if album_art_url else None
             )
 
             last_frame = time.perf_counter()
             phase = 0.0
-            bar_heights = [0.0] * 12  # For animated equalizer bars
+            bar_heights = [0.0] * 12
             last_data_fetch = time.perf_counter()
 
-            # Initialize scrolling text (will be set up in render loop with proper dimensions)
             track_scroller: Optional[ScrollingText] = None
             artist_scroller: Optional[ScrollingText] = None
             last_track = ""
@@ -994,17 +991,14 @@ class DisplayManager:
                 last_frame = now
                 phase += dt * 2.5
 
-                # Refresh Spotify data periodically (every 5 seconds)
                 if now - last_data_fetch > 5.0:
                     spotify_data = await self._fetch_spotify_data()
                     if spotify_data:
                         new_track = spotify_data.get("track", "")
                         new_art_url = spotify_data.get("album_art_url")
-                        # Reload album art if track changed
                         if new_track and new_track != track:
                             track = new_track
                             artist = spotify_data.get("artist", "")
-                            # Reset scrollers on track change
                             track_scroller = None
                             artist_scroller = None
                             if new_art_url and new_art_url != album_art_url:
@@ -1020,206 +1014,173 @@ class DisplayManager:
                         break
 
                     w, h = d.width, d.height
+                    cx = w // 2
 
-                    # Dark gradient background
                     d.clear_sync(Color(12, 12, 18))
 
-                    # Layout: Left side = album art, Right side = track info + visualizer
-                    margin = d.scale_x(60)
-                    art_size = min(d.scale_x(280), d.scale_y(280), h - d.scale_y(100))
-                    art_x = margin
-                    art_y = (h - art_size) // 2
+                    margin = d.scale_x(20)
+                    bottom_margin = d.scale_y(15)
+                    text_area_width = w - margin * 2
 
-                    # Draw album art with rounded corners effect (border)
+                    progress_pct = spotify_data.get("progress_pct", 0)
+                    duration_ms = spotify_data.get("duration_ms", 0)
+                    progress_ms = spotify_data.get("progress_ms", 0)
+
+                    bar_height = d.scale_y(4)
+                    bar_y = h - bottom_margin - bar_height
+                    time_size = d.scale_font(12)
+                    time_label_y = bar_y - d.scale_y(16)
+
+                    eq_bar_count = 12
+                    eq_bar_w = d.scale_x(5)
+                    eq_spacing = d.scale_x(4)
+                    eq_height = d.scale_y(25)
+                    eq_total_w = (
+                        eq_bar_count * eq_bar_w + (eq_bar_count - 1) * eq_spacing
+                    )
+                    eq_x = cx - eq_total_w // 2
+                    eq_y = time_label_y - d.scale_y(6) - eq_height
+
+                    artist_size = d.scale_font(18)
+                    artist_y = eq_y - d.scale_y(28)
+
+                    track_size = d.scale_font(22)
+                    track_y = artist_y - d.scale_y(30)
+
+                    art_top = d.scale_y(10)
+                    art_bottom_pad = d.scale_y(10)
+                    available_art_h = track_y - art_top - art_bottom_pad
+                    art_size = max(d.scale_x(40), min(w - margin * 2, available_art_h))
+                    art_x = cx - art_size // 2
+                    art_y_pos = art_top
+
                     if album_art_img:
                         try:
                             resized = album_art_img.resize((art_size, art_size))
-                            # Draw shadow/glow behind
-                            shadow_offset = d.scale_x(8)
+                            shadow_off = max(2, d.scale_x(4))
                             d.fill_rect_sync(
-                                art_x + shadow_offset,
-                                art_y + shadow_offset,
+                                art_x + shadow_off,
+                                art_y_pos + shadow_off,
                                 art_size,
                                 art_size,
                                 Color(0, 0, 0),
                             )
                             if hasattr(d, "draw_pil_image_sync"):
-                                d.draw_pil_image_sync(resized, art_x, art_y)
+                                d.draw_pil_image_sync(resized, art_x, art_y_pos)
                             else:
                                 d.fill_rect_sync(
-                                    art_x, art_y, art_size, art_size, Color(40, 40, 50)
+                                    art_x,
+                                    art_y_pos,
+                                    art_size,
+                                    art_size,
+                                    Color(40, 40, 50),
                                 )
                         except Exception:
                             d.fill_rect_sync(
-                                art_x, art_y, art_size, art_size, Color(30, 30, 40)
+                                art_x,
+                                art_y_pos,
+                                art_size,
+                                art_size,
+                                Color(30, 30, 40),
                             )
                     else:
-                        # Modern loading placeholder with spinner
                         d.fill_rect_sync(
-                            art_x, art_y, art_size, art_size, Color(20, 20, 28)
+                            art_x, art_y_pos, art_size, art_size, Color(20, 20, 28)
                         )
-
-                        # Draw modern spinning loader
                         spinner_cx = art_x + art_size // 2
-                        spinner_cy = art_y + art_size // 2
-                        spinner_radius = art_size // 5
-                        spinner_thickness = d.scale_x(6)
-
-                        # Draw spinner arc segments
-                        num_segments = 12
-                        for i in range(num_segments):
-                            angle = (i / num_segments) * 2 * math.pi + phase * 2
-                            # Fade segments for trailing effect
-                            segment_alpha = (
-                                (i + int(phase * 8)) % num_segments
-                            ) / num_segments
-
-                            seg_x = spinner_cx + int(math.cos(angle) * spinner_radius)
-                            seg_y = spinner_cy + int(math.sin(angle) * spinner_radius)
-
-                            # Spotify green with varying intensity
-                            intensity = segment_alpha
+                        spinner_cy = art_y_pos + art_size // 2
+                        spinner_r = art_size // 5
+                        dot_sz = max(2, d.scale_x(5))
+                        for i in range(12):
+                            angle = (i / 12) * 2 * math.pi + phase * 2
+                            intensity = ((i + int(phase * 8)) % 12) / 12
+                            sx = spinner_cx + int(math.cos(angle) * spinner_r)
+                            sy = spinner_cy + int(math.sin(angle) * spinner_r)
                             seg_color = Color(
                                 int(30 * intensity),
                                 int(215 * intensity),
                                 int(96 * intensity),
                             )
-
-                            # Draw dot for each segment
-                            dot_size = spinner_thickness
                             d.fill_rect_sync(
-                                seg_x - dot_size // 2,
-                                seg_y - dot_size // 2,
-                                dot_size,
-                                dot_size,
+                                sx - dot_sz // 2,
+                                sy - dot_sz // 2,
+                                dot_sz,
+                                dot_sz,
                                 seg_color,
                             )
 
-                    # Right side content - calculate available width carefully
-                    left_margin = d.scale_x(40)
-                    content_x = art_x + art_size + left_margin
-                    right_margin = left_margin  # Balance left/right margins
-                    content_width = w - content_x - right_margin
-
-                    # Spotify logo indicator (green dot) - positioned safely in corner
-                    indicator_size = d.scale_x(10)
-                    d.fill_rect_sync(
-                        w - right_margin - indicator_size,
-                        d.scale_y(20),
-                        indicator_size,
-                        d.scale_y(10),
-                        Palette.SPOTIFY_GREEN,
-                    )
-
-                    # Track name with scrolling
-                    track_y = art_y + d.scale_y(20)
-                    track_size = d.scale_font(28)
                     track_display = track if track else "Playing on Spotify"
-
-                    # Initialize or update track scroller
                     if track_display != last_track or track_scroller is None:
                         track_scroller = ScrollingText(
                             track_display,
-                            content_width,
+                            text_area_width,
                             track_size,
-                            char_width_ratio=0.55,
+                            char_width_ratio=0.5,
                         )
                         last_track = track_display
-
-                    # Update scroller animation
                     track_scroller.update(dt)
 
-                    # Draw track name with clipping
                     if track_scroller.needs_scroll:
-                        scroll_offset = track_scroller.get_offset()
-                        d.set_clip(
-                            content_x,
-                            0,
-                            content_width,
-                            d.height,
-                        )
+                        d.set_clip(margin, track_y, text_area_width, track_size + 4)
                         d.draw_text_sync(
                             track_display,
-                            content_x - scroll_offset,
+                            margin - track_scroller.get_offset(),
                             track_y,
                             Palette.TEXT_PRIMARY,
                             track_size,
                         )
                         d.clear_clip()
                     else:
+                        tw = len(track_display) * int(track_size * 0.5)
                         d.draw_text_sync(
                             track_display,
-                            content_x,
+                            cx - tw // 2,
                             track_y,
                             Palette.TEXT_PRIMARY,
                             track_size,
                         )
 
-                    # Artist name with scrolling
-                    artist_y = track_y + d.scale_y(45)
-                    artist_size = d.scale_font(20)
                     artist_display = artist if artist else "GPT Home"
-
-                    # Initialize or update artist scroller
                     if artist_display != last_artist or artist_scroller is None:
                         artist_scroller = ScrollingText(
                             artist_display,
-                            content_width,
+                            text_area_width,
                             artist_size,
-                            char_width_ratio=0.55,
+                            char_width_ratio=0.5,
                         )
                         last_artist = artist_display
-
-                    # Update scroller animation
                     artist_scroller.update(dt)
 
-                    # Draw artist name with clipping
                     if artist_scroller.needs_scroll:
-                        scroll_offset = artist_scroller.get_offset()
-                        d.set_clip(
-                            content_x,
-                            0,
-                            content_width,
-                            d.height,
-                        )
+                        d.set_clip(margin, artist_y, text_area_width, artist_size + 4)
                         d.draw_text_sync(
                             artist_display,
-                            content_x - scroll_offset,
+                            margin - artist_scroller.get_offset(),
                             artist_y,
                             Palette.TEXT_SECONDARY,
                             artist_size,
                         )
                         d.clear_clip()
                     else:
+                        aw = len(artist_display) * int(artist_size * 0.5)
                         d.draw_text_sync(
                             artist_display,
-                            content_x,
+                            cx - aw // 2,
                             artist_y,
                             Palette.TEXT_SECONDARY,
                             artist_size,
                         )
 
-                    # Animated equalizer visualization at bottom right
-                    eq_bar_count = 12
-                    eq_bar_w = d.scale_x(8)
-                    eq_spacing = d.scale_x(6)
-                    eq_height = d.scale_y(60)
-                    eq_y = art_y + art_size - eq_height
-                    eq_x = content_x
-
                     for i in range(eq_bar_count):
-                        # Create varied animation for each bar
                         target = 0.2 + 0.6 * abs(math.sin(phase * 2 + i * 0.5))
                         target *= 0.5 + 0.5 * abs(math.sin(phase * 0.7 + i * 0.3))
                         if i >= len(bar_heights):
                             bar_heights.append(0.0)
                         bar_heights[i] = lerp(bar_heights[i], target, dt * 10)
 
-                        h_px = max(d.scale_y(4), int(eq_height * bar_heights[i]))
+                        h_px = max(2, int(eq_height * bar_heights[i]))
                         bx = eq_x + i * (eq_bar_w + eq_spacing)
                         by = eq_y + eq_height - h_px
-
-                        # Color gradient from green to cyan
                         ratio = i / eq_bar_count
                         bar_color = Color(
                             int(30 + 40 * ratio),
@@ -1228,79 +1189,53 @@ class DisplayManager:
                         )
                         d.fill_rect_sync(bx, by, eq_bar_w, h_px, bar_color)
 
-                    # Progress bar at the very bottom with time stamps
-                    progress_y = h - d.scale_y(35)
-                    progress_h = d.scale_y(4)
-                    progress_margin = margin + d.scale_x(50)  # Space for time
-                    progress_w = w - progress_margin * 2
-
-                    # Time labels
-                    time_size = d.scale_font(14)
-                    progress_pct = spotify_data.get("progress_pct", 0)
-                    duration_ms = spotify_data.get("duration_ms", 0)
-                    progress_ms = spotify_data.get("progress_ms", 0)
-
-                    # Format times
                     if duration_ms > 0:
                         prog_min = int(progress_ms / 60000)
                         prog_sec = int((progress_ms % 60000) / 1000)
                         dur_min = int(duration_ms / 60000)
                         dur_sec = int((duration_ms % 60000) / 1000)
-                        start_time = f"{prog_min}:{prog_sec:02d}"
-                        end_time = f"{dur_min}:{dur_sec:02d}"
+                        start_time_str = f"{prog_min}:{prog_sec:02d}"
+                        end_time_str = f"{dur_min}:{dur_sec:02d}"
                     else:
-                        # Loading state - show blank times
-                        start_time = "0:00"
-                        end_time = "-:--"
-                        progress_pct = 0  # No progress when loading
+                        start_time_str = "0:00"
+                        end_time_str = "-:--"
+                        progress_pct = 0
 
-                    # Draw start time
                     d.draw_text_sync(
-                        start_time,
+                        start_time_str,
                         margin,
-                        progress_y - d.scale_y(2),
-                        Palette.TEXT_SECONDARY,
+                        time_label_y,
+                        Palette.TEXT_MUTED,
                         time_size,
                     )
-
-                    # Draw end time
+                    end_w, _ = d.get_text_size(end_time_str, time_size)
                     d.draw_text_sync(
-                        end_time,
-                        w - margin - len(end_time) * time_size // 2,
-                        progress_y - d.scale_y(2),
-                        Palette.TEXT_SECONDARY,
+                        end_time_str,
+                        w - margin - end_w,
+                        time_label_y,
+                        Palette.TEXT_MUTED,
                         time_size,
                     )
 
-                    # Background track (always visible)
-                    d.fill_rect_sync(
-                        progress_margin,
-                        progress_y,
-                        progress_w,
-                        progress_h,
-                        Color(50, 50, 60),
-                    )
-
-                    # Progress fill (only if we have actual progress)
+                    bar_x = margin
+                    bar_w = w - margin * 2
+                    d.fill_rect_sync(bar_x, bar_y, bar_w, bar_height, Color(50, 50, 60))
                     if progress_pct > 0:
-                        filled_w = int(progress_w * min(1.0, progress_pct))
+                        filled_w = int(bar_w * min(1.0, progress_pct))
                         if filled_w > 0:
                             d.fill_rect_sync(
-                                progress_margin,
-                                progress_y,
+                                bar_x,
+                                bar_y,
                                 filled_w,
-                                progress_h,
+                                bar_height,
                                 Palette.SPOTIFY_GREEN,
                             )
-
-                        # Playhead dot
-                        dot_radius = d.scale_y(6)
-                        dot_x = progress_margin + filled_w
+                        dot_r = d.scale_y(5)
                         d.fill_rect_sync(
-                            dot_x - dot_radius // 2,
-                            progress_y - dot_radius // 2 + progress_h // 2,
-                            dot_radius,
-                            dot_radius,
+                            bar_x + filled_w - dot_r // 2,
+                            bar_y - dot_r // 2 + bar_height // 2,
+                            dot_r,
+                            dot_r,
                             Palette.SPOTIFY_GREEN,
                         )
 
@@ -1694,6 +1629,12 @@ class DisplayManager:
     async def resume_idle(self) -> None:
         """Resume idle state and restart mode loop."""
         if self._screensaver_active:
+            return
+
+        if self._spotify_active:
+            self._has_tool_animation = False
+            self._tool_animation_start = 0.0
+            self._state = AnimationState.IDLE
             return
 
         if self._state == AnimationState.IDLE and self._render_task:

@@ -1,6 +1,7 @@
 """Gallery display mode loop."""
 
 import asyncio
+import logging
 import time
 from typing import TYPE_CHECKING, Callable, List
 
@@ -70,7 +71,7 @@ def _render_no_images(d, manager: "DisplayManager") -> None:
 
 async def _render_gallery_image(d, manager: "DisplayManager") -> None:
     """Render the current gallery image."""
-    from loguru import logger
+    logger = logging.getLogger("display.modes.gallery")
 
     img_path = manager._gallery_images[manager._gallery_index]
     try:
