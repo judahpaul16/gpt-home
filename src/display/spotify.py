@@ -1,6 +1,7 @@
 """Spotify now playing display rendering."""
 
 import asyncio
+import logging
 import math
 import time
 from typing import TYPE_CHECKING, Any, Optional
@@ -164,9 +165,9 @@ async def spotify_now_playing_loop(manager: "DisplayManager") -> None:
     except asyncio.CancelledError:
         pass
     except Exception as e:
-        from loguru import logger
-
-        logger.error(f"Spotify now playing loop error: {e}")
+        logging.getLogger("display.spotify").error(
+            "Spotify now playing loop error: %s", e
+        )
 
 
 def _load_album_art(

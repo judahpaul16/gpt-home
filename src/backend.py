@@ -765,7 +765,7 @@ async def _monitor_display_changes():
                 loop = asyncio.get_event_loop()
                 fd = udev_monitor.fileno()
                 readable = await loop.run_in_executor(
-                    None, lambda: select.select([fd], [], [], 0.5)[0]
+                    None, lambda: select.select([fd], [], [], 2.0)[0]
                 )
                 if readable:
                     device = udev_monitor.poll(timeout=0)
@@ -775,9 +775,6 @@ async def _monitor_display_changes():
                         )
                         await asyncio.sleep(0.5)
                         await check_and_reinit()
-                else:
-                    await asyncio.sleep(4)
-                    await check_and_reinit()
             else:
                 await asyncio.sleep(5)
                 await check_and_reinit()

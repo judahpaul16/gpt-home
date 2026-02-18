@@ -326,7 +326,7 @@ async def main():
 
                     _consecutive_silence_count = 0
                     dm = get_display_manager()
-                    if dm and dm.is_available:
+                    if dm and dm.is_available and not dm.has_tool_animation:
                         await dm.resume_idle()
             else:
                 _consecutive_silence_count += 1
