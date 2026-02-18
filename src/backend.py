@@ -4908,11 +4908,96 @@ ctl.!default {{
 
 
 def _reset_hdmi_audio_state():
-    """Reset HDMI audio detection state when display is disconnected."""
     global _hdmi_audio_detected, _hdmi_audio_card
     _hdmi_audio_detected = False
     _hdmi_audio_card = None
     logger.debug("HDMI audio state reset")
+
+    try:
+        asound_path = Path("/etc/asound.conf")
+        if asound_path.exists() and "hdmi:CARD=" in asound_path.read_text():
+            result = subprocess.run(
+                ["aplay", "-l"], capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0:
+                for line in result.stdout.split("\n"):
+                    if line.startswith("card ") and "hdmi" not in line.lower():
+                        match = re.match(r"card (\d+): (\w+)", line)
+                        if match:
+                            card_num = int(match.group(1))
+                            card_id = match.group(2)
+                            _write_asound_conf(card_num, card_id)
+                            logger.info(
+                                "HDMI display disconnected, switched audio to %s (card %s)",
+                                card_id,
+                                card_num,
+                            )
+                            return
+    except Exception as e:
+        logger.warning("Failed to switch audio after HDMI disconnect: %s", e)
+
+
+def _write_asound_conf(card: int, card_id: str) -> None:
+    is_hdmi = "hdmi" in card_id.lower()
+    mic_card = _find_microphone_card()
+
+    if is_hdmi:
+        asound_config = f"""pcm.hdmi_converted {{
+    type plug
+    slave.pcm "hdmi:CARD={card_id},DEV=0"
+}}
+
+pcm.hdmi_softvol {{
+    type softvol
+    slave.pcm "hdmi_converted"
+    control {{
+        name "SoftMaster"
+        card {card}
+    }}
+    min_dB -51.0
+    max_dB 0.0
+}}
+
+pcm.!default {{
+    type asym
+    playback.pcm {{
+        type plug
+        slave.pcm "hdmi_softvol"
+    }}
+    capture.pcm {{
+        type plug
+        slave.pcm "hw:{mic_card},0"
+    }}
+}}
+
+ctl.!default {{
+    type hw
+    card {card}
+}}
+"""
+        audiodev = f"hdmi:CARD={card_id},DEV=0"
+    else:
+        asound_config = f"""pcm.!default {{
+    type asym
+    playback.pcm {{
+        type plug
+        slave.pcm "hw:{card},0"
+    }}
+    capture.pcm {{
+        type plug
+        slave.pcm "hw:{mic_card},0"
+    }}
+}}
+ctl.!default {{
+    type hw
+    card {card}
+}}
+"""
+        audiodev = f"plughw:{card},0"
+
+    Path("/etc/asound.conf").write_text(asound_config)
+    os.environ["AUDIODEV"] = audiodev
+    os.environ["SDL_AUDIODRIVER"] = "alsa"
 
 
 @app.get("/api/audio/devices")
@@ -5005,21 +5090,30 @@ async def list_audio_devices():
             match = re.search(r"card\s+(\w+)", content)
             if match:
                 card_value = match.group(1)
-                # Always return as string card number for consistency
-                # The value in asound.conf could be a number or a card ID like "Headphones"
                 if card_value.isdigit():
                     current_device = card_value
                 else:
-                    # Look up the card number by ID
                     for device in devices:
                         if device["id"] == card_value:
                             current_device = str(device["card"])
                             break
-                    # If not found, return the raw value
                     if current_device is None:
                         current_device = card_value
     except Exception:
         pass
+
+    if current_device is not None and devices:
+        valid_cards = {str(d["card"]) for d in devices}
+        if current_device not in valid_cards:
+            fallback = devices[0]
+            logger.warning(
+                "Configured audio device '%s' no longer available, falling back to '%s' (card %s)",
+                current_device,
+                fallback["name"],
+                fallback["card"],
+            )
+            _write_asound_conf(fallback["card"], fallback["id"])
+            current_device = str(fallback["card"])
 
     return {
         "devices": devices,
