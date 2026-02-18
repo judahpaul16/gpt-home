@@ -1970,9 +1970,44 @@ async def spotify_auth_callback(request: Request):
     )
 
 
+async def _web_api_get_playback_status() -> Optional[Dict[str, Any]]:
+    sp = await get_spotify_user_client()
+    if not sp:
+        return None
+    try:
+        pb = await asyncio.get_event_loop().run_in_executor(None, sp.current_playback)
+        if not pb:
+            return None
+        item = pb.get("item") or {}
+        artists = item.get("artists", [])
+        artist = artists[0].get("name", "Unknown") if artists else "Unknown"
+        duration_ms = item.get("duration_ms", 0)
+        progress_ms = pb.get("progress_ms", 0)
+        images = (item.get("album") or {}).get("images", [])
+        art_url = images[0]["url"] if images else ""
+        return {
+            "is_playing": pb.get("is_playing", False),
+            "status": "Playing" if pb.get("is_playing") else "Paused",
+            "track": item.get("name", "Unknown"),
+            "artist": artist,
+            "album": (item.get("album") or {}).get("name", ""),
+            "album_art_url": art_url,
+            "progress_ms": progress_ms,
+            "duration_ms": duration_ms,
+            "progress_pct": (progress_ms / duration_ms * 100) if duration_ms > 0 else 0,
+            "volume": (pb.get("device") or {}).get("volume_percent", 100),
+            "track_id": item.get("uri", ""),
+        }
+    except Exception as e:
+        logger.debug(f"Web API playback status error: {e}")
+        return None
+
+
 async def get_spotify_playback() -> Optional[Dict[str, Any]]:
-    """Get current playback state via D-Bus MPRIS."""
-    return await _mpris_get_playback_status()
+    result = await _mpris_get_playback_status()
+    if result is not None:
+        return result
+    return await _web_api_get_playback_status()
 
 
 async def _spotify_monitor_loop():
@@ -2063,6 +2098,23 @@ async def get_spotify_playback_state():
     if playback:
         return JSONResponse(content=playback)
     return JSONResponse(content={"is_playing": False})
+
+
+async def _start_playback_with_retry(
+    sp: spotipy.Spotify, device_id: str, uris=None, max_retries: int = 3
+):
+    for attempt in range(max_retries):
+        try:
+            if uris:
+                sp.start_playback(device_id=device_id, uris=uris[:50])
+            else:
+                sp.start_playback(device_id=device_id)
+            return
+        except Exception as e:
+            if "404" in str(e) and attempt < max_retries - 1:
+                await asyncio.sleep(1.0 * (attempt + 1))
+                continue
+            raise
 
 
 async def _get_gpt_home_device_id(sp: spotipy.Spotify) -> Optional[str]:
@@ -2163,8 +2215,8 @@ async def spotify_control(request: Request):
                         device_id = await _get_gpt_home_device_id(sp)
                     if device_id:
                         sp.transfer_playback(device_id=device_id)
-                        await asyncio.sleep(0.3)
-                    sp.start_playback(device_id=device_id, uris=uris[:50])
+                        await asyncio.sleep(0.5)
+                    await _start_playback_with_retry(sp, device_id, uris=uris)
                     return JSONResponse(content={"message": message})
                 except Exception as e:
                     logger.error(f"Failed to start playback: {e}")
@@ -2194,8 +2246,8 @@ async def spotify_control(request: Request):
                     device_id = await _get_gpt_home_device_id(sp)
                 if device_id:
                     sp.transfer_playback(device_id=device_id)
-                    await asyncio.sleep(0.3)
-                sp.start_playback(device_id=device_id)
+                    await asyncio.sleep(0.5)
+                await _start_playback_with_retry(sp, device_id)
                 return JSONResponse(content={"message": "Resumed playback."})
             except Exception as e:
                 logger.error(f"Failed to resume: {e}")

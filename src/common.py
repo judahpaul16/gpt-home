@@ -354,6 +354,7 @@ logging.getLogger("PIL").setLevel(logging.WARNING)
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("uvicorn").setLevel(logging.INFO)
 logging.getLogger("uvicorn.access").setLevel(logging.INFO)
+logging.getLogger("spotipy").setLevel(logging.WARNING)
 
 try:
     from board import SCL, SDA
