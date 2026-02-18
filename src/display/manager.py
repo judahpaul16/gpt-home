@@ -1631,6 +1631,12 @@ class DisplayManager:
         if self._screensaver_active:
             return
 
+        if self._spotify_active:
+            self._has_tool_animation = False
+            self._tool_animation_start = 0.0
+            self._state = AnimationState.IDLE
+            return
+
         if self._state == AnimationState.IDLE and self._render_task:
             return
 

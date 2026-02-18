@@ -136,7 +136,19 @@ ALSAEOF
     echo "ALSA config generated:"
     cat /etc/asound.conf
 else
-    echo "No HDMI audio found, using default ALSA config"
+    echo "No HDMI audio found, configuring card 0 for playback..."
+    cat > /etc/asound.conf <<ALSAEOF
+pcm.!default {
+    type plug
+    slave.pcm "hw:0,0"
+}
+
+ctl.!default {
+    type hw
+    card 0
+}
+ALSAEOF
+    cat /etc/asound.conf
 fi
 
 exec /usr/local/bin/spotifyd --no-daemon --verbose

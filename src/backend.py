@@ -2100,16 +2100,21 @@ async def get_spotify_playback_state():
     return JSONResponse(content={"is_playing": False})
 
 
-async def _notify_spotify_display():
-    await asyncio.sleep(1.5)
-    for _ in range(5):
+async def _notify_spotify_display(track: str = "", artist: str = ""):
+    manager = _display_manager
+    if manager and manager.is_available:
+        await manager.show_spotify_now_playing(
+            track=track or "Playing on Spotify",
+            artist=artist,
+        )
+
+    for _ in range(10):
+        await asyncio.sleep(2)
         playback = await _web_api_get_playback_status()
         if playback and playback.get("is_playing"):
             global _spotify_playback_cache, _spotify_last_check
             _spotify_playback_cache = playback
             _spotify_last_check = time.time()
-
-            manager = _display_manager
             if manager and manager.is_available:
                 await manager.show_spotify_now_playing(
                     track=playback.get("track", "Unknown"),
@@ -2121,7 +2126,6 @@ async def _notify_spotify_display():
                     duration_ms=playback.get("duration_ms", 0),
                 )
             return
-        await asyncio.sleep(1)
 
 
 async def _start_playback_with_retry(
@@ -2225,13 +2229,18 @@ async def spotify_control(request: Request):
 
             if uris:
                 try:
+                    _notify_track = query if search_type != "artist" else ""
+                    _notify_artist = query if search_type == "artist" else ""
+
                     if await _mpris_open_uri(uris[0]):
                         if len(uris) > 1:
                             await asyncio.sleep(0.5)
                             device_id = await _get_gpt_home_device_id(sp)
                             if device_id:
                                 sp.start_playback(device_id=device_id, uris=uris[:50])
-                        asyncio.create_task(_notify_spotify_display())
+                        asyncio.create_task(
+                            _notify_spotify_display(_notify_track, _notify_artist)
+                        )
                         return JSONResponse(content={"message": message})
 
                     if not device_id:
@@ -2242,7 +2251,9 @@ async def spotify_control(request: Request):
                         sp.transfer_playback(device_id=device_id)
                         await asyncio.sleep(0.5)
                     await _start_playback_with_retry(sp, device_id, uris=uris)
-                    asyncio.create_task(_notify_spotify_display())
+                    asyncio.create_task(
+                        _notify_spotify_display(_notify_track, _notify_artist)
+                    )
                     return JSONResponse(content={"message": message})
                 except Exception as e:
                     logger.error(f"Failed to start playback: {e}")
