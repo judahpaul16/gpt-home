@@ -309,10 +309,6 @@ if [ -n "$CONFIG_TXT" ]; then
         echo "dtoverlay=vc4-kms-v3d" | sudo tee -a "$CONFIG_TXT" > /dev/null
     fi
 
-    CONFIG_CHECKSUM_AFTER=$(md5sum "$CONFIG_TXT" 2>/dev/null | awk '{print $1}')
-    if [ "$CONFIG_CHECKSUM_BEFORE" != "$CONFIG_CHECKSUM_AFTER" ]; then
-        NEEDS_REBOOT=true
-    fi
     echo -e "${GREEN}HDMI configuration updated.${NC}"
 else
     echo -e "${YELLOW}Could not find config.txt - HDMI configuration skipped.${NC}"
@@ -395,10 +391,9 @@ if [ -n "$CONFIG_TXT" ]; then
             else
                 echo "dtparam=spi=on" | sudo tee -a "$CONFIG_TXT" > /dev/null
             fi
-            NEEDS_REBOOT=true
         fi
 
-        if ! grep -qE "^dtoverlay=(piscreen|waveshare35a|tft35a)" "$CONFIG_TXT"; then
+        if ! grep -qE "^#?dtoverlay=(piscreen|waveshare35a|tft35a)" "$CONFIG_TXT"; then
             echo "#dtoverlay=piscreen,drm,speed=16000000" | sudo tee -a "$CONFIG_TXT" > /dev/null
         fi
 
@@ -413,7 +408,6 @@ fi
 if [ -n "$CONFIG_TXT" ]; then
     if ! grep -q "^dtparam=i2c_arm=on" "$CONFIG_TXT"; then
         echo "dtparam=i2c_arm=on" | sudo tee -a "$CONFIG_TXT" > /dev/null
-        NEEDS_REBOOT=true
     fi
 
     if ! [ -e /dev/i2c-1 ]; then
@@ -453,7 +447,6 @@ if [ -n "$CONFIG_TXT" ]; then
 
         if ! grep -q "^dtparam=i2s=on" "$CONFIG_TXT"; then
             echo "dtparam=i2s=on" | sudo tee -a "$CONFIG_TXT" > /dev/null
-            NEEDS_REBOOT=true
         fi
 
         if ! grep -q "^dtoverlay=i2s-mmap" "$CONFIG_TXT"; then
@@ -462,7 +455,6 @@ if [ -n "$CONFIG_TXT" ]; then
             else
                 echo "dtoverlay=i2s-mmap" | sudo tee -a "$CONFIG_TXT" > /dev/null
             fi
-            NEEDS_REBOOT=true
         fi
 
         if ! grep -q "^dtoverlay=wm8960-soundcard" "$CONFIG_TXT"; then
@@ -471,7 +463,6 @@ if [ -n "$CONFIG_TXT" ]; then
             else
                 echo "dtoverlay=wm8960-soundcard" | sudo tee -a "$CONFIG_TXT" > /dev/null
             fi
-            NEEDS_REBOOT=true
         fi
 
         echo -e "${GREEN}WM8960 audio codec configured${NC}"
@@ -481,7 +472,6 @@ if [ -n "$CONFIG_TXT" ]; then
         if grep -q "^dtoverlay=wm8960-soundcard" "$CONFIG_TXT"; then
             echo -e "${YELLOW}Disabling stale WM8960 overlay in config.txt${NC}"
             sudo sed -i 's/^dtoverlay=wm8960-soundcard/#dtoverlay=wm8960-soundcard/' "$CONFIG_TXT"
-            NEEDS_REBOOT=true
         fi
         if grep -q "^dtoverlay=i2s-mmap" "$CONFIG_TXT"; then
             sudo sed -i 's/^dtoverlay=i2s-mmap/#dtoverlay=i2s-mmap/' "$CONFIG_TXT"
@@ -500,38 +490,26 @@ if [ -n "$CONFIG_TXT" ]; then
         if grep -q "^dtoverlay=googlevoicehat-soundcard" "$CONFIG_TXT"; then
             echo -e "${YELLOW}Removing stale RaspiAudio overlay (WM8960 detected, not a RaspiAudio HAT)${NC}"
             sudo sed -i 's/^dtoverlay=googlevoicehat-soundcard/#dtoverlay=googlevoicehat-soundcard/' "$CONFIG_TXT"
-            NEEDS_REBOOT=true
         fi
     else
         if [ -f /proc/device-tree/hat/vendor ]; then
             HAT_VENDOR=$(tr -d '\0' < /proc/device-tree/hat/vendor 2>/dev/null)
-            if echo "$HAT_VENDOR" | grep -qi "raspiaudio"; then
+            HAT_PRODUCT=$(tr -d '\0' < /proc/device-tree/hat/product 2>/dev/null)
+            if echo "$HAT_VENDOR" | grep -qi "raspiaudio\|google"; then
                 RASPIAUDIO_DETECTED=true
-                HAT_PRODUCT=$(tr -d '\0' < /proc/device-tree/hat/product 2>/dev/null)
-                echo -e "${GREEN}RaspiAudio HAT detected via EEPROM: ${HAT_PRODUCT}${NC}"
+                echo -e "${GREEN}RaspiAudio-compatible HAT detected via EEPROM: ${HAT_PRODUCT} (vendor: ${HAT_VENDOR})${NC}"
+            elif echo "$HAT_PRODUCT" | grep -qi "voicehat\|voice.hat\|voice.bonnet\|mic.\|audio.\|speakers.\|ultra."; then
+                RASPIAUDIO_DETECTED=true
+                echo -e "${GREEN}RaspiAudio-compatible HAT detected via EEPROM product: ${HAT_PRODUCT}${NC}"
             fi
         fi
 
         if [ "$RASPIAUDIO_DETECTED" = false ]; then
             if lsmod 2>/dev/null | grep -q snd_rpi_googlevoicehat; then
-                echo "RaspiAudio overlay loaded — verifying hardware with I2S capture..."
                 PROBE_CARD=$(arecord -l 2>/dev/null | grep -i "googlevoicehat\|voicehat" | head -1 | sed -n 's/^card \([0-9]*\).*/\1/p')
                 if [ -n "$PROBE_CARD" ]; then
-                    PROBE_FILE="/tmp/raspi_audio_probe.raw"
-                    rm -f "$PROBE_FILE"
-                    timeout 3 arecord -D "plughw:${PROBE_CARD},0" -f S16_LE -r 16000 -c 1 -d 1 "$PROBE_FILE" 2>/dev/null
-                    if [ -f "$PROBE_FILE" ] && [ -s "$PROBE_FILE" ]; then
-                        UNIQUE=$(od -An -tx2 -w2 "$PROBE_FILE" 2>/dev/null | sort -u | wc -l)
-                        rm -f "$PROBE_FILE"
-                        if [ "$UNIQUE" -gt 20 ]; then
-                            RASPIAUDIO_DETECTED=true
-                            echo -e "${GREEN}RaspiAudio HAT verified (${UNIQUE} unique I2S samples)${NC}"
-                        else
-                            echo -e "${YELLOW}I2S bus idle (${UNIQUE} unique samples) — no RaspiAudio hardware${NC}"
-                        fi
-                    else
-                        echo -e "${YELLOW}I2S capture failed — no RaspiAudio hardware${NC}"
-                    fi
+                    RASPIAUDIO_DETECTED=true
+                    echo -e "${GREEN}RaspiAudio HAT detected (driver loaded, card ${PROBE_CARD} present)${NC}"
                 fi
             elif [ -n "$OVERLAYS_DIR" ]; then
                 if [ ! -f "$OVERLAYS_DIR/googlevoicehat-soundcard.dtbo" ]; then
@@ -551,7 +529,7 @@ if [ -n "$CONFIG_TXT" ]; then
                     sudo dtparam i2s=on 2>/dev/null || true
                     sleep 0.5
 
-                    if sudo dtoverlay googlevoicehat-soundcard 2>&1 | grep -qi "error\|fail"; then
+                    if sudo dtoverlay "$OVERLAYS_DIR/googlevoicehat-soundcard.dtbo" 2>&1 | grep -qi "error\|fail"; then
                         echo -e "${YELLOW}Could not load googlevoicehat overlay for probe${NC}"
                     else
                         sleep 1
@@ -582,17 +560,14 @@ if [ -n "$CONFIG_TXT" ]; then
         if grep -q "^dtoverlay=wm8960-soundcard" "$CONFIG_TXT"; then
             echo -e "${YELLOW}Disabling WM8960 overlay (conflicts with RaspiAudio)${NC}"
             sudo sed -i 's/^dtoverlay=wm8960-soundcard/#dtoverlay=wm8960-soundcard/' "$CONFIG_TXT"
-            NEEDS_REBOOT=true
         fi
 
         if ! grep -q "^dtparam=i2s=on" "$CONFIG_TXT"; then
             echo "dtparam=i2s=on" | sudo tee -a "$CONFIG_TXT" > /dev/null
-            NEEDS_REBOOT=true
         fi
 
         if grep -q "^dtparam=audio=on" "$CONFIG_TXT"; then
             sudo sed -i 's/^dtparam=audio=on/#dtparam=audio=on/' "$CONFIG_TXT"
-            NEEDS_REBOOT=true
         fi
 
         if ! grep -q "^dtoverlay=googlevoicehat-soundcard" "$CONFIG_TXT"; then
@@ -601,7 +576,6 @@ if [ -n "$CONFIG_TXT" ]; then
             else
                 echo "dtoverlay=googlevoicehat-soundcard" | sudo tee -a "$CONFIG_TXT" > /dev/null
             fi
-            NEEDS_REBOOT=true
         fi
 
         echo -e "${GREEN}RaspiAudio HAT configured${NC}"
@@ -609,16 +583,21 @@ if [ -n "$CONFIG_TXT" ]; then
         if grep -q "^dtoverlay=googlevoicehat-soundcard" "$CONFIG_TXT"; then
             echo -e "${YELLOW}Disabling stale RaspiAudio overlay (hardware not detected)${NC}"
             sudo sed -i 's/^dtoverlay=googlevoicehat-soundcard/#dtoverlay=googlevoicehat-soundcard/' "$CONFIG_TXT"
-            NEEDS_REBOOT=true
         fi
 
         if [ "$WM8960_DETECTED" = false ] && grep -q "^#dtparam=audio=on" "$CONFIG_TXT"; then
             echo -e "${GREEN}Re-enabling onboard audio (no audio HAT detected)${NC}"
             sudo sed -i 's/^#dtparam=audio=on/dtparam=audio=on/' "$CONFIG_TXT"
-            NEEDS_REBOOT=true
         fi
 
         echo -e "${YELLOW}RaspiAudio HAT not detected — skipping googlevoicehat overlay${NC}"
+    fi
+fi
+
+if [ -n "$CONFIG_TXT" ]; then
+    CONFIG_CHECKSUM_AFTER=$(md5sum "$CONFIG_TXT" 2>/dev/null | awk '{print $1}')
+    if [ "$CONFIG_CHECKSUM_BEFORE" != "$CONFIG_CHECKSUM_AFTER" ]; then
+        NEEDS_REBOOT=true
     fi
 fi
 
@@ -705,6 +684,10 @@ if [[ "$NO_BUILD" == "false" ]]; then
         git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
     fi
     cd ~/gpt-home
+
+    if [ ! -f .env ] && [ -f .env.example ]; then
+        cp .env.example .env
+    fi
 
     echo "Stopping any running gpt-home services..."
     $COMPOSE down 2>/dev/null || true
@@ -830,6 +813,10 @@ if [[ "$NO_BUILD" == "true" ]]; then
         git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
     fi
     cd ~/gpt-home
+
+    if [ ! -f .env ] && [ -f .env.example ]; then
+        cp .env.example .env
+    fi
 
     $COMPOSE down 2>/dev/null || true
     echo "Pulling and starting gpt-home from Docker Hub..."

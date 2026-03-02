@@ -5,7 +5,7 @@ services:
         env_file: .env
         network_mode: host
         environment:
-            POSTGRES_DB: ${POSTGRES_DB:-gpt_home}
+            POSTGRES_DB: ${POSTGRES_DB:-gpt_home_db}
             POSTGRES_USER: ${POSTGRES_USER:-gpt_home}
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gpt_home_secret}
             PGDATA: /var/lib/postgresql/data

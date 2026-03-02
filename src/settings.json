@@ -23,17 +23,5 @@
     "micGain": 18,
     "pauseThreshold": 1.2,
     "phraseTimeLimit": 15,
-    "nonSpeakingDuration": 0.8,
-    "st7789": {
-        "width": 240,
-        "height": 280,
-        "spi_bus": 0,
-        "spi_cs": 0,
-        "gpio_dc": 27,
-        "gpio_rst": 4,
-        "gpio_bl": 22,
-        "gpio_bl_active_low": true,
-        "rotation": 180,
-        "spi_speed_hz": 62500000
-    }
+    "nonSpeakingDuration": 0.8
 }

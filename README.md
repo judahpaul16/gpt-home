@@ -80,43 +80,20 @@ This guide will explain how to build your own. It's pretty straight forward. You
 
 > 📖 **Developer Documentation**: For in-depth technical documentation, architecture details, and API references, visit the [**GPT Home Wiki**](https://github.com/judahpaul16/gpt-home/wiki).
 
-## 🧠 Architecture
-
-GPT Home uses a **microservices architecture** with Docker Compose:
-
-| Service | Description | Port | Profile |
-|---------|-------------|------|---------|
-| `db` | PostgreSQL + pgvector for memory storage | 5432 (internal) | always |
-| `nginx` | Reverse proxy (routes API→backend:8000, static→frontend:80) | **80** (exposed) | always |
-| `backend` | Voice assistant + FastAPI backend | 8000 (internal) | always |
-| `frontend` | Pre-built React static files (nginx) | 80 (internal) | prod |
-| `frontend-dev` | React dev server with hot reload (network alias: "frontend") | 80 (internal) | dev |
-| `spotify` | Spotify Connect + Avahi mDNS (gpt-home.local) | host network | always |
-
-> **Profiles:** Default is `prod` (set via `COMPOSE_PROFILES=prod` in `.env`). Use `COMPOSE_PROFILES=dev` for development with hot reload. Just run `docker compose up -d` — no `--profile` flag needed.
-
-**Nginx Routing:**
-- `/api/*`, `/logs/*`, `/settings`, `/spotify-*`, `/connect-service`, etc. → `backend:8000`
-- `/*` (everything else) → `frontend:80` (prod: static nginx, dev: React dev server)
-
-**Core Technologies:**
-- **LangGraph**: Orchestrates the AI agent workflow
-- **LangMem**: Manages long-term memory extraction and retrieval
-- **PostgreSQL + pgvector**: Stores conversation history and semantic memories
-- **LiteLLM**: Multi-provider LLM/TTS/STT support (100+ providers)
-- **Display System**: Auto-detecting multi-display support (HDMI, PiScreen, SPI Display, I2C Display)
-
 ## 🚀 TL;DR
 
 ### Production (Raspberry Pi)
+1. Run the setup script:
 ```bash
 curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/setup.sh | \
     bash -s -- --no-build
 ```
-2. ***Required:*** Set your API key. GPT Home uses **LiteLLM** which supports 100+ providers (OpenAI, Anthropic, Google, Cohere, etc.):
+2. ***Required:*** Set your API key. Copy the example config and add your key. GPT Home uses **LiteLLM** which supports 100+ providers (OpenAI, Anthropic, Google, Cohere, etc.):
 ```bash
-echo "LITELLM_API_KEY=YOUR_API_KEY_HERE" >> ~/gpt-home/.env
-docker compose restart
+cd ~/gpt-home
+cp .env.example .env
+sed -i 's/^LITELLM_API_KEY=$/LITELLM_API_KEY=your-api-key-here/' .env
+docker compose down && docker compose up -d
 ```
 
 > **Tip:** You can also set the API key via the web interface at `gpt-home.local/settings`. See [LiteLLM docs](https://docs.litellm.ai/docs/providers) for all supported providers.
@@ -156,6 +133,18 @@ Before connecting the battery, ensure that the polarity is correct to avoid dama
 
 
 ---
+
+## 📋 Specifications
+
+|  | Minimum | Recommended |
+|---|---|---|
+| **Board** | Raspberry Pi Zero 2 W | Raspberry Pi 4B / 5 |
+| **CPU** | Quad-core ARM Cortex-A53 @ 1GHz | Quad-core ARM Cortex-A72 @ 1.5GHz+ |
+| **RAM** | 512MB | 1GB+ |
+| **Storage** | 16GB microSD | 32GB+ microSD |
+| **OS** | Raspberry Pi OS Lite (64-bit) | Ubuntu Server (64-bit) |
+
+> All system dependencies (Docker, time sync, etc.) are installed automatically by the setup script.
 
 ## 🛠 My Parts List
 This is the list of parts I used to build my first GPT Home. You can use this as a reference for building your own. I've also included optional parts that you can add to enhance your setup. ***To be clear you can use any system that runs Linux.***
@@ -199,204 +188,45 @@ This is the list of parts I used to build my first GPT Home. You can use this as
 </p>
 </details>
 
-## 📶 Configuring Wi-Fi via wpa_supplicant
+## 📶 Configuring Wi-Fi
 
-To configure Wi-Fi on your Raspberry Pi, you'll need to edit the `wpa_supplicant.conf` file and ensure the wireless interface is enabled at boot. This method supports configuring multiple Wi-Fi networks and is suitable for headless setups.
-*You could also use the [`raspi-config`](https://www.raspberrypi.com/documentation/computers/configuration.html) or the [`nmcli`](https://ubuntu.com/core/docs/networkmanager/configure-wifi-connections) utility to configure Wi-Fi; or simply use an Ethernet connection if you prefer.*
+If your Pi isn't connected via Ethernet, use the included Wi-Fi setup script. It configures `wpa_supplicant` + `systemd-networkd`, disables NetworkManager (which can interfere), sets up DNS, and disables Wi-Fi power saving:
+
+```bash
+curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/wifi-setup.sh | \
+    sudo WIFI_SSID="your-ssid" WIFI_PSK="your-password" bash
+```
+
+Or run it interactively (prompts for SSID and password):
+
+```bash
+curl -s https://raw.githubusercontent.com/judahpaul16/gpt-home/main/contrib/wifi-setup.sh | \
+    sudo bash
+```
+
+You can also set `WIFI_IFACE` (default: `wlan0`) and `WIFI_COUNTRY` (default: `US`) if needed.
 
 <details>
-<summary>👈 View Instructions</summary>
+<summary>👈 Other methods</summary>
 <p>
 
-**Step 1: Create the Bash Script**  
+**NetworkManager (Ubuntu, Armbian, some Raspberry Pi OS images):**
 
 ```bash
-sudo nano /usr/local/bin/start_wifi.sh
+sudo nmcli dev wifi connect "your-ssid" password "your-password"
 ```
 
-Add the following content to the script:
+To list available networks: `nmcli dev wifi list`
+
+**raspi-config (Raspberry Pi OS):**
 
 ```bash
-#!/bin/bash
-
-# Set the interface and SSID details
-INTERFACE="wlan0"
-SSID="your_wifi_ssid"
-PASSWORD="your_wifi_password"
-
-# Make sure no previous configuration interferes
-sudo killall wpa_supplicant
-sudo dhcpcd -x $INTERFACE
-
-# Ensure the wireless interface is up
-sudo ip link set $INTERFACE up
-
-# Create a wpa_supplicant configuration file
-WPA_CONF="/etc/wpa_supplicant/wpa_supplicant.conf"
-wpa_passphrase "$SSID" "$PASSWORD" | sudo tee $WPA_CONF > /dev/null
-
-# Start wpa_supplicant
-sudo wpa_supplicant -B -i $INTERFACE -c $WPA_CONF
-
-# Obtain an IP address
-sudo dhcpcd $INTERFACE
+sudo raspi-config
 ```
 
-Make sure to replace `your_wifi_ssid` and `your_wifi_password` with your actual WiFi network's SSID and password.
+Navigate to **System Options** > **Wireless LAN** and enter your SSID and password.
 
-**Step 2: Make the Script Executable**  
-
-```bash
-sudo chmod +x /usr/local/bin/start_wifi.sh
-```
-
-**Step 3: Create a Systemd Service File**
-
-```bash
-sudo nano /etc/systemd/system/start_wifi.service
-```
-
-Add the following content to the service file:
-
-```ini
-[Unit]
-Description=Start WiFi at boot
-After=network.target
-
-[Service]
-ExecStart=/usr/local/bin/start_wifi.sh
-RemainAfterExit=true
-
-[Install]
-WantedBy=multi-user.target
-```
-
-**Step 4: Reload Systemd and Enable the Service**
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable start_wifi.service
-sudo systemctl start start_wifi.service
-```
-
-Your Raspberry Pi should now connect to the Wi-Fi network automatically on boot.
-
-If you want to connect to hidden networks or multiple networks, edit the `wpa_supplicant.conf` file located at `/etc/wpa_supplicant/wpa_supplicant.conf` and add the following configuration:
-
-```bash
-network={
-    priority=1 # Higher priority networks are attempted first
-    ssid="Your_Wi-Fi_Name"
-    psk="Your_Wi-Fi_Password"
-    key_mgmt=WPA-PSK
-    scan_ssid=1 # Hidden network
-
-    priority=2
-    ssid="Enterprise_Wi-Fi_Name"
-    key_mgmt=WPA-EAP
-    eap=PEAP # or TTLS, TLS, FAST, LEAP
-    identity="Your_Username"
-    password="Your_Password" 
-    phase1="peaplabel=0" # or "peapver=0" for PEAPv0
-    phase2="auth=MSCHAPV2" # or "auth=MSCHAP" for MSCHAPv1
-}
-```
-
-Restart the `wpa_supplicant` service to apply the changes:
-
-```bash
-sudo systemctl restart wpa_supplicant
-```
-
-See the [wpa_supplicant example file](https://w1.fi/cgit/hostap/plain/wpa_supplicant/wpa_supplicant.conf) for more information on the configuration options.
-
-</p>
-</details>
-
-## 🛠 System Dependencies
-
-Before running this project on your system, ensure your system clock is synchronized, your package lists are updated, and Docker is installed. The setup script will take care of this for you but you can also do this manually.
-
-<details>
-<summary>👈 View Instructions</summary>
-<p>
-
-**Synchronize your system clock:**  
-*Install `chrony` for time synchronization:*
-
-```bash
-sudo apt install -y chrony       # For Debian/Ubuntu
-sudo yum install -y chrony       # For RHEL/CentOS/Alma
-sudo dnf install -y chrony       # # For RHEL/CentOS/Alma 9^
-sudo zypper install -y chrony    # For openSUSE
-sudo pacman -S chrony            # For Arch Linux
-```
-
-Activate and synchronize time immediately with `chrony`:
-
-```bash
-sudo chronyc makestep
-```
-
-**Update your package list:**  
-*Regular updates to your package list ensure access to the latest software and security patches.*
-
-```bash
-sudo apt update                   # For Debian/Ubuntu
-sudo yum makecache                # For RHEL/CentOS/Alma
-sudo dnf makecache                # For RHEL/CentOS/Alma 9^
-sudo zypper refresh               # For openSUSE
-sudo pacman -Sy                   # For Arch Linux
-```
-
-**Enable additional repositories:**  
-*For systems that utilize EPEL and other special repositories, you may need to enable them to access a wider range of available packages.*
-
-For Debian/Ubuntu:
-
-```bash
-sudo add-apt-repository universe
-sudo apt update
-```
-
-For RHEL/CentOS/Alma and Fedora:
-
-```bash
-sudo yum install -y epel-release   # For RHEL/CentOS/Alma
-sudo dnf install -y epel-release   # For RHEL/CentOS/Alma 9^
-sudo yum makecache --timer            # For RHEL/CentOS/Alma
-sudo dnf makecache --timer            # For RHEL/CentOS/Alma 9^
-```
-
-**Install Development Tools:**  
-*Development tools are essential for building packages and compiling software. Ensure you have the necessary tools installed.*
-
-For Debian/Ubuntu:
-
-```bash
-sudo apt install -y build-essential
-```
-
-For RHEL/CentOS/Alma and Fedora:
-
-```bash
-sudo yum groupinstall -y "Development Tools"   # For RHEL/CentOS/Alma 
-sudo dnf groupinstall -y "Development Tools"   # For RHEL/CentOS/Alma 9^
-```
-
-**Install System Dependencies**  
-
-1. **Docker**: Required for containerization.  
-    ```bash
-    sudo apt-get install -y docker.io  # For Debian/Ubuntu
-    sudo yum install -y docker         # For RHEL/CentOS/Alma
-    sudo dnf install -y docker         # For RHEL/CentOS/Alma 9^
-    sudo zypper install -y docker      # For openSUSE
-    sudo pacman -S docker              # For Arch Linux
-    ```
-    then `sudo systemctl enable --now docker`
-
-> **Note:** NGINX is now containerized and runs automatically via Docker Compose.
+**Ethernet:** If Wi-Fi is unreliable, a wired Ethernet connection is always the most stable option and requires no configuration.
 
 </p>
 </details>

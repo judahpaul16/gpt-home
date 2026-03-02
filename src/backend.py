@@ -967,6 +967,7 @@ async def startup_event():
     _display_monitor_task = asyncio.create_task(_monitor_display_changes())
 
     _detect_phantom_i2s_cards()
+    _detect_missing_audio_overlays()
 
     await _initialize_mic_gain()
 
@@ -4977,12 +4978,8 @@ def _detect_phantom_i2s_cards() -> None:
                 continue
             card_num = card_match.group(1)
 
-            try:
-                vendor = Path("/proc/device-tree/hat/vendor").read_text().replace("\0", "").strip()
-                if "raspiaudio" in vendor.lower():
-                    continue
-            except Exception:
-                pass
+            if _is_googlevoicehat_eeprom():
+                continue
 
             probe_file = f"/tmp/i2s_probe_{card_num}.raw"
             try:
@@ -5067,6 +5064,106 @@ def _fix_stale_i2s_overlay() -> None:
             )
     except Exception as e:
         logger.debug("Could not fix stale I2S overlay: %s", e)
+
+
+_GOOGLEVOICEHAT_VENDORS = ("raspiaudio", "google")
+_GOOGLEVOICEHAT_PRODUCTS = (
+    "voicehat", "voice hat", "voice bonnet",
+    "mic+", "audio+", "speakers+", "ultra+",
+)
+
+
+def _is_googlevoicehat_eeprom() -> bool:
+    try:
+        vendor = Path("/proc/device-tree/hat/vendor").read_text().replace("\0", "").strip().lower()
+        product = Path("/proc/device-tree/hat/product").read_text().replace("\0", "").strip().lower()
+        if any(v in vendor for v in _GOOGLEVOICEHAT_VENDORS):
+            return True
+        if any(p in product for p in _GOOGLEVOICEHAT_PRODUCTS):
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _detect_missing_audio_overlays() -> None:
+    config_path = None
+    for path in ["/boot/firmware/config.txt", "/boot/config.txt"]:
+        if os.path.exists(path):
+            config_path = path
+            break
+    if not config_path:
+        return
+
+    try:
+        content = Path(config_path).read_text()
+        original = content
+
+        if _is_googlevoicehat_eeprom():
+            has_overlay = re.search(
+                r"^dtoverlay=googlevoicehat-soundcard", content, re.MULTILINE
+            )
+            if not has_overlay:
+                commented = re.search(
+                    r"^#dtoverlay=googlevoicehat-soundcard", content, re.MULTILINE
+                )
+                if commented:
+                    content = re.sub(
+                        r"^#(dtoverlay=googlevoicehat-soundcard)",
+                        r"\1",
+                        content,
+                        flags=re.MULTILINE,
+                    )
+                else:
+                    content += "\ndtoverlay=googlevoicehat-soundcard\n"
+
+                if not re.search(r"^dtparam=i2s=on", content, re.MULTILINE):
+                    content += "dtparam=i2s=on\n"
+
+                content = re.sub(
+                    r"^(dtparam=audio=on)", r"#\1", content, flags=re.MULTILINE
+                )
+
+        wm8960_detected = False
+        try:
+            result = subprocess.run(
+                ["i2cdetect", "-y", "1"],
+                capture_output=True, text=True, timeout=3,
+            )
+            if result.returncode == 0 and " 1a " in result.stdout:
+                wm8960_detected = True
+        except Exception:
+            pass
+
+        if wm8960_detected:
+            has_overlay = re.search(
+                r"^dtoverlay=wm8960-soundcard", content, re.MULTILINE
+            )
+            if not has_overlay:
+                commented = re.search(
+                    r"^#dtoverlay=wm8960-soundcard", content, re.MULTILINE
+                )
+                if commented:
+                    content = re.sub(
+                        r"^#(dtoverlay=wm8960-soundcard)",
+                        r"\1",
+                        content,
+                        flags=re.MULTILINE,
+                    )
+                else:
+                    content += "\ndtoverlay=wm8960-soundcard\n"
+
+                if not re.search(r"^dtparam=i2s=on", content, re.MULTILINE):
+                    content += "dtparam=i2s=on\n"
+
+        if content != original:
+            Path(config_path).write_text(content)
+            _set_reboot_needed(
+                "Audio HAT detected — reboot to enable audio overlay"
+            )
+            logger.info("Enabled missing audio overlay in %s", config_path)
+    except Exception as e:
+        logger.debug("Could not check for missing audio overlays: %s", e)
 
 
 def _find_microphone_card() -> str | None:
