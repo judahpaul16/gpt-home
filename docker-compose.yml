@@ -112,7 +112,7 @@ services:
             - /dev/dri:/dev/dri
             - /dev/spidev0.0:/dev/spidev0.0
             - /dev/spidev0.1:/dev/spidev0.1
-            - /dev/gpiomem:/dev/gpiomem
+            - /dev/gpiochip0:/dev/gpiochip0
         privileged: true
         security_opt:
             - apparmor:unconfined

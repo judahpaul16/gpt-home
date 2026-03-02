@@ -44,6 +44,8 @@ class St7789Display(BaseDisplay):
         self._rst_pin = info.gpio_rst
         self._bl_pin = info.gpio_bl
         self._initialized = False
+        self._gpio_request = None
+        self._gpiod_Value = None
         self._bl_active_low = info.gpio_bl_active_low
         self._col_offset = 0
         self._row_offset = 0
@@ -71,10 +73,11 @@ class St7789Display(BaseDisplay):
             return False
 
         try:
-            import RPi.GPIO as GPIO
-            self._GPIO = GPIO
+            import gpiod
+            from gpiod.line import Direction, Value
+            self._gpiod_Value = Value
         except ImportError:
-            logger.error("RPi.GPIO not installed")
+            logger.error("gpiod not installed")
             return False
 
         bus = self.info.spi_bus if self.info.spi_bus is not None else 0
@@ -85,6 +88,11 @@ class St7789Display(BaseDisplay):
             logger.error("SPI device %s not found", spi_device)
             return False
 
+        chip_path = "/dev/gpiochip0"
+        if not os.path.exists(chip_path):
+            logger.error("GPIO chip %s not found", chip_path)
+            return False
+
         try:
             self._spi = spidev.SpiDev()
             self._spi.open(bus, cs)
@@ -92,28 +100,34 @@ class St7789Display(BaseDisplay):
             self._spi.mode = 0
             self._spi.no_cs = False
 
-            GPIO.setwarnings(False)
-            GPIO.setmode(GPIO.BCM)
-
-            if self._dc_pin is not None:
-                GPIO.setup(self._dc_pin, GPIO.OUT, initial=GPIO.HIGH)
-            else:
+            if self._dc_pin is None:
                 logger.error("gpio_dc pin is required for SPI LCD")
                 return False
 
+            line_config = {
+                self._dc_pin: gpiod.LineSettings(
+                    direction=Direction.OUTPUT, output_value=Value.ACTIVE
+                ),
+            }
             if self._rst_pin is not None:
-                GPIO.setup(self._rst_pin, GPIO.OUT, initial=GPIO.HIGH)
-
+                line_config[self._rst_pin] = gpiod.LineSettings(
+                    direction=Direction.OUTPUT, output_value=Value.ACTIVE
+                )
             if self._bl_pin is not None:
-                bl_off = GPIO.HIGH if self._bl_active_low else GPIO.LOW
-                GPIO.setup(self._bl_pin, GPIO.OUT, initial=bl_off)
+                bl_off = Value.ACTIVE if self._bl_active_low else Value.INACTIVE
+                line_config[self._bl_pin] = gpiod.LineSettings(
+                    direction=Direction.OUTPUT, output_value=bl_off
+                )
+
+            self._gpio_request = gpiod.request_lines(
+                chip_path, consumer="st7789", config=line_config
+            )
 
             self._hw_reset()
             self._init_st7789()
 
             if self._bl_pin is not None:
-                bl_on = GPIO.LOW if self._bl_active_low else GPIO.HIGH
-                GPIO.output(self._bl_pin, bl_on)
+                self._gpio_set(self._bl_pin, not self._bl_active_low)
 
             import pygame
             self._pygame = pygame
@@ -142,23 +156,25 @@ class St7789Display(BaseDisplay):
             self._cleanup_hw()
             return False
 
+    def _gpio_set(self, pin: int, high: bool):
+        Value = self._gpiod_Value
+        self._gpio_request.set_value(pin, Value.ACTIVE if high else Value.INACTIVE)
+
     def _hw_reset(self):
         if self._rst_pin is None:
             return
-        GPIO = self._GPIO
-        GPIO.output(self._rst_pin, GPIO.HIGH)
+        self._gpio_set(self._rst_pin, True)
         time.sleep(0.05)
-        GPIO.output(self._rst_pin, GPIO.LOW)
+        self._gpio_set(self._rst_pin, False)
         time.sleep(0.05)
-        GPIO.output(self._rst_pin, GPIO.HIGH)
+        self._gpio_set(self._rst_pin, True)
         time.sleep(0.15)
 
     def _send_command(self, cmd: int, data: bytes = None):
-        GPIO = self._GPIO
-        GPIO.output(self._dc_pin, GPIO.LOW)
+        self._gpio_set(self._dc_pin, False)
         self._spi.writebytes([cmd])
         if data:
-            GPIO.output(self._dc_pin, GPIO.HIGH)
+            self._gpio_set(self._dc_pin, True)
             self._spi.writebytes2(list(data))
 
     def _init_st7789(self):
@@ -206,17 +222,14 @@ class St7789Display(BaseDisplay):
             except Exception:
                 pass
             self._spi = None
-        if hasattr(self, '_GPIO') and self._GPIO:
+        if hasattr(self, '_gpio_request') and self._gpio_request:
             try:
                 if self._bl_pin is not None:
-                    bl_off = self._GPIO.HIGH if self._bl_active_low else self._GPIO.LOW
-                    self._GPIO.output(self._bl_pin, bl_off)
-                self._GPIO.cleanup([
-                    p for p in [self._dc_pin, self._rst_pin, self._bl_pin]
-                    if p is not None
-                ])
+                    self._gpio_set(self._bl_pin, self._bl_active_low)
+                self._gpio_request.release()
             except Exception:
                 pass
+            self._gpio_request = None
 
     def _get_font(self, size: int, font_path: Optional[str] = None) -> Any:
         cache_key = (size, font_path)
@@ -391,10 +404,9 @@ class St7789Display(BaseDisplay):
 
         self._set_window()
 
-        GPIO = self._GPIO
-        GPIO.output(self._dc_pin, GPIO.LOW)
+        self._gpio_set(self._dc_pin, False)
         self._spi.writebytes([_ST7789_RAMWR])
-        GPIO.output(self._dc_pin, GPIO.HIGH)
+        self._gpio_set(self._dc_pin, True)
         self._spi.writebytes2(pixel_data)
 
     async def clear(self, color: Color = Colors.BLACK) -> None:
