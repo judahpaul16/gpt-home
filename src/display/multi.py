@@ -1,14 +1,12 @@
-"""Multi-display support with mirroring capabilities.
+"""Multi-display support.
 
-This module provides a MultiDisplayManager that wraps multiple displays
-and can mirror content across all enabled displays simultaneously.
+This module provides a MultiDisplayManager that renders content
+across all enabled displays simultaneously.
 """
 
 import asyncio
-import json
 import logging
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .base import BaseDisplay, Color, Colors, DisplayInfo, DisplayMode, ScreenType
@@ -16,8 +14,6 @@ from .detection import detect_displays
 from .factory import DisplayFactory
 
 logger = logging.getLogger("display.multi")
-
-SETTINGS_PATH = Path(__file__).parent.parent / "settings.json"
 
 
 @dataclass
@@ -33,54 +29,48 @@ class DisplayConfig:
 class MultiDisplayConfig:
     """Configuration for multi-display setup."""
 
-    mirror_enabled: bool = False
     displays: Dict[str, DisplayConfig] = field(default_factory=dict)
 
     @classmethod
     def load(cls) -> "MultiDisplayConfig":
-        """Load configuration from settings.json."""
+        from src.common import load_settings
+
         config = cls()
         try:
-            if SETTINGS_PATH.exists():
-                with SETTINGS_PATH.open("r") as f:
-                    settings = json.load(f)
-                multi_cfg = settings.get("multi_display", {})
-                config.mirror_enabled = multi_cfg.get("mirror_enabled", False)
-                for display_id, display_cfg in multi_cfg.get("displays", {}).items():
-                    config.displays[display_id] = DisplayConfig(
-                        display_id=display_id,
-                        enabled=display_cfg.get("enabled", True),
-                    )
+            settings = load_settings()
+            multi_cfg = settings.get("multi_display", {})
+            for display_id, display_cfg in multi_cfg.get("displays", {}).items():
+                config.displays[display_id] = DisplayConfig(
+                    display_id=display_id,
+                    enabled=display_cfg.get("enabled", True),
+                )
         except Exception:
             pass
         return config
 
     def save(self) -> None:
-        """Save configuration to settings.json."""
-        try:
-            settings = {}
-            if SETTINGS_PATH.exists():
-                with SETTINGS_PATH.open("r") as f:
-                    settings = json.load(f)
+        from src.common import load_settings, save_settings
 
+        try:
+            settings = load_settings()
             settings["multi_display"] = {
-                "mirror_enabled": self.mirror_enabled,
                 "displays": {
                     display_id: {"enabled": cfg.enabled}
                     for display_id, cfg in self.displays.items()
                 },
             }
-
-            with SETTINGS_PATH.open("w") as f:
-                json.dump(settings, f, indent=2)
+            save_settings(settings)
         except Exception as e:
             logger.error("Could not save multi-display config: %s", e)
 
 
 def get_display_id(info: DisplayInfo) -> str:
-    """Generate unique ID for a display."""
-    if info.screen_type == ScreenType.I2C:
+    if info.screen_type == ScreenType.SSD1306:
         return f"i2c_{info.bus}_{info.address:02x}"
+    elif info.screen_type == ScreenType.ST7789:
+        bus = info.spi_bus if info.spi_bus is not None else 0
+        cs = info.spi_cs if info.spi_cs is not None else 0
+        return f"st7789_{bus}_{cs}"
     elif info.device_path:
         return info.device_path.replace("/dev/", "").replace("/", "_")
     return f"{info.screen_type.value}_{info.width}x{info.height}"
@@ -357,11 +347,6 @@ class MultiDisplayManager:
         """Get current configuration."""
         return self._config
 
-    def set_mirror_enabled(self, enabled: bool) -> None:
-        """Enable or disable mirroring."""
-        self._config.mirror_enabled = enabled
-        self._config.save()
-
     def set_display_enabled(self, display_id: str, enabled: bool) -> None:
         """Enable or disable a specific display."""
         if display_id not in self._config.displays:
@@ -391,7 +376,7 @@ class MultiDisplayManager:
                 )
 
             # Only create enabled full displays (not I2C)
-            if info.screen_type == ScreenType.I2C:
+            if info.screen_type in (ScreenType.SSD1306, ScreenType.ST7789):
                 continue
 
             if not self.is_display_enabled(display_id):
@@ -412,10 +397,10 @@ class MultiDisplayManager:
         return list(self._displays.values())
 
     def get_mirrored_display(self) -> Optional[BaseDisplay]:
-        """Get a mirrored display if mirroring is enabled and multiple displays exist.
+        """Get a display that renders to all enabled full displays.
 
         Returns:
-            MirroredDisplay if mirroring enabled with multiple displays,
+            MirroredDisplay if multiple displays enabled,
             single display if only one, or None if no displays.
         """
         displays = self.get_enabled_full_displays()
@@ -426,13 +411,8 @@ class MultiDisplayManager:
         if len(displays) == 1:
             return displays[0]
 
-        if self._config.mirror_enabled:
-            # Use largest display as primary
-            primary = max(displays, key=lambda d: d.width * d.height)
-            return MirroredDisplay(displays, primary)
-
-        # Not mirroring - return the primary/first display
-        return displays[0]
+        primary = max(displays, key=lambda d: d.width * d.height)
+        return MirroredDisplay(displays, primary)
 
     def get_all_display_info(self) -> List[Dict[str, Any]]:
         """Get info about all detected displays."""
@@ -447,7 +427,7 @@ class MultiDisplayManager:
                     "device_path": info.device_path,
                     "driver": info.driver,
                     "enabled": self.is_display_enabled(display_id),
-                    "supports_modes": info.screen_type != ScreenType.I2C,
+                    "supports_modes": info.screen_type not in (ScreenType.SSD1306, ScreenType.ST7789),
                 }
             )
         return result

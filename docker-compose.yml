@@ -84,6 +84,7 @@ services:
         tty: true
         network_mode: host
         pid: host
+        ipc: host
         environment:
             DATABASE_URL: postgresql://${POSTGRES_USER:-gpt_home}:${POSTGRES_PASSWORD:-gpt_home_secret}@127.0.0.1:5432/${POSTGRES_DB:-gpt_home_db}
             SDL_VIDEODRIVER: kmsdrm
@@ -100,6 +101,7 @@ services:
             - /run/gpt-home:/run/gpt-home:ro
             - /boot:/boot
             - spotifyd-cache:/root/.spotifyd/cache
+            - alsa-config:/etc/alsa-shared
             - /run/dbus:/host/run/dbus
         depends_on:
             db:
@@ -108,6 +110,9 @@ services:
             - /dev/snd:/dev/snd
             - /dev/i2c-1:/dev/i2c-1
             - /dev/dri:/dev/dri
+            - /dev/spidev0.0:/dev/spidev0.0
+            - /dev/spidev0.1:/dev/spidev0.1
+            - /dev/gpiomem:/dev/gpiomem
         privileged: true
         security_opt:
             - apparmor:unconfined
@@ -126,6 +131,7 @@ services:
         platform: linux/arm64
         restart: unless-stopped
         network_mode: host
+        ipc: host
         environment:
             ALSA_CARD: "default"
             PULSE_SERVER: ""
@@ -134,6 +140,7 @@ services:
             - /usr/share/alsa:/usr/share/alsa
             - /etc/alsa:/etc/alsa:ro
             - spotifyd-cache:/root/.spotifyd/cache
+            - alsa-config:/etc/alsa-shared
             - /run/dbus:/host/run/dbus
         devices:
             - /dev/snd:/dev/snd
@@ -144,3 +151,4 @@ volumes:
     frontend-dev-node-modules:
     backend-logs:
     spotifyd-cache:
+    alsa-config:

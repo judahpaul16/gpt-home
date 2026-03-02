@@ -95,6 +95,9 @@ class WaveformMediator:
         """
         with self._observer_lock:
             self._observers.add(observer)
+            current_state = self._state
+        if current_state != WaveformState.INACTIVE:
+            observer.on_waveform_state_change(WaveformState.INACTIVE, current_state)
 
     def unregister_observer(self, observer: WaveformObserver) -> None:
         """Unregister an observer.

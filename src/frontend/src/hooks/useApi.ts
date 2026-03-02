@@ -28,7 +28,6 @@ export interface DisplayStatus {
     has_full_display?: boolean;
     has_simple_display?: boolean;
     supports_modes?: boolean;
-    mirror_enabled?: boolean;
     note?: string | null;
 }
 

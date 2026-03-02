@@ -1,7 +1,5 @@
-import json
 import os
-from dataclasses import dataclass, field
-from pathlib import Path
+from dataclasses import dataclass
 from typing import Optional
 
 
@@ -18,21 +16,18 @@ class AgentConfig:
     database_url: Optional[str] = None
 
     @classmethod
-    def from_settings(cls, settings_path: Optional[Path] = None) -> "AgentConfig":
-        """Factory method to create config from settings file."""
-        if settings_path is None:
-            settings_path = Path(__file__).parent.parent / "settings.json"
+    def from_settings(cls) -> "AgentConfig":
+        from src.common import load_settings
 
         config_data = {}
-        if settings_path.exists():
-            with open(settings_path, "r") as f:
-                settings = json.load(f)
-                config_data = {
-                    "model": os.getenv("MODEL") or settings.get("model", "gpt-4o-mini"),
-                    "temperature": settings.get("temperature", 0.7),
-                    "max_tokens": settings.get("max_tokens", 1024),
-                    "custom_instructions": settings.get("custom_instructions", ""),
-                }
+        settings = load_settings()
+        if settings:
+            config_data = {
+                "model": os.getenv("MODEL") or settings.get("model", "gpt-4o-mini"),
+                "temperature": settings.get("temperature", 0.7),
+                "max_tokens": settings.get("max_tokens", 1024),
+                "custom_instructions": settings.get("custom_instructions", ""),
+            }
 
         config_data["database_url"] = os.getenv(
             "DATABASE_URL",

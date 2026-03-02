@@ -212,11 +212,11 @@ const Settings: React.FC = () => {
     const [isRefreshingDisplay, setIsRefreshingDisplay] = useState(false);
     const [isPoweringDisplay, setIsPoweringDisplay] = useState(false);
     const [hardwareDisplayMode, setHardwareDisplayMode] = useState<
-        "hdmi" | "tft" | "unknown" | "conflict"
+        "hdmi" | "piscreen" | "unknown" | "conflict"
     >("unknown");
     const [isChangingHardwareMode, setIsChangingHardwareMode] = useState(false);
     const [displayRotation, setDisplayRotation] = useState({
-        tft_rotation: 0,
+        piscreen_rotation: 0,
         hdmi_rotation: 0,
         i2c_rotation: 2,
     });
@@ -562,28 +562,6 @@ const Settings: React.FC = () => {
         setSettings({ ...settings, display_mode: mode });
     };
 
-    const handleMirrorToggle = async (enabled: boolean) => {
-        try {
-            const response = await axios.post("/api/display/mirror", {
-                enabled,
-            });
-            if (response.data.success) {
-                const result = await refetch.displayStatus();
-                if (result.data) {
-                    setDisplayStatus(result.data);
-                }
-                showAlert(
-                    "success",
-                    "Mirror Mode",
-                    `Display mirroring ${enabled ? "enabled" : "disabled"}`,
-                );
-            }
-        } catch (err) {
-            console.error("Mirror toggle error:", err);
-            showAlert("error", "Failed", "Could not change mirror mode");
-        }
-    };
-
     const handleDisplayEnable = async (displayId: string, enabled: boolean) => {
         try {
             const response = await axios.post("/api/display/enable", {
@@ -602,14 +580,14 @@ const Settings: React.FC = () => {
         }
     };
 
-    const handleHardwareModeChange = (mode: "hdmi" | "tft") => {
-        const modeLabel = mode === "hdmi" ? "HDMI" : "TFT (SPI)";
-        const otherMode = mode === "hdmi" ? "TFT" : "HDMI";
+    const handleHardwareModeChange = (mode: "hdmi" | "piscreen") => {
+        const modeLabel = mode === "hdmi" ? "HDMI" : "PiScreen";
+        const otherMode = mode === "hdmi" ? "PiScreen" : "HDMI";
         showConfirm(
             `Switch to ${modeLabel} Display`,
             `This will configure the Raspberry Pi for ${modeLabel} display output and disable ${otherMode}. ` +
                 `The system will reboot to apply changes.\n\n` +
-                `Note: HDMI and TFT displays cannot work simultaneously due to kernel driver limitations.`,
+                `Note: HDMI and PiScreen displays cannot work simultaneously due to kernel driver limitations.`,
             async () => {
                 setIsChangingHardwareMode(true);
                 try {
@@ -649,22 +627,22 @@ const Settings: React.FC = () => {
         );
     };
 
-    const handleTftRotationChange = async (rotation: number) => {
+    const handlePiscreenRotationChange = async (rotation: number) => {
         try {
             const response = await axios.post("/api/display/rotation", {
-                tft_rotation: rotation,
+                piscreen_rotation: rotation,
             });
             if (response.data.success) {
                 setDisplayRotation((prev) => ({
                     ...prev,
-                    tft_rotation: rotation,
+                    piscreen_rotation: rotation,
                 }));
                 if (response.data.reboot_required) {
                     setRotationRebootPending(true);
                 }
             }
         } catch (err) {
-            console.error("Failed to set TFT rotation:", err);
+            console.error("Failed to set PiScreen rotation:", err);
         }
     };
 
@@ -1671,11 +1649,10 @@ const Settings: React.FC = () => {
                                 onRefreshDisplay={handleRefreshDisplay}
                                 onPowerOnDisplay={handlePowerOnDisplay}
                                 onDisplayModeChange={handleDisplayModeChange}
-                                onMirrorToggle={handleMirrorToggle}
                                 onDisplayEnable={handleDisplayEnable}
                                 onResolutionChange={handleResolutionChange}
                                 onHdmiRotationChange={handleHdmiRotationChange}
-                                onTftRotationChange={handleTftRotationChange}
+                                onPiscreenRotationChange={handlePiscreenRotationChange}
                                 onI2cRotationChange={handleI2cRotationChange}
                                 onScreensaverSettingChange={
                                     handleScreensaverSettingChange
@@ -1689,6 +1666,7 @@ const Settings: React.FC = () => {
                                 onMicGainChange={handleMicGainChange}
                                 onVadThresholdChange={handleVadThresholdChange}
                                 setSettings={setSettings}
+                                showConfirm={showConfirm}
                             />
                         )}
                         {activeTab === "gallery" && showGalleryTab && (

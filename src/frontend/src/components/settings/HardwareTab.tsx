@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Icons, Spinner } from "../Icons";
 import { cn } from "../../lib/utils";
 import type { DisplayStatus, ScreensaverSettings } from "../../hooks/useApi";
+import type { ConfirmConfig } from "../ConfirmModal";
 
 interface AudioState {
     devices: { card: number; name: string; device_name: string; id?: string }[];
@@ -23,12 +24,12 @@ interface DisplayMode {
 interface HardwareTabProps {
     settings: any;
     displayStatus: DisplayStatus | null;
-    hardwareDisplayMode: "hdmi" | "tft" | "unknown" | "conflict";
+    hardwareDisplayMode: "hdmi" | "piscreen" | "unknown" | "conflict";
     isChangingHardwareMode: boolean;
     isRefreshingDisplay: boolean;
     isPoweringDisplay: boolean;
     displayRotation: {
-        tft_rotation: number;
+        piscreen_rotation: number;
         hdmi_rotation: number;
         i2c_rotation: number;
     };
@@ -48,15 +49,14 @@ interface HardwareTabProps {
     displayModes: DisplayMode[];
     shouldShowDisplayModes: (status: DisplayStatus | null) => boolean;
     hasOnlySimpleDisplay: (status: DisplayStatus | null) => boolean;
-    onHardwareModeChange: (mode: "hdmi" | "tft") => void;
+    onHardwareModeChange: (mode: "hdmi" | "piscreen") => void;
     onRefreshDisplay: () => void;
     onPowerOnDisplay: () => void;
     onDisplayModeChange: (mode: string) => void;
-    onMirrorToggle: (enabled: boolean) => void;
     onDisplayEnable: (displayId: string, enabled: boolean) => void;
     onResolutionChange: (resolution: string) => void;
     onHdmiRotationChange: (rotation: number) => void;
-    onTftRotationChange: (rotation: number) => void;
+    onPiscreenRotationChange: (rotation: number) => void;
     onI2cRotationChange: (rotation: number) => void;
     onScreensaverSettingChange: (
         key: "enabled" | "timeout" | "style",
@@ -69,6 +69,12 @@ interface HardwareTabProps {
     onMicGainChange: (gain: number) => void;
     onVadThresholdChange: (threshold: number) => void;
     setSettings: (s: any) => void;
+    showConfirm: (
+        title: string,
+        message: string,
+        onConfirm: () => void,
+        options?: Partial<Pick<ConfirmConfig, "confirmText" | "cancelText" | "variant">>,
+    ) => void;
 }
 
 const HardwareTab: React.FC<HardwareTabProps> = ({
@@ -96,11 +102,10 @@ const HardwareTab: React.FC<HardwareTabProps> = ({
     onRefreshDisplay,
     onPowerOnDisplay,
     onDisplayModeChange,
-    onMirrorToggle,
     onDisplayEnable,
     onResolutionChange,
     onHdmiRotationChange,
-    onTftRotationChange,
+    onPiscreenRotationChange,
     onI2cRotationChange,
     onScreensaverSettingChange,
     onDisplayConnectorChange,
@@ -110,9 +115,54 @@ const HardwareTab: React.FC<HardwareTabProps> = ({
     onMicGainChange,
     onVadThresholdChange,
     setSettings,
+    showConfirm,
 }) => {
+    const [rebootNeeded, setRebootNeeded] = useState<{
+        needed: boolean;
+        reason: string;
+    }>({ needed: false, reason: "" });
+
+    useEffect(() => {
+        fetch("/api/system/reboot-needed")
+            .then((r) => r.json())
+            .then((data) => {
+                if (data.reboot_needed) {
+                    setRebootNeeded({
+                        needed: true,
+                        reason: data.reason || "Hardware configuration changed",
+                    });
+                }
+            })
+            .catch(() => {});
+    }, []);
+
     return (
         <div>
+            {rebootNeeded.needed && (
+                <div className="mb-4 flex items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+                    <Icons.AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
+                    <span className="text-sm text-amber-300">
+                        {rebootNeeded.reason}
+                    </span>
+                    <button
+                        onClick={() =>
+                            showConfirm(
+                                "Reboot System",
+                                "Reboot the system now to apply hardware changes?",
+                                () => {
+                                    fetch("/reboot", { method: "POST" }).catch(
+                                        () => {},
+                                    );
+                                },
+                                { confirmText: "Reboot", variant: "danger" },
+                            )
+                        }
+                        className="ml-auto shrink-0 rounded-md bg-amber-500/20 px-3 py-1 text-xs font-medium text-amber-300 hover:bg-amber-500/30 transition-colors"
+                    >
+                        Reboot Now
+                    </button>
+                </div>
+            )}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Display Column */}
                 <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
@@ -146,14 +196,14 @@ const HardwareTab: React.FC<HardwareTabProps> = ({
                                 )}
                             </button>
                             <button
-                                onClick={() => onHardwareModeChange("tft")}
+                                onClick={() => onHardwareModeChange("piscreen")}
                                 disabled={
                                     isChangingHardwareMode ||
-                                    hardwareDisplayMode === "tft"
+                                    hardwareDisplayMode === "piscreen"
                                 }
                                 className={cn(
                                     "px-3 py-1 rounded-md text-xs font-medium transition-all",
-                                    hardwareDisplayMode === "tft"
+                                    hardwareDisplayMode === "piscreen"
                                         ? "bg-white dark:bg-slate-600 text-slate-900 dark:text-white shadow-sm"
                                         : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200",
                                     isChangingHardwareMode &&
@@ -161,10 +211,10 @@ const HardwareTab: React.FC<HardwareTabProps> = ({
                                 )}
                             >
                                 {isChangingHardwareMode &&
-                                hardwareDisplayMode !== "tft" ? (
+                                hardwareDisplayMode !== "piscreen" ? (
                                     <Spinner size="sm" />
                                 ) : (
-                                    "TFT"
+                                    "PiScreen"
                                 )}
                             </button>
                         </div>
@@ -216,8 +266,8 @@ const HardwareTab: React.FC<HardwareTabProps> = ({
                     {hardwareDisplayMode === "conflict" && (
                         <div className="px-4 py-2 bg-rose-50 dark:bg-rose-900/10 border-t border-rose-200 dark:border-rose-800">
                             <p className="text-xs text-rose-600 dark:text-rose-400">
-                                Both HDMI and TFT overlays are active. Select
-                                one to fix.
+                                Both HDMI and PiScreen overlays are active.
+                                Select one to fix.
                             </p>
                         </div>
                     )}
@@ -225,17 +275,9 @@ const HardwareTab: React.FC<HardwareTabProps> = ({
                     <div className="px-4 py-3">
                         {displayStatus && !displayStatus.available && (
                             <p className="text-sm text-slate-500 dark:text-slate-400">
-                                Connect an HDMI display or SPI/TFT LCD.
+                                Connect a display (HDMI, PiScreen, or SPI).
                             </p>
                         )}
-
-                        {displayStatus &&
-                            hasOnlySimpleDisplay(displayStatus) && (
-                                <p className="text-xs text-amber-600 dark:text-amber-400">
-                                    I2C display detected — text output only.
-                                    Display modes require HDMI or TFT.
-                                </p>
-                            )}
 
                         {displayStatus &&
                             displayStatus.displays.filter(
@@ -288,86 +330,53 @@ const HardwareTab: React.FC<HardwareTabProps> = ({
                             displayStatus.displays.filter(
                                 (d) => d.supports_modes,
                             ).length > 1 && (
-                                <div className="mb-3 space-y-3">
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block">
-                                                Mirror Displays
-                                            </label>
-                                            <p className="text-xs text-slate-500">
-                                                Show same content on all
-                                                displays
-                                            </p>
-                                        </div>
-                                        <button
-                                            onClick={() =>
-                                                onMirrorToggle(
-                                                    !displayStatus.mirror_enabled,
-                                                )
-                                            }
-                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                                displayStatus.mirror_enabled
-                                                    ? "bg-indigo-600"
-                                                    : "bg-slate-200 dark:bg-slate-700"
-                                            }`}
-                                        >
-                                            <span
-                                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                                    displayStatus.mirror_enabled
-                                                        ? "translate-x-6"
-                                                        : "translate-x-1"
-                                                }`}
-                                            />
-                                        </button>
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2 block">
-                                            Enabled Displays
-                                        </label>
-                                        <div className="space-y-2">
-                                            {displayStatus.displays
-                                                .filter((d) => d.supports_modes)
-                                                .map((display) => (
-                                                    <div
-                                                        key={display.id}
-                                                        className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50"
+                                <div className="mb-3">
+                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2 block">
+                                        Enabled Displays
+                                    </label>
+                                    <div className="space-y-2">
+                                        {displayStatus.displays
+                                            .filter((d) => d.supports_modes)
+                                            .map((display) => (
+                                                <div
+                                                    key={display.id}
+                                                    className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50"
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <Icons.Monitor className="w-4 h-4 text-slate-400" />
+                                                        <span className="text-sm text-slate-700 dark:text-slate-300">
+                                                            {display.name}
+                                                        </span>
+                                                    </div>
+                                                    <button
+                                                        onClick={() =>
+                                                            onDisplayEnable(
+                                                                display.id,
+                                                                !display.enabled,
+                                                            )
+                                                        }
+                                                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                                                            display.enabled !==
+                                                            false
+                                                                ? "bg-emerald-500"
+                                                                : "bg-slate-300 dark:bg-slate-600"
+                                                        }`}
                                                     >
-                                                        <div className="flex items-center gap-2">
-                                                            <Icons.Monitor className="w-4 h-4 text-slate-400" />
-                                                            <span className="text-sm text-slate-700 dark:text-slate-300">
-                                                                {display.name}
-                                                            </span>
-                                                        </div>
-                                                        <button
-                                                            onClick={() =>
-                                                                onDisplayEnable(
-                                                                    display.id,
-                                                                    !display.enabled,
-                                                                )
-                                                            }
-                                                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                                                        <span
+                                                            className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
                                                                 display.enabled !==
                                                                 false
-                                                                    ? "bg-emerald-500"
-                                                                    : "bg-slate-300 dark:bg-slate-600"
+                                                                    ? "translate-x-4"
+                                                                    : "translate-x-1"
                                                             }`}
-                                                        >
-                                                            <span
-                                                                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                                                                    display.enabled !==
-                                                                    false
-                                                                        ? "translate-x-4"
-                                                                        : "translate-x-1"
-                                                                }`}
-                                                            />
-                                                        </button>
-                                                    </div>
-                                                ))}
-                                        </div>
-                                        <p className="text-xs text-slate-500 mt-1">
-                                            Disabled displays show TTY console
-                                        </p>
+                                                        />
+                                                    </button>
+                                                </div>
+                                            ))}
                                     </div>
+                                    <p className="text-xs text-slate-500 mt-1">
+                                        Disabled displays show TTY console
+                                    </p>
                                 </div>
                             )}
 
@@ -511,7 +520,7 @@ const HardwareTab: React.FC<HardwareTabProps> = ({
                                                     hardwareDisplayMode ===
                                                         "unknown"
                                                         ? displayRotation.hdmi_rotation
-                                                        : displayRotation.tft_rotation
+                                                        : displayRotation.piscreen_rotation
                                                 }
                                                 onChange={(e) => {
                                                     const val = parseInt(
@@ -528,7 +537,7 @@ const HardwareTab: React.FC<HardwareTabProps> = ({
                                                             val,
                                                         );
                                                     } else {
-                                                        onTftRotationChange(
+                                                        onPiscreenRotationChange(
                                                             val,
                                                         );
                                                     }
@@ -556,15 +565,236 @@ const HardwareTab: React.FC<HardwareTabProps> = ({
                             )}
                     </div>
 
-                    {/* I2C Display — inside display card */}
+                    <div className="border-t border-dashed border-slate-200 dark:border-slate-700 px-4 py-2.5">
+                        <div className="flex items-center gap-2 mb-2">
+                            <Icons.Cpu className="w-3.5 h-3.5 text-slate-400" />
+                            <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                                SPI Display
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                            <div>
+                                <label className="text-[10px] text-slate-400 block">
+                                    Width
+                                </label>
+                                <input
+                                    type="number"
+                                    value={settings.st7789?.width ?? 240}
+                                    onChange={(e) =>
+                                        setSettings({
+                                            ...settings,
+                                            st7789: {
+                                                ...(settings.st7789 || {}),
+                                                width:
+                                                    parseInt(
+                                                        e.target.value,
+                                                        10,
+                                                    ) || 240,
+                                            },
+                                        })
+                                    }
+                                    className="input-field w-full text-xs py-1"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-400 block">
+                                    Height
+                                </label>
+                                <input
+                                    type="number"
+                                    value={settings.st7789?.height ?? 280}
+                                    onChange={(e) =>
+                                        setSettings({
+                                            ...settings,
+                                            st7789: {
+                                                ...(settings.st7789 || {}),
+                                                height:
+                                                    parseInt(
+                                                        e.target.value,
+                                                        10,
+                                                    ) || 280,
+                                            },
+                                        })
+                                    }
+                                    className="input-field w-full text-xs py-1"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-400 block">
+                                    Rotation
+                                </label>
+                                <div className="relative">
+                                    <select
+                                        value={settings.st7789?.rotation ?? 0}
+                                        onChange={(e) =>
+                                            setSettings({
+                                                ...settings,
+                                                st7789: {
+                                                    ...(settings.st7789 || {}),
+                                                    rotation: parseInt(
+                                                        e.target.value,
+                                                        10,
+                                                    ),
+                                                },
+                                            })
+                                        }
+                                        className="select-field text-xs py-1"
+                                    >
+                                        <option value={0}>0°</option>
+                                        <option value={90}>90°</option>
+                                        <option value={180}>180°</option>
+                                        <option value={270}>270°</option>
+                                    </select>
+                                    <Icons.ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none w-3.5 h-3.5" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-400 block">
+                                    DC Pin
+                                </label>
+                                <input
+                                    type="number"
+                                    value={settings.st7789?.gpio_dc ?? 27}
+                                    onChange={(e) =>
+                                        setSettings({
+                                            ...settings,
+                                            st7789: {
+                                                ...(settings.st7789 || {}),
+                                                gpio_dc: parseInt(
+                                                    e.target.value,
+                                                    10,
+                                                ),
+                                            },
+                                        })
+                                    }
+                                    className="input-field w-full text-xs py-1"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-400 block">
+                                    RST Pin
+                                </label>
+                                <input
+                                    type="number"
+                                    value={settings.st7789?.gpio_rst ?? 4}
+                                    onChange={(e) =>
+                                        setSettings({
+                                            ...settings,
+                                            st7789: {
+                                                ...(settings.st7789 || {}),
+                                                gpio_rst: parseInt(
+                                                    e.target.value,
+                                                    10,
+                                                ),
+                                            },
+                                        })
+                                    }
+                                    className="input-field w-full text-xs py-1"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-400 block">
+                                    BL Pin
+                                </label>
+                                <input
+                                    type="number"
+                                    value={settings.st7789?.gpio_bl ?? 22}
+                                    onChange={(e) =>
+                                        setSettings({
+                                            ...settings,
+                                            st7789: {
+                                                ...(settings.st7789 || {}),
+                                                gpio_bl: parseInt(
+                                                    e.target.value,
+                                                    10,
+                                                ),
+                                            },
+                                        })
+                                    }
+                                    className="input-field w-full text-xs py-1"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-400 block">
+                                    SPI Bus
+                                </label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="6"
+                                    value={settings.st7789?.spi_bus ?? 0}
+                                    onChange={(e) =>
+                                        setSettings({
+                                            ...settings,
+                                            st7789: {
+                                                ...(settings.st7789 || {}),
+                                                spi_bus: parseInt(
+                                                    e.target.value,
+                                                    10,
+                                                ),
+                                            },
+                                        })
+                                    }
+                                    className="input-field w-full text-xs py-1"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-400 block">
+                                    SPI CS
+                                </label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="2"
+                                    value={settings.st7789?.spi_cs ?? 0}
+                                    onChange={(e) =>
+                                        setSettings({
+                                            ...settings,
+                                            st7789: {
+                                                ...(settings.st7789 || {}),
+                                                spi_cs: parseInt(
+                                                    e.target.value,
+                                                    10,
+                                                ),
+                                            },
+                                        })
+                                    }
+                                    className="input-field w-full text-xs py-1"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-400 block">
+                                    Speed (Hz)
+                                </label>
+                                <input
+                                    type="number"
+                                    value={
+                                        settings.st7789?.spi_speed_hz ??
+                                        62500000
+                                    }
+                                    onChange={(e) =>
+                                        setSettings({
+                                            ...settings,
+                                            st7789: {
+                                                ...(settings.st7789 || {}),
+                                                spi_speed_hz: parseInt(
+                                                    e.target.value,
+                                                    10,
+                                                ),
+                                            },
+                                        })
+                                    }
+                                    className="input-field w-full text-xs py-1"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="border-t border-dashed border-slate-200 dark:border-slate-700 px-4 py-2.5 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Icons.Cpu className="w-3.5 h-3.5 text-slate-400" />
                             <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
                                 I2C Display
-                            </span>
-                            <span className="text-[10px] text-slate-400 dark:text-slate-500">
-                                Auxiliary display
                             </span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -682,6 +912,29 @@ const HardwareTab: React.FC<HardwareTabProps> = ({
                                 </p>
                             </div>
                         </div>
+                        {screensaverSettings.style === "bounce" && (
+                            <div>
+                                <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">
+                                    Text
+                                </label>
+                                <input
+                                    type="text"
+                                    value={
+                                        settings.screensaver_bounce_text ??
+                                        "GPT Home"
+                                    }
+                                    onChange={(e) =>
+                                        setSettings({
+                                            ...settings,
+                                            screensaver_bounce_text:
+                                                e.target.value,
+                                        })
+                                    }
+                                    className="input-field w-full text-sm"
+                                    placeholder="GPT Home"
+                                />
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -693,7 +946,9 @@ const HardwareTab: React.FC<HardwareTabProps> = ({
                         </h3>
                     </div>
                     <div className="px-4 py-3 space-y-3">
-                        {/* Output */}
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                            Output
+                        </p>
                         <div className="flex flex-wrap items-center gap-2">
                             <Icons.Volume2 className="w-4 h-4 text-slate-500 flex-shrink-0" />
                             {loadingStates.audioDevices ? (
@@ -776,7 +1031,9 @@ const HardwareTab: React.FC<HardwareTabProps> = ({
                         {/* Divider */}
                         <div className="border-t border-dashed border-slate-200 dark:border-slate-700" />
 
-                        {/* Input */}
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                            Input
+                        </p>
                         <div className="flex flex-wrap items-center gap-2">
                             <Icons.Mic className="w-4 h-4 text-slate-500 flex-shrink-0" />
                             {loadingStates.audioInputDevices ? (
@@ -850,7 +1107,7 @@ const HardwareTab: React.FC<HardwareTabProps> = ({
                         <div>
                             <div className="flex items-center justify-between mb-1">
                                 <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                                    VAD
+                                    VAD (Voice Activity Detection)
                                 </span>
                                 <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
                                     {audioState.vadThreshold} dB

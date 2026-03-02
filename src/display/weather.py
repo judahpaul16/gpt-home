@@ -13,19 +13,25 @@ from .base import BaseDisplay, Color
 logger = logging.getLogger(__name__)
 
 
+_DITHER_OFFSETS = (-3, 2, -1, 3, 0, -2, 1, -3)
+
+
 def draw_weather_gradient(
-    d: BaseDisplay, top_color: Color, bottom_color: Color, steps: int = 32
+    d: BaseDisplay, top_color: Color, bottom_color: Color
 ) -> None:
-    """Draw a smooth vertical gradient for weather backgrounds."""
-    step_h = d.height // steps
-    for i in range(steps):
-        t = i / (steps - 1)
-        r = int(top_color.r + (bottom_color.r - top_color.r) * t)
-        g = int(top_color.g + (bottom_color.g - top_color.g) * t)
-        b = int(top_color.b + (bottom_color.b - top_color.b) * t)
-        y = i * step_h
-        h = step_h + 1 if i < steps - 1 else d.height - y
-        d.fill_rect_sync(0, y, d.width, h, Color(r, g, b))
+    w, h = d.width, d.height
+    band = 2
+    for y in range(0, h, band):
+        t = y / max(1, h - 1)
+        r = top_color.r + (bottom_color.r - top_color.r) * t
+        g = top_color.g + (bottom_color.g - top_color.g) * t
+        b = top_color.b + (bottom_color.b - top_color.b) * t
+        noise = _DITHER_OFFSETS[(y // band) % len(_DITHER_OFFSETS)]
+        d.fill_rect_sync(0, y, w, min(band, h - y), Color(
+            max(0, min(255, int(r + noise))),
+            max(0, min(255, int(g + noise))),
+            max(0, min(255, int(b + noise))),
+        ))
 
 
 def draw_cloud(d: BaseDisplay, x: int, y: int, w: int) -> None:
@@ -502,17 +508,17 @@ def get_weather_colors(condition: str, hour: int) -> tuple:
             bottom_color = Color(135, 200, 255)
             accent_color = Color(255, 255, 255)
     elif "rain" in cond or "drizzle" in cond:
-        top_color = Color(35, 45, 60)
-        bottom_color = Color(55, 70, 90)
+        top_color = Color(25, 35, 55)
+        bottom_color = Color(70, 90, 120)
         accent_color = Color(100, 150, 200)
     elif "cloud" in cond:
         if is_night:
-            top_color = Color(25, 30, 50)
-            bottom_color = Color(45, 55, 80)
+            top_color = Color(15, 20, 40)
+            bottom_color = Color(50, 60, 90)
             accent_color = Color(140, 160, 200)
         else:
-            top_color = Color(90, 110, 140)
-            bottom_color = Color(140, 165, 200)
+            top_color = Color(50, 70, 110)
+            bottom_color = Color(150, 175, 215)
             accent_color = Color(200, 215, 240)
     elif "snow" in cond:
         top_color = Color(180, 195, 220)
@@ -523,8 +529,8 @@ def get_weather_colors(condition: str, hour: int) -> tuple:
         bottom_color = Color(40, 40, 60)
         accent_color = Color(255, 255, 150)
     else:
-        top_color = Color(30, 50, 80)
-        bottom_color = Color(60, 90, 130)
+        top_color = Color(20, 40, 75)
+        bottom_color = Color(80, 110, 160)
         accent_color = Color(150, 180, 220)
 
     return top_color, bottom_color, accent_color, is_night

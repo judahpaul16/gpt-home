@@ -45,6 +45,7 @@ from phue import Bridge, PhueRequestTimeout
 from spotipy.oauth2 import SpotifyClientCredentials
 from sse_starlette.sse import EventSourceResponse
 
+from src.audio_capture import MIC_PRIORITIES
 from src.common import SOURCE_DIR, load_integration_statuses, log_file_path, logger
 
 
@@ -80,7 +81,6 @@ _db_pool: Optional[psycopg_pool.AsyncConnectionPool] = None
 
 
 async def get_db_pool() -> psycopg_pool.AsyncConnectionPool:
-    """Get or create database connection pool."""
     global _db_pool
     if _db_pool is None:
         _db_pool = psycopg_pool.AsyncConnectionPool(
@@ -88,6 +88,18 @@ async def get_db_pool() -> psycopg_pool.AsyncConnectionPool:
         )
         await _db_pool.open()
     return _db_pool
+
+
+async def _persist_settings_to_db(settings: dict):
+    pool = await get_db_pool()
+    async with pool.connection() as conn:
+        await conn.execute(
+            """INSERT INTO app_settings (key, value, updated_at)
+               VALUES ('settings', %s, NOW())
+               ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()""",
+            (json.dumps(settings),),
+        )
+        await conn.commit()
 
 
 # Suppress verbose LiteLLM callback logging (success_handler spam)
@@ -167,10 +179,8 @@ _MODELS_CACHE_TTL = 3600  # 1 hour
 @app.post("/api/settings/dark-mode")
 async def toggle_dark_mode(request: Request):
     try:
-        settings_path = SOURCE_DIR / "settings.json"
-
-        with open(settings_path, "r") as f:
-            settings = json.load(f)
+        from src.common import load_settings, save_settings
+        settings = load_settings()
 
         try:
             incoming_data = await request.json()
@@ -180,10 +190,8 @@ async def toggle_dark_mode(request: Request):
         if "darkMode" in incoming_data:
             dark_mode = bool(incoming_data["darkMode"])
             settings["dark_mode"] = dark_mode
-
-            with open(settings_path, "w") as f:
-                json.dump(settings, f, indent=2)
-
+            save_settings(settings)
+            await _persist_settings_to_db(settings)
             return JSONResponse(content={"success": True, "darkMode": dark_mode})
 
         current_mode = settings.get("dark_mode", False)
@@ -332,7 +340,6 @@ async def stream_logs(request: Request, last_line_number: int = 0):
 
 @app.post("/api/settings")
 async def settings(request: Request):
-    settings_path = SOURCE_DIR / "settings.json"
     try:
         incoming_data = await request.json()
     except Exception as e:
@@ -344,16 +351,10 @@ async def settings(request: Request):
 
     try:
         if "action" in incoming_data and incoming_data["action"] == "read":
-            if settings_path.exists() and settings_path.is_file():
-                with settings_path.open("r") as f:
-                    file_settings = json.load(f)
-                file_settings["litellm_api_key"] = os.getenv("LITELLM_API_KEY", "")
-                return JSONResponse(content=file_settings)
-            else:
-                return JSONResponse(
-                    content={"error": "Settings file not found"},
-                    status_code=404,
-                )
+            from src.common import load_settings
+            current_settings = load_settings()
+            current_settings["litellm_api_key"] = os.getenv("LITELLM_API_KEY", "")
+            return JSONResponse(content=current_settings)
 
         elif "action" in incoming_data and incoming_data["action"] == "update":
             new_settings = incoming_data.get("data", {})
@@ -388,15 +389,11 @@ async def settings(request: Request):
                     if isinstance(val, str):
                         new_settings[field] = val.lower() == "true"
 
-            existing_settings = {}
-            if settings_path.exists() and settings_path.is_file():
-                with settings_path.open("r") as f:
-                    existing_settings = json.load(f)
-
+            from src.common import load_settings, save_settings
+            existing_settings = load_settings()
             merged_settings = {**existing_settings, **new_settings}
-
-            with settings_path.open("w") as f:
-                json.dump(merged_settings, f, indent=2)
+            save_settings(merged_settings)
+            await _persist_settings_to_db(merged_settings)
 
             # Apply runtime reloads for audio/speech after settings change
             try:
@@ -412,19 +409,11 @@ async def settings(request: Request):
 
                 detector = get_audio_activity_detector()
                 vad_db = merged_settings.get("vadThresholdDb")
-                show_th = merged_settings.get("waveformShowThreshold")
-                hide_th = merged_settings.get("waveformHideThreshold")
                 silence_rms = merged_settings.get("silenceRmsThreshold")
                 grace = merged_settings.get("graceFrames")
                 detector.configure(
                     vad_threshold_db=vad_db
                     if isinstance(vad_db, (int, float))
-                    else None,
-                    waveform_show_threshold=show_th
-                    if isinstance(show_th, (int, float))
-                    else None,
-                    waveform_hide_threshold=hide_th
-                    if isinstance(hide_th, (int, float))
                     else None,
                     silence_rms_threshold=int(silence_rms)
                     if isinstance(silence_rms, (int, float))
@@ -435,6 +424,14 @@ async def settings(request: Request):
                 )
             except Exception as e:
                 logger.debug(f"Audio detector reconfigure skipped: {e}")
+
+            if "st7789" in new_settings:
+                try:
+                    from src.display.auxiliary import reinit_auxiliary_displays
+
+                    asyncio.ensure_future(reinit_auxiliary_displays())
+                except Exception as e:
+                    logger.debug(f"Auxiliary display reinit skipped: {e}")
 
             merged_settings["litellm_api_key"] = os.getenv("LITELLM_API_KEY", "")
 
@@ -482,6 +479,11 @@ async def spotify_restart(request: Request):
         return JSONResponse(
             content={"success": False, "error": str(e)}, status_code=500
         )
+
+
+@app.get("/api/system/reboot-needed")
+async def reboot_needed():
+    return {"reboot_needed": _reboot_needed, "reason": _reboot_reason}
 
 
 @app.post("/reboot")
@@ -661,15 +663,11 @@ async def update_model(request: Request):
             supported_models = [model_id]
 
         if model_id in supported_models:
-            settings_path = SOURCE_DIR / "settings.json"
-            with settings_path.open("r") as f:
-                settings = json.load(f)
+            from src.common import load_settings, save_settings
+            settings = load_settings()
             settings["model"] = model_id
-            with settings_path.open("w") as f:
-                json.dump(settings, f)
-
-            # Settings are read from JSON at runtime - no restart needed
-
+            save_settings(settings)
+            await _persist_settings_to_db(settings)
             return JSONResponse(content={"model": model_id})
         else:
             return HTTPException(
@@ -680,6 +678,16 @@ async def update_model(request: Request):
 
 
 ## Password ##
+
+
+_reboot_needed = False
+_reboot_reason = ""
+
+
+def _set_reboot_needed(reason: str) -> None:
+    global _reboot_needed, _reboot_reason
+    _reboot_needed = True
+    _reboot_reason = reason
 
 
 # Background task for display auto-detection
@@ -719,7 +727,7 @@ async def _monitor_display_changes():
         from src.display.detection import detect_displays
 
         displays = detect_displays()
-        full_displays = [d for d in displays if d.screen_type != ScreenType.I2C]
+        full_displays = [d for d in displays if d.screen_type != ScreenType.SSD1306]
 
         # Create a hashable state representation
         current_state = tuple(
@@ -787,15 +795,82 @@ async def _monitor_display_changes():
             await asyncio.sleep(5)
 
 
+def _is_wm8960(card: str, arecord_output: str) -> bool:
+    for line in arecord_output.split("\n"):
+        if f"card {card}" in line.lower() or f"card  {card}" in line:
+            if "wm8960" in line.lower():
+                return True
+    return False
+
+
+def _init_wm8960_boost(card: str) -> None:
+    boost_commands = [
+        ["amixer", "-c", card, "sset", "Left Input Mixer Boost", "on"],
+        ["amixer", "-c", card, "sset", "Right Input Mixer Boost", "on"],
+        ["amixer", "-c", card, "sset", "Left Boost Mixer LINPUT1", "5"],
+        ["amixer", "-c", card, "sset", "Right Boost Mixer RINPUT1", "5"],
+    ]
+    for cmd in boost_commands:
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                logger.debug("WM8960 boost: %s", " ".join(cmd[4:]))
+        except Exception:
+            pass
+
+
+def _init_wm8960_output(card: str) -> None:
+    from src.common import load_settings, save_settings
+
+    cset_controls = [
+        ("Left Output Mixer PCM Playback Switch", "1"),
+        ("Right Output Mixer PCM Playback Switch", "1"),
+    ]
+    for name, val in cset_controls:
+        try:
+            result = subprocess.run(
+                ["amixer", "-c", card, "cset", f"name={name}", val],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0:
+                logger.debug("WM8960 output: %s = %s", name, val)
+        except Exception:
+            pass
+
+    settings = load_settings()
+    speaker_vol = settings.get("speakerVolume")
+    if speaker_vol is None:
+        speaker_vol = 100
+        settings["speakerVolume"] = speaker_vol
+        save_settings(settings)
+        logger.debug("WM8960 speaker volume initialized to %d%%", speaker_vol)
+
+    sset_controls = [
+        ("Speaker", f"{speaker_vol}%"),
+        ("Speaker DC Volume", "4"),
+        ("Speaker AC Volume", "4"),
+        ("Playback", "100%"),
+    ]
+    for name, val in sset_controls:
+        try:
+            result = subprocess.run(
+                ["amixer", "-c", card, "sset", name, val],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0:
+                logger.debug("WM8960 output: %s %s", name, val)
+        except Exception:
+            pass
+
+
 async def _initialize_mic_gain():
-    """Set mic gain to value from settings.json (default 18%)."""
     try:
-        settings_path = SOURCE_DIR / "settings.json"
-        target_gain = 18
-        if settings_path.exists():
-            with settings_path.open("r") as f:
-                settings = json.load(f)
-                target_gain = settings.get("micGain", 18)
+        from src.common import load_settings
+        target_gain = load_settings().get("micGain", 80)
+
+        mic_card = _find_microphone_card()
+        if mic_card is None:
+            return
 
         result = subprocess.run(
             ["arecord", "-l"],
@@ -803,28 +878,21 @@ async def _initialize_mic_gain():
             text=True,
             timeout=5,
         )
+        if _is_wm8960(mic_card, result.stdout):
+            _init_wm8960_boost(mic_card)
+            _init_wm8960_output(mic_card)
 
-        mic_card = None
-        for line in result.stdout.split("\n"):
-            if "card" in line.lower() and "usb" in line.lower():
-                match = re.search(r"card\s+(\d+)", line)
-                if match:
-                    mic_card = match.group(1)
-                    break
-
-        if mic_card is None:
-            for line in result.stdout.split("\n"):
-                if "card" in line.lower():
-                    match = re.search(r"card\s+(\d+)", line)
-                    if match:
-                        mic_card = match.group(1)
-                        break
-
-        if mic_card is None:
-            return
+            if target_gain < 50:
+                logger.debug("Mic gain %s%% too low for WM8960, overriding to 80%%", target_gain)
+                target_gain = 80
+                from src.common import save_settings
+                settings = load_settings()
+                settings["micGain"] = target_gain
+                save_settings(settings)
 
         capture_controls = ["Capture", "Mic", "Input", "Digital"]
 
+        gain_set = False
         for control in capture_controls:
             result = subprocess.run(
                 ["amixer", "-c", mic_card, "sset", control, f"{target_gain}%"],
@@ -834,7 +902,20 @@ async def _initialize_mic_gain():
             )
             if result.returncode == 0:
                 logger.debug("Mic gain set to %s%% on card %s", target_gain, mic_card)
+                gain_set = True
                 break
+
+        if not gain_set:
+            for control in capture_controls:
+                result = subprocess.run(
+                    ["amixer", "sset", control, f"{target_gain}%"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode == 0:
+                    logger.debug("Mic gain set to %s%% via ALSA default (%s)", target_gain, control)
+                    break
     except Exception as e:
         logger.debug(f"Could not initialize mic gain: {e}")
 
@@ -858,16 +939,13 @@ async def startup_event():
         manager = await ensure_display_initialized()
         if manager and manager.is_available:
             logger.debug("Display manager initialized on startup")
-
-            # Auto-select HDMI audio when display is available on startup
             await _auto_select_hdmi_audio()
-
-            # Start Spotify playback monitor
-            start_spotify_monitor()
         else:
-            logger.info("No display available on startup")
+            logger.info("No full display available on startup")
     except Exception as e:
         logger.warning(f"Display manager startup initialization failed: {e}")
+
+    start_spotify_monitor()
 
     # Initialize _last_display_state so the monitor doesn't see a spurious "change"
     # on its first check and trigger a redundant reinitialize
@@ -877,7 +955,7 @@ async def startup_event():
         from src.display.detection import detect_displays
 
         displays = detect_displays()
-        full_displays = [d for d in displays if d.screen_type != ScreenType.I2C]
+        full_displays = [d for d in displays if d.screen_type != ScreenType.SSD1306]
         _last_display_state = tuple(
             (d.screen_type.value, d.width, d.height, d.device_path)
             for d in full_displays
@@ -888,13 +966,16 @@ async def startup_event():
     # Start display monitor background task
     _display_monitor_task = asyncio.create_task(_monitor_display_changes())
 
-    # Initialize mic gain to recommended value if too low
+    _detect_phantom_i2s_cards()
+
     await _initialize_mic_gain()
 
     try:
         await _provision_spotifyd_credentials()
     except Exception as e:
         logger.debug(f"Spotifyd credential provisioning skipped: {e}")
+
+    _fixup_piscreen_spi_speed()
 
     # Start voice assistant as background task (same process = shared display manager)
     from src.app import startup as voice_assistant_startup
@@ -904,7 +985,7 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    global _display_monitor_task, _voice_assistant_task
+    global _display_monitor_task, _voice_assistant_task, _spotify_monitor_task
 
     if _voice_assistant_task:
         _voice_assistant_task.cancel()
@@ -913,11 +994,31 @@ async def shutdown_event():
         except asyncio.CancelledError:
             pass
 
+    if _spotify_monitor_task:
+        _spotify_monitor_task.cancel()
+        try:
+            await _spotify_monitor_task
+        except asyncio.CancelledError:
+            pass
+
     if _display_monitor_task:
         _display_monitor_task.cancel()
         try:
             await _display_monitor_task
         except asyncio.CancelledError:
+            pass
+
+    try:
+        from src.display.auxiliary import get_all_auxiliary
+        for aux in get_all_auxiliary():
+            await aux.shutdown()
+    except Exception:
+        pass
+
+    if _display_manager and _display_manager.is_available:
+        try:
+            await _display_manager.shutdown()
+        except Exception:
             pass
 
 
@@ -2029,31 +2130,23 @@ async def _spotify_monitor_loop():
 
             is_playing = playback is not None and playback.get("is_playing", False)
 
-            # Update I2C display (separate from full display manager)
             try:
-                from src.common import (
-                    _i2c_display_ref,
-                    i2c_display_show_spotify,
-                    i2c_display_stop_spotify,
-                )
+                from src.display.auxiliary import show_spotify_all, stop_spotify_all
 
-                if _i2c_display_ref:
-                    if is_playing and playback:
-                        await i2c_display_show_spotify(
-                            _i2c_display_ref,
-                            track=playback.get("track", "Unknown"),
-                            artist=playback.get("artist", "Unknown"),
-                            progress_ms=playback.get("progress_ms", 0),
-                            duration_ms=playback.get("duration_ms", 0),
-                        )
-                    elif last_playing and not is_playing:
-                        await i2c_display_stop_spotify(_i2c_display_ref)
-            except ImportError:
-                pass  # I2C display functions not available
+                if is_playing and playback:
+                    await show_spotify_all(
+                        track=playback.get("track", "Unknown"),
+                        artist=playback.get("artist", "Unknown"),
+                        progress_ms=playback.get("progress_ms", 0),
+                        duration_ms=playback.get("duration_ms", 0),
+                        album_art_url=playback.get("album_art_url", ""),
+                    )
+                elif last_playing and not is_playing:
+                    await stop_spotify_all()
             except Exception as e:
-                logger.debug(f"I2C Spotify display error: {e}")
+                logger.debug(f"Auxiliary Spotify display error: {e}")
 
-            # Update full display manager (HDMI/TFT)
+            # Update full display manager (HDMI/PiScreen)
             if not manager or not manager.is_available:
                 last_playing = is_playing
                 continue
@@ -2107,6 +2200,15 @@ async def _notify_spotify_display(track: str = "", artist: str = ""):
             track=track or "Playing on Spotify",
             artist=artist,
         )
+
+    try:
+        from src.display.auxiliary import show_spotify_all
+        await show_spotify_all(
+            track=track or "Playing on Spotify",
+            artist=artist,
+        )
+    except Exception:
+        pass
 
     for _ in range(10):
         await asyncio.sleep(2)
@@ -2247,9 +2349,23 @@ async def spotify_control(request: Request):
                         _spotifyd_transfer_playback()
                         await asyncio.sleep(1)
                         device_id = await _get_gpt_home_device_id(sp)
-                    if device_id:
-                        sp.transfer_playback(device_id=device_id)
-                        await asyncio.sleep(0.5)
+
+                    if not device_id:
+                        logger.warning("GPT Home device not found, restarting spotifyd")
+                        restart_spotifyd()
+                        await asyncio.sleep(3)
+                        _spotifyd_transfer_playback()
+                        await asyncio.sleep(2)
+                        device_id = await _get_gpt_home_device_id(sp)
+
+                    if not device_id:
+                        return JSONResponse(
+                            status_code=503,
+                            content={"message": "GPT Home speaker is not available. Try again in a moment."},
+                        )
+
+                    sp.transfer_playback(device_id=device_id)
+                    await asyncio.sleep(0.5)
                     await _start_playback_with_retry(sp, device_id, uris=uris)
                     asyncio.create_task(
                         _notify_spotify_display(_notify_track, _notify_artist)
@@ -2282,9 +2398,13 @@ async def spotify_control(request: Request):
                     _spotifyd_transfer_playback()
                     await asyncio.sleep(1)
                     device_id = await _get_gpt_home_device_id(sp)
-                if device_id:
-                    sp.transfer_playback(device_id=device_id)
-                    await asyncio.sleep(0.5)
+                if not device_id:
+                    return JSONResponse(
+                        status_code=503,
+                        content={"message": "GPT Home speaker is not available. Try again in a moment."},
+                    )
+                sp.transfer_playback(device_id=device_id)
+                await asyncio.sleep(0.5)
                 await _start_playback_with_retry(sp, device_id)
                 asyncio.create_task(_notify_spotify_display())
                 return JSONResponse(content={"message": "Resumed playback."})
@@ -2804,9 +2924,15 @@ async def refresh_display():
         logger.info(f"DRM status: {drm_status}")
 
         displays = detect_displays()
-        full_displays = [d for d in displays if d.screen_type != ScreenType.I2C]
+        full_displays = [d for d in displays if d.screen_type != ScreenType.SSD1306]
 
-        # Reinitialize display manager
+        try:
+            from src.display.auxiliary import reinit_auxiliary_displays
+
+            await reinit_auxiliary_displays()
+        except Exception as e:
+            logger.debug(f"Auxiliary display reinit during refresh: {e}")
+
         manager = await ensure_display_initialized(force_refresh=True)
 
         if manager and manager.is_available and manager.display:
@@ -2925,8 +3051,8 @@ async def display_status():
     """Get display status and capabilities.
 
     Returns information about connected displays, distinguishing between:
-    - Full displays (TFT, HDMI): Support all display modes (SMART, CLOCK, etc.)
-    - Simple displays (I2C): Text-only output for responses, no mode support
+    - Full displays (HDMI, PiScreen): Support all display modes (SMART, CLOCK, etc.)
+    - Auxiliary displays (SPI, I2C): Custom layout with status info, no mode support
 
     The `supports_modes` field indicates if display mode controls should be shown.
     """
@@ -2943,8 +3069,8 @@ async def display_status():
         manager = await ensure_display_initialized()
 
         # Categorize displays
-        full_displays = [d for d in displays if d.screen_type != ScreenType.I2C]
-        simple_displays = [d for d in displays if d.screen_type == ScreenType.I2C]
+        full_displays = [d for d in displays if d.screen_type not in (ScreenType.SSD1306, ScreenType.ST7789)]
+        simple_displays = [d for d in displays if d.screen_type in (ScreenType.SSD1306, ScreenType.ST7789)]
 
         # Check if we have a full display that supports modes
         has_full_display = len(full_displays) > 0
@@ -2955,42 +3081,33 @@ async def display_status():
         if manager and manager._display:
             current_display_type = manager._display.info.screen_type.value
 
-        # Load saved display preference
         saved_display_type = None
-        settings_path = SOURCE_DIR / "settings.json"
-        if settings_path.exists():
-            try:
-                with settings_path.open("r") as f:
-                    settings = json.load(f)
-                saved_display_type = settings.get("display_type")
-            except Exception:
-                pass
+        try:
+            from src.common import load_settings
+            saved_display_type = load_settings().get("display_type")
+        except Exception:
+            pass
 
-        def get_display_id(d) -> str:
-            if d.screen_type == ScreenType.I2C:
-                return f"i2c_{d.bus}_{d.address:02x}"
-            elif d.device_path:
-                return d.device_path.replace("/dev/", "").replace("/", "_")
-            return f"{d.screen_type.value}_{d.width}x{d.height}"
+        from src.display.multi import get_display_id
 
         def get_display_name(d) -> str:
-            if d.screen_type == ScreenType.I2C:
+            if d.screen_type == ScreenType.SSD1306:
                 return f"I2C Display ({d.width}x{d.height})"
-            elif d.screen_type == ScreenType.SPI_TFT:
-                return f"SPI TFT ({d.width}x{d.height})"
+            elif d.screen_type == ScreenType.ILI9486:
+                return f"PiScreen ({d.width}x{d.height})"
+            elif d.screen_type == ScreenType.ST7789:
+                return f"SPI Display ({d.width}x{d.height})"
             elif d.screen_type == ScreenType.HDMI:
                 return f"HDMI ({d.width}x{d.height})"
             return f"{d.screen_type.value} ({d.width}x{d.height})"
 
         # Get multi-display config
-        mirror_enabled = False
         display_enabled_map = {}
         try:
             from src.display.multi import get_multi_display_manager
 
             multi_manager = get_multi_display_manager()
             config = multi_manager.get_config()
-            mirror_enabled = config.mirror_enabled
             display_enabled_map = {
                 cfg.display_id: cfg.enabled for cfg in config.displays.values()
             }
@@ -3010,7 +3127,7 @@ async def display_status():
                         "driver": d.driver,
                         "device_path": d.device_path,
                         "connector": d.connector,
-                        "supports_modes": d.screen_type != ScreenType.I2C,
+                        "supports_modes": d.screen_type not in (ScreenType.SSD1306, ScreenType.ST7789),
                         "enabled": display_enabled_map.get(get_display_id(d), True),
                     }
                     for d in displays
@@ -3024,7 +3141,6 @@ async def display_status():
                 else None,
                 "current_display_type": current_display_type,
                 "saved_display_type": saved_display_type,
-                "mirror_enabled": mirror_enabled,
                 "info": get_display_info_string(displays),
                 "drm_status": drm_status,
                 "note": "I2C displays are text-only and do not support display modes. "
@@ -3054,12 +3170,12 @@ async def display_status():
 async def select_display(request: Request):
     """Select which display to use when multiple are available.
 
-    Only full displays (HDMI, SPI TFT) can be selected. The selected display
+    Only full displays (HDMI, PiScreen) can be selected. The selected display
     type is saved to settings and used on restart.
     """
     try:
         data = await request.json()
-        display_type = data.get("type")  # "hdmi", "spi_tft"
+        display_type = data.get("type")  # "hdmi", "ili9486"
 
         if not display_type:
             return JSONResponse(
@@ -3068,7 +3184,7 @@ async def select_display(request: Request):
             )
 
         # Validate display type
-        valid_types = ["hdmi", "spi_tft"]
+        valid_types = ["hdmi", "ili9486"]
         if display_type not in valid_types:
             return JSONResponse(
                 content={
@@ -3078,17 +3194,12 @@ async def select_display(request: Request):
                 status_code=400,
             )
 
-        # Save to settings
-        settings_path = SOURCE_DIR / "settings.json"
         try:
-            if settings_path.exists():
-                with settings_path.open("r") as f:
-                    settings = json.load(f)
-            else:
-                settings = {}
+            from src.common import load_settings, save_settings
+            settings = load_settings()
             settings["display_type"] = display_type
-            with settings_path.open("w") as f:
-                json.dump(settings, f, indent=4)
+            save_settings(settings)
+            await _persist_settings_to_db(settings)
         except Exception as e:
             logger.warning(f"Could not save display type to settings: {e}")
 
@@ -3120,7 +3231,59 @@ async def select_display(request: Request):
         )
 
 
-_TFT_OVERLAY_NAMES = ["piscreen", "waveshare35a", "tft35a", "pitft35"]
+_PISCREEN_OVERLAY_NAMES = ["piscreen", "waveshare35a", "tft35a", "pitft35"]
+_PISCREEN_SPI_SPEED = "16000000"
+
+
+def _normalize_piscreen_overlay_line(line: str) -> str:
+    stripped = line.strip()
+    commented = stripped.startswith("#")
+    uncommented = stripped.lstrip("#")
+
+    if "piscreen" not in uncommented:
+        return line
+
+    parts = uncommented.split(",")
+    if "drm" not in parts:
+        parts.insert(1, "drm")
+    speed_parts = [p for p in parts if p.startswith("speed=")]
+    if not speed_parts:
+        parts.append(f"speed={_PISCREEN_SPI_SPEED}")
+
+    rebuilt = ",".join(parts)
+    if commented:
+        rebuilt = "#" + rebuilt
+    return rebuilt + "\n"
+
+
+def _fixup_piscreen_spi_speed() -> bool:
+    for path in ["/boot/firmware/config.txt", "/boot/config.txt"]:
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, "r") as f:
+                lines = f.readlines()
+
+            changed = False
+            new_lines = []
+            for line in lines:
+                stripped = line.strip().lstrip("#")
+                if any(f"dtoverlay={name}" in stripped for name in _PISCREEN_OVERLAY_NAMES):
+                    normalized = _normalize_piscreen_overlay_line(line)
+                    if normalized != line:
+                        changed = True
+                    new_lines.append(normalized)
+                else:
+                    new_lines.append(line)
+
+            if changed:
+                with open(path, "w") as f:
+                    f.writelines(new_lines)
+                logger.info("Fixed PiScreen overlay params in %s (reboot required)", path)
+                return True
+        except Exception as e:
+            logger.debug("Could not check/fix PiScreen overlay in %s: %s", path, e)
+    return False
 
 
 _PISCREEN_DTBO_URL = (
@@ -3140,7 +3303,7 @@ def _find_boot_overlays_dir() -> Optional[str]:
     return None
 
 
-def _ensure_tft_overlay_installed() -> Optional[str]:
+def _ensure_piscreen_overlay_installed() -> Optional[str]:
     overlays_dir = _find_boot_overlays_dir()
     if not overlays_dir:
         return "No boot overlays directory found"
@@ -3163,37 +3326,37 @@ def _ensure_tft_overlay_installed() -> Optional[str]:
 
 @app.post("/api/display/hardware-mode")
 async def set_display_hardware_mode(request: Request):
-    """Switch between TFT-only and HDMI display hardware modes.
+    """Switch between PiScreen-only and HDMI display hardware modes.
 
     This modifies /boot/firmware/config.txt (or /boot/config.txt) to configure
     the Raspberry Pi for either:
     - "hdmi": Standard HDMI output with vc4-kms-v3d (default)
-    - "tft": SPI TFT display only (disables HDMI, uses piscreen overlay)
+    - "piscreen": PiScreen display only (disables HDMI, uses piscreen overlay)
 
-    Note: TFT and HDMI cannot work simultaneously due to kernel driver conflicts.
+    Note: PiScreen and HDMI cannot work simultaneously due to kernel driver conflicts.
     A reboot is required for changes to take effect.
     """
     try:
         data = await request.json()
-        mode = data.get("mode")  # "hdmi" or "tft"
+        mode = data.get("mode")  # "hdmi" or "piscreen"
         auto_reboot = data.get("auto_reboot", True)
 
-        if mode not in ["hdmi", "tft"]:
+        if mode not in ["hdmi", "piscreen"]:
             return JSONResponse(
                 content={
                     "success": False,
-                    "message": "Invalid mode. Must be 'hdmi' or 'tft'",
+                    "message": "Invalid mode. Must be 'hdmi' or 'piscreen'",
                 },
                 status_code=400,
             )
 
-        if mode == "tft":
-            error = _ensure_tft_overlay_installed()
+        if mode == "piscreen":
+            error = _ensure_piscreen_overlay_installed()
             if error:
                 return JSONResponse(
                     content={
                         "success": False,
-                        "message": f"TFT overlay install failed: {error}",
+                        "message": f"PiScreen overlay install failed: {error}",
                     },
                     status_code=500,
                 )
@@ -3222,7 +3385,7 @@ async def set_display_hardware_mode(request: Request):
         # Process config based on mode
         new_lines = []
         found_vc4_kms = False
-        found_tft = False
+        found_piscreen = False
         found_spi = False
         found_disable_fw_kms = False
         found_max_framebuffers = False
@@ -3236,7 +3399,7 @@ async def set_display_hardware_mode(request: Request):
                 or "dtoverlay=vc4-fkms-v3d" in stripped
             ):
                 found_vc4_kms = True
-                if mode == "tft":
+                if mode == "piscreen":
                     if not stripped.startswith("#"):
                         new_lines.append(f"#{line.rstrip()}\n")
                     else:
@@ -3250,27 +3413,25 @@ async def set_display_hardware_mode(request: Request):
 
             if "max_framebuffers" in stripped:
                 found_max_framebuffers = True
-                if mode == "tft":
+                if mode == "piscreen":
                     new_lines.append("max_framebuffers=0\n")
                 else:
                     new_lines.append("max_framebuffers=2\n")
                 continue
 
-            # Handle TFT overlays (piscreen, waveshare35a, tft35a, pitft35)
-            if any(f"dtoverlay={name}" in stripped for name in _TFT_OVERLAY_NAMES):
-                found_tft = True
+            # Handle PiScreen overlays (piscreen, waveshare35a, tft35a, pitft35)
+            if any(f"dtoverlay={name}" in stripped for name in _PISCREEN_OVERLAY_NAMES):
+                found_piscreen = True
                 if mode == "hdmi":
-                    # Comment out for HDMI mode
-                    if not stripped.startswith("#"):
-                        new_lines.append(f"#{line.rstrip()}\n")
-                    else:
-                        new_lines.append(line)
+                    normalized = _normalize_piscreen_overlay_line(line)
+                    if not normalized.startswith("#"):
+                        normalized = "#" + normalized
+                    new_lines.append(normalized)
                 else:
-                    # Uncomment for TFT mode
-                    if stripped.startswith("#"):
-                        new_lines.append(line.lstrip("#"))
-                    else:
-                        new_lines.append(line)
+                    normalized = _normalize_piscreen_overlay_line(line)
+                    if normalized.startswith("#"):
+                        normalized = normalized.lstrip("#")
+                    new_lines.append(normalized)
                 continue
 
             # Handle SPI parameter
@@ -3304,11 +3465,11 @@ async def set_display_hardware_mode(request: Request):
 
             new_lines.append(line)
 
-        if mode == "tft":
+        if mode == "piscreen":
             if not found_spi:
                 new_lines.append("\ndtparam=spi=on\n")
-            if not found_tft:
-                new_lines.append("dtoverlay=piscreen,drm\n")
+            if not found_piscreen:
+                new_lines.append(f"dtoverlay=piscreen,drm,speed={_PISCREEN_SPI_SPEED}\n")
             if not found_disable_fw_kms:
                 new_lines.append("disable_fw_kms_setup=1\n")
             if not found_max_framebuffers:
@@ -3327,23 +3488,9 @@ async def set_display_hardware_mode(request: Request):
         if os.path.exists(cmdline_path):
             with open(cmdline_path, "r") as f:
                 cmdline = f.read().strip()
-            if mode == "tft":
-                if "fbcon=map:11" not in cmdline:
-                    cmdline = (
-                        cmdline.replace(" fbcon=map:1", "")
-                        .replace("fbcon=map:1 ", "")
-                        .replace("fbcon=map:1", "")
-                    )
-                    cmdline += " fbcon=map:11"
-            else:
-                cmdline = (
-                    cmdline.replace(" fbcon=map:11", "")
-                    .replace("fbcon=map:11 ", "")
-                    .replace("fbcon=map:11", "")
-                    .replace(" fbcon=map:1", "")
-                    .replace("fbcon=map:1 ", "")
-                    .replace("fbcon=map:1", "")
-                )
+            cmdline = re.sub(r"\s*fbcon=map:\d+", "", cmdline)
+            if mode == "piscreen":
+                cmdline += " fbcon=map:11"
             with open(cmdline_path, "w") as f:
                 f.write(cmdline + "\n")
 
@@ -3378,6 +3525,7 @@ async def set_display_hardware_mode(request: Request):
                 }
             )
 
+        _set_reboot_needed(f"Display mode set to {mode.upper()} — reboot to apply")
         return JSONResponse(
             content={
                 "success": True,
@@ -3421,7 +3569,7 @@ async def get_display_hardware_mode():
 
         # Check for active (uncommented) overlays
         has_active_vc4 = False
-        has_active_tft = False
+        has_active_piscreen = False
 
         for line in config_content.split("\n"):
             stripped = line.strip()
@@ -3432,21 +3580,21 @@ async def get_display_hardware_mode():
                 or "dtoverlay=vc4-fkms-v3d" in stripped
             ):
                 has_active_vc4 = True
-            if any(f"dtoverlay={name}" in stripped for name in _TFT_OVERLAY_NAMES):
-                has_active_tft = True
+            if any(f"dtoverlay={name}" in stripped for name in _PISCREEN_OVERLAY_NAMES):
+                has_active_piscreen = True
 
         logger.debug(
-            "Hardware mode detection: has_vc4=%s, has_tft=%s, config=%s",
+            "Hardware mode detection: has_vc4=%s, has_piscreen=%s, config=%s",
             has_active_vc4,
-            has_active_tft,
+            has_active_piscreen,
             config_path,
         )
 
-        if has_active_tft and not has_active_vc4:
-            mode = "tft"
-        elif has_active_vc4 and not has_active_tft:
+        if has_active_piscreen and not has_active_vc4:
+            mode = "piscreen"
+        elif has_active_vc4 and not has_active_piscreen:
             mode = "hdmi"
-        elif has_active_vc4 and has_active_tft:
+        elif has_active_vc4 and has_active_piscreen:
             mode = "conflict"
         else:
             mode = "hdmi"
@@ -3455,7 +3603,7 @@ async def get_display_hardware_mode():
             content={
                 "mode": mode,
                 "has_vc4_kms": has_active_vc4,
-                "has_tft": has_active_tft,
+                "has_piscreen": has_active_piscreen,
                 "config_path": config_path,
             }
         )
@@ -3638,6 +3786,7 @@ async def set_display_resolution(request: Request):
         f.write(cmdline + "\n")
 
     logger.info(f"HDMI resolution set to {resolution}")
+    _set_reboot_needed(f"Resolution set to {resolution} — reboot to apply")
     return JSONResponse(
         content={
             "success": True,
@@ -3650,7 +3799,7 @@ async def set_display_resolution(request: Request):
 @app.get("/api/display/rotation")
 async def get_display_rotation():
     """Get current display rotation settings."""
-    tft_rotation = 0
+    piscreen_rotation = 0
     try:
         config_paths = ["/boot/firmware/config.txt", "/boot/config.txt"]
         for path in config_paths:
@@ -3662,14 +3811,14 @@ async def get_display_rotation():
                             continue
                         if any(
                             f"dtoverlay={name}" in stripped
-                            for name in _TFT_OVERLAY_NAMES
+                            for name in _PISCREEN_OVERLAY_NAMES
                         ):
                             match = re.search(r"rotate=(\d+)", stripped)
                             if match:
-                                tft_rotation = int(match.group(1))
+                                piscreen_rotation = int(match.group(1))
                 break
     except Exception as e:
-        logger.error(f"Error reading TFT rotation: {e}")
+        logger.error(f"Error reading PiScreen rotation: {e}")
 
     hdmi_rotation = 0
     cmdline_path = _get_cmdline_path()
@@ -3682,14 +3831,16 @@ async def get_display_rotation():
         except Exception:
             pass
 
-    from src.common import load_settings
-
-    settings = load_settings()
-    i2c_rotation = settings.get("i2c_rotation", 2)
+    i2c_rotation = 2
+    try:
+        from src.common import load_settings
+        i2c_rotation = load_settings().get("i2c_rotation", 2)
+    except Exception:
+        pass
 
     return JSONResponse(
         content={
-            "tft_rotation": tft_rotation,
+            "piscreen_rotation": piscreen_rotation,
             "hdmi_rotation": hdmi_rotation,
             "i2c_rotation": i2c_rotation,
         }
@@ -3698,7 +3849,7 @@ async def get_display_rotation():
 
 @app.post("/api/display/rotation")
 async def set_display_rotation(request: Request):
-    """Set display rotation. TFT/HDMI require reboot. I2C is applied live."""
+    """Set display rotation. PiScreen/HDMI require reboot. I2C is applied live."""
     try:
         data = await request.json()
     except Exception:
@@ -3709,13 +3860,13 @@ async def set_display_rotation(request: Request):
 
     result = {"success": True, "reboot_required": False}
 
-    if "tft_rotation" in data:
-        rotation = int(data["tft_rotation"])
+    if "piscreen_rotation" in data:
+        rotation = int(data["piscreen_rotation"])
         if rotation not in (0, 90, 180, 270):
             return JSONResponse(
                 content={
                     "success": False,
-                    "message": "TFT rotation must be 0, 90, 180, or 270",
+                    "message": "PiScreen rotation must be 0, 90, 180, or 270",
                 },
                 status_code=400,
             )
@@ -3743,11 +3894,15 @@ async def set_display_rotation(request: Request):
         for line in lines:
             stripped = line.strip()
             uncommented = stripped.lstrip("#")
-            if any(f"dtoverlay={name}" in uncommented for name in _TFT_OVERLAY_NAMES):
+            if any(f"dtoverlay={name}" in uncommented for name in _PISCREEN_OVERLAY_NAMES):
                 parts = uncommented.split(",")
                 parts = [p for p in parts if not p.startswith("rotate=")]
                 if rotation != 0:
                     parts.append(f"rotate={rotation}")
+                if "drm" not in parts:
+                    parts.insert(1, "drm")
+                if not any(p.startswith("speed=") for p in parts):
+                    parts.append(f"speed={_PISCREEN_SPI_SPEED}")
                 rebuilt = ",".join(parts) + "\n"
                 if stripped.startswith("#"):
                     rebuilt = "#" + rebuilt
@@ -3759,8 +3914,9 @@ async def set_display_rotation(request: Request):
             f.writelines(new_lines)
 
         result["reboot_required"] = True
-        result["message"] = f"TFT rotation set to {rotation}°. Reboot required."
-        logger.info(f"TFT rotation set to {rotation}°")
+        result["message"] = f"PiScreen rotation set to {rotation}°. Reboot required."
+        _set_reboot_needed(f"PiScreen rotation changed — reboot to apply")
+        logger.info(f"PiScreen rotation set to {rotation}°")
 
     if "hdmi_rotation" in data:
         rotation = int(data["hdmi_rotation"])
@@ -3816,6 +3972,7 @@ async def set_display_rotation(request: Request):
 
         result["reboot_required"] = True
         result["message"] = f"HDMI rotation set to {rotation}°. Reboot required."
+        _set_reboot_needed(f"HDMI rotation changed — reboot to apply")
         logger.info(f"HDMI rotation set to {rotation}°")
 
     if "i2c_rotation" in data:
@@ -3834,15 +3991,13 @@ async def set_display_rotation(request: Request):
         settings = load_settings()
         settings["i2c_rotation"] = i2c_rot
         save_settings(settings)
+        await _persist_settings_to_db(settings)
 
-        from src.common import _i2c_display_ref
-
-        if _i2c_display_ref is not None:
-            try:
-                _i2c_display_ref.rotation = i2c_rot
-                _i2c_display_ref.show()
-            except Exception as e:
-                logger.warning(f"Could not apply I2C rotation live: {e}")
+        try:
+            from src.display.auxiliary import set_ssd1306_rotation
+            set_ssd1306_rotation(i2c_rot)
+        except Exception as e:
+            logger.warning(f"Could not apply I2C rotation live: {e}")
 
         result["message"] = f"I2C rotation set to {i2c_rot * 90}°"
         logger.info(f"I2C rotation set to {i2c_rot} ({i2c_rot * 90}°)")
@@ -3852,7 +4007,7 @@ async def set_display_rotation(request: Request):
 
 @app.get("/api/display/multi")
 async def get_multi_display_config():
-    """Get multi-display configuration including mirror mode and per-display enabled status."""
+    """Get multi-display configuration including per-display enabled status."""
     try:
         from src.display.multi import get_multi_display_manager
 
@@ -3861,7 +4016,6 @@ async def get_multi_display_config():
 
         return JSONResponse(
             content={
-                "mirror_enabled": config.mirror_enabled,
                 "displays": [
                     {
                         "id": display_id,
@@ -3875,40 +4029,6 @@ async def get_multi_display_config():
         logger.error(f"Error getting multi-display config: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
-
-@app.post("/api/display/mirror")
-async def set_mirror_mode(request: Request):
-    """Enable or disable display mirroring.
-
-    When mirroring is enabled, all enabled displays show the same content.
-    When disabled, only the primary display is used.
-    """
-    try:
-        data = await request.json()
-        enabled = data.get("enabled", False)
-
-        from src.display.multi import get_multi_display_manager
-
-        manager = get_multi_display_manager()
-        manager.set_mirror_enabled(enabled)
-
-        # Reinitialize display manager to apply changes
-        display_manager = await ensure_display_initialized()
-        if display_manager:
-            await display_manager.reinitialize()
-
-        return JSONResponse(
-            content={
-                "success": True,
-                "mirror_enabled": enabled,
-                "message": f"Mirror mode {'enabled' if enabled else 'disabled'}",
-            }
-        )
-    except Exception as e:
-        logger.error(f"Error setting mirror mode: {e}")
-        return JSONResponse(
-            content={"success": False, "message": str(e)}, status_code=500
-        )
 
 
 @app.post("/api/display/enable")
@@ -3958,7 +4078,7 @@ async def set_display_mode(request: Request):
     """Set display mode (only for full displays).
 
     Display modes (SMART, CLOCK, WEATHER, GALLERY, WAVEFORM, OFF) are only
-    supported on full displays (TFT, HDMI). I2C displays are simple
+    supported on full displays (PiScreen, HDMI, SPI). I2C displays are simple
     text-only displays and do not support modes.
     """
     try:
@@ -3994,17 +4114,12 @@ async def set_display_mode(request: Request):
                 status_code=400,
             )
 
-        # Save settings first (even without display)
-        settings_path = SOURCE_DIR / "settings.json"
         try:
-            if settings_path.exists():
-                with settings_path.open("r") as f:
-                    settings = json.load(f)
-            else:
-                settings = {}
+            from src.common import load_settings, save_settings
+            settings = load_settings()
             settings["display_mode"] = mode_name
-            with settings_path.open("w") as f:
-                json.dump(settings, f, indent=2)
+            save_settings(settings)
+            await _persist_settings_to_db(settings)
         except Exception as settings_err:
             logger.warning(f"Could not save display mode to settings: {settings_err}")
 
@@ -4469,6 +4584,7 @@ async def set_screensaver_settings(request: Request):
                 settings["screensaver_style"] = style
 
         save_settings(settings)
+        await _persist_settings_to_db(settings)
 
         manager = await ensure_display_initialized()
         if manager and manager.is_available:
@@ -4835,8 +4951,125 @@ def _detect_hdmi_audio_device() -> tuple:
     return None, None, None
 
 
-def _find_microphone_card() -> str:
-    """Find the ALSA card number for the microphone/capture device."""
+_phantom_i2s_cards: set[str] = set()
+
+_I2S_KEYWORDS = ("googlevoicehat", "voicehat")
+
+
+def _detect_phantom_i2s_cards() -> None:
+    global _phantom_i2s_cards
+    try:
+        result = subprocess.run(
+            ["arecord", "-l"], capture_output=True, text=True, timeout=5
+        )
+        if result.returncode != 0:
+            return
+
+        for line in result.stdout.split("\n"):
+            if not line.startswith("card "):
+                continue
+            lower = line.lower()
+            if not any(kw in lower for kw in _I2S_KEYWORDS):
+                continue
+
+            card_match = re.search(r"card (\d+):", line)
+            if not card_match:
+                continue
+            card_num = card_match.group(1)
+
+            try:
+                vendor = Path("/proc/device-tree/hat/vendor").read_text().replace("\0", "").strip()
+                if "raspiaudio" in vendor.lower():
+                    continue
+            except Exception:
+                pass
+
+            probe_file = f"/tmp/i2s_probe_{card_num}.raw"
+            try:
+                subprocess.run(
+                    [
+                        "arecord", "-D", f"plughw:{card_num},0",
+                        "-f", "S16_LE", "-r", "16000", "-c", "1",
+                        "-d", "1", probe_file,
+                    ],
+                    capture_output=True,
+                    timeout=5,
+                )
+                if not os.path.exists(probe_file) or os.path.getsize(probe_file) == 0:
+                    _phantom_i2s_cards.add(card_num)
+                    continue
+
+                od_result = subprocess.run(
+                    ["od", "-An", "-tx2", "-w2", probe_file],
+                    capture_output=True, text=True, timeout=5,
+                )
+                unique = len(set(od_result.stdout.strip().split("\n"))) if od_result.returncode == 0 else 0
+                if unique <= 20:
+                    logger.warning(
+                        "I2S card %s is phantom (%d unique samples) — hiding from device lists",
+                        card_num, unique,
+                    )
+                    _phantom_i2s_cards.add(card_num)
+                else:
+                    logger.debug("I2S card %s verified: real hardware (%d unique samples)", card_num, unique)
+            except Exception as e:
+                logger.debug("I2S probe failed for card %s: %s", card_num, e)
+            finally:
+                try:
+                    os.remove(probe_file)
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.debug("Phantom I2S detection failed: %s", e)
+
+    if _phantom_i2s_cards:
+        _fix_stale_i2s_overlay()
+        _set_reboot_needed(
+            "Phantom audio device detected — reboot to remove stale overlay"
+        )
+
+
+def _fix_stale_i2s_overlay() -> None:
+    config_path = None
+    for path in ["/boot/firmware/config.txt", "/boot/config.txt"]:
+        if os.path.exists(path):
+            config_path = path
+            break
+    if not config_path:
+        return
+
+    try:
+        content = Path(config_path).read_text()
+        original = content
+
+        content = re.sub(
+            r"^(dtoverlay=googlevoicehat-soundcard)",
+            r"#\1",
+            content,
+            flags=re.MULTILINE,
+        )
+
+        has_wm8960 = re.search(r"^dtoverlay=wm8960-soundcard", content, re.MULTILINE)
+        if not has_wm8960:
+            content = re.sub(
+                r"^#(dtparam=audio=on)",
+                r"\1",
+                content,
+                flags=re.MULTILINE,
+            )
+
+        if content != original:
+            Path(config_path).write_text(content)
+            _set_reboot_needed("Stale audio overlay removed — reboot to apply changes")
+            logger.warning(
+                "Disabled stale I2S overlay in %s — reboot to fully remove phantom device",
+                config_path,
+            )
+    except Exception as e:
+        logger.debug("Could not fix stale I2S overlay: %s", e)
+
+
+def _find_microphone_card() -> str | None:
     try:
         result = subprocess.run(
             ["arecord", "-l"],
@@ -4845,12 +5078,6 @@ def _find_microphone_card() -> str:
             timeout=5,
         )
         if result.returncode == 0:
-            mic_priorities = [
-                ("usb", 100),
-                ("microphone", 90),
-                ("mic", 80),
-                ("audio", 70),
-            ]
             best_card = None
             best_priority = -1
 
@@ -4860,7 +5087,9 @@ def _find_microphone_card() -> str:
                 card_match = re.search(r"card\s+(\d+):", line)
                 if card_match:
                     card_num = card_match.group(1)
-                    for keyword, priority in mic_priorities:
+                    if card_num in _phantom_i2s_cards:
+                        continue
+                    for keyword, priority in MIC_PRIORITIES:
                         if keyword in line and priority > best_priority:
                             best_card = card_num
                             best_priority = priority
@@ -4869,14 +5098,15 @@ def _find_microphone_card() -> str:
             if best_card:
                 return best_card
 
-            # Fallback to first card found
             first_match = re.search(r"card\s+(\d+):", result.stdout.lower())
             if first_match:
-                return first_match.group(1)
+                card_num = first_match.group(1)
+                if card_num not in _phantom_i2s_cards:
+                    return card_num
     except Exception as e:
         logger.warning(f"Error finding microphone card: {e}")
 
-    return "0"
+    return None
 
 
 async def _auto_select_hdmi_audio() -> bool:
@@ -4929,25 +5159,28 @@ async def _auto_select_hdmi_audio() -> bool:
         f"Auto-selecting HDMI audio: card {hdmi_card} ({hdmi_card_id}: {hdmi_name})"
     )
 
-    # Find the microphone card for capture
-    mic_card = _find_microphone_card()
+    mic_card = _find_microphone_card() or "0"
 
     # Use hdmi:CARD=xxx for HDMI devices - this uses /usr/share/alsa/cards/vc4-hdmi.conf
     # which handles IEC958_SUBFRAME_LE conversion automatically
     # Wrap in softvol for software volume control (HDMI has no hardware mixer)
     playback_device = f"hdmi:CARD={hdmi_card_id},DEV=0"
 
-    asound_config = f"""# HDMI playback with software volume control (auto-configured)
-# Uses hdmi:CARD={hdmi_card_id} which handles IEC958 format conversion
-
-pcm.hdmi_converted {{
-    type plug
-    slave.pcm "hdmi:CARD={hdmi_card_id},DEV=0"
+    asound_config = f"""pcm.hdmi_dmix {{
+    type dmix
+    ipc_key 1024
+    ipc_perm 0666
+    slave {{
+        pcm "hw:{hdmi_card},0"
+        rate 48000
+        period_size 1024
+        buffer_size 4096
+    }}
 }}
 
 pcm.hdmi_softvol {{
     type softvol
-    slave.pcm "hdmi_converted"
+    slave.pcm "hdmi_dmix"
     control {{
         name "SoftMaster"
         card {hdmi_card}
@@ -4979,9 +5212,10 @@ ctl.!default {{
         # Each container (backend, spotify) detects and configures its own ALSA
         asound_path = Path("/etc/asound.conf")
         asound_path.write_text(asound_config)
+        shared_path = Path("/etc/alsa-shared/asound.conf")
+        if shared_path.parent.exists():
+            shared_path.write_text(asound_config)
 
-        # Set environment variables for pygame/SDL
-        # Use the named HDMI device for proper format conversion
         os.environ["AUDIODEV"] = playback_device
         os.environ["SDL_AUDIODRIVER"] = "alsa"
 
@@ -5027,17 +5261,25 @@ def _reset_hdmi_audio_state():
 
 def _write_asound_conf(card: int, card_id: str) -> None:
     is_hdmi = "hdmi" in card_id.lower()
-    mic_card = _find_microphone_card()
+    is_bcm2835 = card_id.lower() == "headphones"
+    mic_card = _find_microphone_card() or "0"
 
     if is_hdmi:
-        asound_config = f"""pcm.hdmi_converted {{
-    type plug
-    slave.pcm "hdmi:CARD={card_id},DEV=0"
+        asound_config = f"""pcm.hdmi_dmix {{
+    type dmix
+    ipc_key 1024
+    ipc_perm 0666
+    slave {{
+        pcm "hw:{card},0"
+        rate 48000
+        period_size 1024
+        buffer_size 4096
+    }}
 }}
 
 pcm.hdmi_softvol {{
     type softvol
-    slave.pcm "hdmi_converted"
+    slave.pcm "hdmi_dmix"
     control {{
         name "SoftMaster"
         card {card}
@@ -5064,7 +5306,7 @@ ctl.!default {{
 }}
 """
         audiodev = f"hdmi:CARD={card_id},DEV=0"
-    else:
+    elif is_bcm2835:
         asound_config = f"""pcm.!default {{
     type asym
     playback.pcm {{
@@ -5076,6 +5318,38 @@ ctl.!default {{
         slave.pcm "hw:{mic_card},0"
     }}
 }}
+
+ctl.!default {{
+    type hw
+    card {card}
+}}
+"""
+        audiodev = f"plughw:{card},0"
+    else:
+        asound_config = f"""pcm.dmixer {{
+    type dmix
+    ipc_key 1024
+    ipc_perm 0666
+    slave {{
+        pcm "hw:{card},0"
+        period_time 0
+        period_size 1024
+        buffer_size 4096
+    }}
+}}
+
+pcm.!default {{
+    type asym
+    playback.pcm {{
+        type plug
+        slave.pcm "dmixer"
+    }}
+    capture.pcm {{
+        type plug
+        slave.pcm "hw:{mic_card},0"
+    }}
+}}
+
 ctl.!default {{
     type hw
     card {card}
@@ -5084,6 +5358,9 @@ ctl.!default {{
         audiodev = f"plughw:{card},0"
 
     Path("/etc/asound.conf").write_text(asound_config)
+    shared_path = Path("/etc/alsa-shared/asound.conf")
+    if shared_path.parent.exists():
+        shared_path.write_text(asound_config)
     os.environ["AUDIODEV"] = audiodev
     os.environ["SDL_AUDIODRIVER"] = "alsa"
 
@@ -5155,7 +5432,7 @@ async def list_audio_devices():
                                 if hdmi_port not in connected_hdmi_ports:
                                     continue
 
-                        if card_num not in seen_cards:
+                        if card_num not in seen_cards and card_num not in _phantom_i2s_cards:
                             seen_cards.add(card_num)
                             devices.append(
                                 {
@@ -5190,7 +5467,9 @@ async def list_audio_devices():
     except Exception:
         pass
 
-    if current_device is not None and devices:
+    if not devices:
+        current_device = None
+    elif current_device is not None:
         valid_cards = {str(d["card"]) for d in devices}
         if current_device not in valid_cards:
             fallback = devices[0]
@@ -5220,8 +5499,7 @@ async def set_audio_device(request: Request):
     if card is None:
         raise HTTPException(status_code=400, detail="Missing 'card' parameter")
 
-    # Find the microphone card for capture
-    mic_card = _find_microphone_card()
+    mic_card = _find_microphone_card() or "0"
 
     # Determine if this is an HDMI device that needs special handling
     # HDMI devices on Raspberry Pi require IEC958 format conversion which is
@@ -5322,7 +5600,10 @@ ctl.!default {{
         asound_path = Path("/etc/asound.conf")
         asound_path.write_text(asound_config)
 
-        # Also set environment variables for pygame/SDL
+        shared_path = Path("/etc/alsa-shared/asound.conf")
+        if shared_path.parent.exists():
+            shared_path.write_text(asound_config)
+
         os.environ["AUDIODEV"] = audiodev
         os.environ["SDL_AUDIODRIVER"] = "alsa"
 
@@ -5374,28 +5655,28 @@ ctl.!default {{
             # Trigger container restart in background
             import threading
 
-            def restart_self():
+            def restart_containers():
                 import time
 
-                time.sleep(1)  # Brief delay to allow response to be sent
+                time.sleep(1)
                 try:
-                    # Try to restart the container
+                    subprocess.run(
+                        ["docker", "restart", "gpt-home-spotify-1"],
+                        capture_output=True,
+                        timeout=30,
+                    )
+                except Exception as e:
+                    logger.warning(f"Could not restart spotify container: {e}")
+                try:
                     subprocess.run(
                         ["docker", "restart", "gpt-home-backend-1"],
                         capture_output=True,
                         timeout=30,
                     )
-                except Exception:
-                    try:
-                        subprocess.run(
-                            ["docker", "restart", "gpt-home-backend-1"],
-                            capture_output=True,
-                            timeout=30,
-                        )
-                    except Exception as e:
-                        logger.warning(f"Could not auto-restart container: {e}")
+                except Exception as e:
+                    logger.warning(f"Could not restart backend container: {e}")
 
-            threading.Thread(target=restart_self, daemon=True).start()
+            threading.Thread(target=restart_containers, daemon=True).start()
             restarting = True
             logger.info(f"Audio device set to card {card}, container will restart")
 
@@ -5550,7 +5831,6 @@ async def set_audio_volume(request: Request):
                     break
 
         if not success:
-            # HDMI devices often don't have mixer controls until sound is played
             if is_hdmi:
                 logger.info(
                     f"HDMI device on card {current_card} has no mixer control (normal)"
@@ -5562,6 +5842,11 @@ async def set_audio_volume(request: Request):
                     "note": "HDMI uses fixed output - softvol control created after first playback",
                 }
             logger.warning(f"Could not set volume on card {current_card}")
+
+        from src.common import load_settings, save_settings
+        settings = load_settings()
+        settings["speakerVolume"] = volume
+        save_settings(settings)
 
         return {"success": True, "volume": volume}
     except Exception as e:
@@ -5631,14 +5916,15 @@ async def set_mic_gain(request: Request):
         raise HTTPException(status_code=400, detail="Gain must be 0-100")
 
     try:
-        settings_path = SOURCE_DIR / "settings.json"
-        settings = {}
-        if settings_path.exists():
-            with settings_path.open("r") as f:
-                settings = json.load(f)
+        from src.common import load_settings, save_settings
+        settings = load_settings()
         settings["micGain"] = int(gain)
-        with settings_path.open("w") as f:
-            json.dump(settings, f, indent=4)
+        save_settings(settings)
+        await _persist_settings_to_db(settings)
+
+        mic_card = _find_microphone_card()
+        if mic_card is None:
+            raise HTTPException(status_code=404, detail="No capture device found")
 
         result = subprocess.run(
             ["arecord", "-l"],
@@ -5646,25 +5932,9 @@ async def set_mic_gain(request: Request):
             text=True,
             timeout=5,
         )
-
-        mic_card = None
-        for line in result.stdout.split("\n"):
-            if "card" in line.lower() and "usb" in line.lower():
-                match = re.search(r"card\s+(\d+)", line)
-                if match:
-                    mic_card = match.group(1)
-                    break
-
-        if mic_card is None:
-            for line in result.stdout.split("\n"):
-                if "card" in line.lower():
-                    match = re.search(r"card\s+(\d+)", line)
-                    if match:
-                        mic_card = match.group(1)
-                        break
-
-        if mic_card is None:
-            raise HTTPException(status_code=404, detail="No capture device found")
+        if _is_wm8960(mic_card, result.stdout):
+            _init_wm8960_boost(mic_card)
+            _init_wm8960_output(mic_card)
 
         capture_controls = ["Capture", "Mic", "Input", "Digital"]
         success = False
@@ -5680,6 +5950,19 @@ async def set_mic_gain(request: Request):
                 success = True
                 logger.debug(f"Mic gain set via {control} control on card {mic_card}")
                 break
+
+        if not success:
+            for control in capture_controls:
+                result = subprocess.run(
+                    ["amixer", "sset", control, f"{gain}%"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode == 0:
+                    success = True
+                    logger.debug("Mic gain set via ALSA default (%s)", control)
+                    break
 
         if not success:
             logger.warning(f"Could not set mic gain on card {mic_card}")
@@ -5718,7 +6001,7 @@ async def list_input_devices():
                         device_num = match.group(4)
                         device_name = match.group(5).strip()
 
-                        if card_num not in seen_cards:
+                        if card_num not in seen_cards and card_num not in _phantom_i2s_cards:
                             seen_cards.add(card_num)
                             devices.append(
                                 {
@@ -5733,16 +6016,29 @@ async def list_input_devices():
     except Exception as e:
         logger.debug(f"Error listing input devices: {e}")
 
-    # Get current input device from settings
     current_device = None
     try:
-        settings_path = SOURCE_DIR / "settings.json"
-        if settings_path.exists():
-            with settings_path.open("r") as f:
-                settings = json.load(f)
-            current_device = settings.get("inputDevice")
+        from src.common import load_settings
+        current_device = load_settings().get("inputDevice")
     except Exception:
         pass
+
+    if current_device is not None and devices:
+        valid_cards = {str(d["card"]) for d in devices}
+        if str(current_device) not in valid_cards:
+            logger.warning(
+                "Configured input device '%s' no longer available, clearing stale setting",
+                current_device,
+            )
+            current_device = None
+            try:
+                from src.common import load_settings, save_settings
+                settings = load_settings()
+                settings.pop("inputDevice", None)
+                save_settings(settings)
+                await _persist_settings_to_db(settings)
+            except Exception:
+                pass
 
     return {
         "devices": devices,
@@ -5760,20 +6056,11 @@ async def set_input_device(request: Request):
         raise HTTPException(status_code=400, detail="Card number required")
 
     try:
-        # Save to settings.json
-        settings_path = SOURCE_DIR / "settings.json"
-        settings = {}
-        if settings_path.exists():
-            with settings_path.open("r") as f:
-                settings = json.load(f)
-
+        from src.common import load_settings, save_settings
+        settings = load_settings()
         settings["inputDevice"] = str(card)
-
-        with settings_path.open("w") as f:
-            json.dump(settings, f, indent=4)
-
-        # Signal the app to use the new microphone
-        # The app.py will need to be restarted to pick up the new device
+        save_settings(settings)
+        await _persist_settings_to_db(settings)
         return {
             "success": True,
             "card": card,
@@ -5785,14 +6072,9 @@ async def set_input_device(request: Request):
 
 @app.get("/api/audio/vad-threshold")
 async def get_vad_threshold():
-    """Get current VAD threshold from settings."""
     try:
-        settings_path = SOURCE_DIR / "settings.json"
-        if settings_path.exists():
-            with settings_path.open("r") as f:
-                settings = json.load(f)
-            return {"threshold": settings.get("vadThresholdDb", -50.0)}
-        return {"threshold": -50.0}
+        from src.common import load_settings
+        return {"threshold": load_settings().get("vadThresholdDb", -50.0)}
     except Exception as e:
         return {"threshold": -50.0, "error": str(e)}
 
@@ -5809,17 +6091,11 @@ async def set_vad_threshold(request: Request):
         )
 
     try:
-        settings_path = SOURCE_DIR / "settings.json"
-        settings = {}
-        if settings_path.exists():
-            with settings_path.open("r") as f:
-                settings = json.load(f)
-
+        from src.common import load_settings, save_settings
+        settings = load_settings()
         settings["vadThresholdDb"] = float(threshold)
-
-        with settings_path.open("w") as f:
-            json.dump(settings, f, indent=4)
-
+        save_settings(settings)
+        await _persist_settings_to_db(settings)
         return {"success": True, "threshold": threshold}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -5827,21 +6103,13 @@ async def set_vad_threshold(request: Request):
 
 @app.get("/api/audio/speech-timing")
 async def get_speech_timing():
-    """Get speech recognition timing settings."""
     try:
-        settings_path = SOURCE_DIR / "settings.json"
-        if settings_path.exists():
-            with settings_path.open("r") as f:
-                settings = json.load(f)
-            return {
-                "pauseThreshold": settings.get("pauseThreshold", 1.2),
-                "phraseTimeLimit": settings.get("phraseTimeLimit", 30),
-                "nonSpeakingDuration": settings.get("nonSpeakingDuration", 0.8),
-            }
+        from src.common import load_settings
+        settings = load_settings()
         return {
-            "pauseThreshold": 1.2,
-            "phraseTimeLimit": 30,
-            "nonSpeakingDuration": 0.8,
+            "pauseThreshold": settings.get("pauseThreshold", 1.2),
+            "phraseTimeLimit": settings.get("phraseTimeLimit", 30),
+            "nonSpeakingDuration": settings.get("nonSpeakingDuration", 0.8),
         }
     except Exception as e:
         return {
@@ -5862,11 +6130,8 @@ async def set_speech_timing(request: Request):
     non_speaking_duration = data.get("nonSpeakingDuration")
 
     try:
-        settings_path = SOURCE_DIR / "settings.json"
-        settings = {}
-        if settings_path.exists():
-            with settings_path.open("r") as f:
-                settings = json.load(f)
+        from src.common import load_settings, save_settings
+        settings = load_settings()
 
         if pause_threshold is not None:
             if not (0.3 <= pause_threshold <= 5.0):
@@ -5890,8 +6155,8 @@ async def set_speech_timing(request: Request):
                 )
             settings["nonSpeakingDuration"] = float(non_speaking_duration)
 
-        with settings_path.open("w") as f:
-            json.dump(settings, f, indent=4)
+        save_settings(settings)
+        await _persist_settings_to_db(settings)
 
         try:
             from src.common import reload_speech_timing_settings

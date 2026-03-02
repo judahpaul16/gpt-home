@@ -36,23 +36,22 @@ def get_cpu_temp() -> Optional[int]:
 
 def draw_host_ip_overlay(d: BaseDisplay, host_ip: str) -> None:
     """Draw host IP address in top-left and CPU temp in top-right."""
-    font_size = d.scale_font(12)
-    padding = d.scale_x(5)
+    font_size = max(d.scale_font(12), 10)
+    padding = max(d.scale_x(5), 4)
+    shadow = Color(0, 0, 0)
+    fg = Color(200, 210, 230)
 
     if host_ip:
-        d.draw_text_sync(host_ip, padding, padding, Color(100, 110, 130), font_size)
+        d.draw_text_sync(host_ip, padding + 1, padding + 1, shadow, font_size)
+        d.draw_text_sync(host_ip, padding, padding, fg, font_size)
 
     cpu_temp = get_cpu_temp()
     if cpu_temp is not None:
         temp_str = f"CPU: {cpu_temp}°C"
         text_width, _ = d.get_text_size(temp_str, font_size)
-        d.draw_text_sync(
-            temp_str,
-            d.width - text_width - padding,
-            padding,
-            Color(100, 110, 130),
-            font_size,
-        )
+        tx = d.width - text_width - padding
+        d.draw_text_sync(temp_str, tx + 1, padding + 1, shadow, font_size)
+        d.draw_text_sync(temp_str, tx, padding, fg, font_size)
 
 
 def wrap_text(text: str, max_chars: int) -> List[str]:
@@ -83,25 +82,37 @@ def render_waveform_bars(
     d: BaseDisplay,
     waveform_values: List[float],
     voice_gated: bool = True,
+    cy: Optional[int] = None,
+    max_height: Optional[int] = None,
 ) -> None:
-    """Render waveform bars centered on display."""
     if not waveform_values:
         return
 
-    cx, cy = d.get_center()
+    cx = d.width // 2
+    if cy is None:
+        cy = d.height // 2
+    if max_height is None:
+        max_height = d.scale_y(120)
+
     bar_count = 32
     total_bar_area = d.width - d.scale_x(80)
     bar_width = max(8, total_bar_area // (bar_count + bar_count // 2))
     spacing = max(3, bar_width // 3)
     total_width = bar_count * (bar_width + spacing) - spacing
+
+    if total_width > d.width - 10:
+        bar_count = (d.width - 10 + spacing) // (bar_width + spacing)
+        total_width = bar_count * (bar_width + spacing) - spacing
+
     start_x = cx - total_width // 2
+    n_vals = len(waveform_values)
 
     for i in range(bar_count):
         x = start_x + i * (bar_width + spacing)
-        pos_factor = i / (bar_count - 1)
-        val = waveform_values[i] if i < len(waveform_values) else 0.0
+        pos_factor = i / max(1, bar_count - 1)
+        idx = int(i * n_vals / bar_count) if bar_count < n_vals else i
+        val = waveform_values[min(idx, n_vals - 1)] if idx < n_vals else 0.0
 
-        max_height = d.scale_y(120)
         half_height = max(1, int(val * max_height))
         y = cy - half_height
         height = half_height * 2

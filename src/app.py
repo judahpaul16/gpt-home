@@ -47,7 +47,6 @@ def detect_tool_from_query(query: str) -> tuple:
         context = {"name": "Timer"}
         duration_seconds = 0
 
-        # Extract duration from query (e.g., "5 minutes", "30 seconds", "1 hour")
         time_patterns = [
             (r"(\d+)\s*(?:hour|hr)s?", 3600),
             (r"(\d+)\s*(?:minute|min)s?", 60),
@@ -80,94 +79,51 @@ def detect_tool_from_query(query: str) -> tuple:
 
 
 def _check_audio_level_sync() -> tuple:
-    """Synchronous audio level check using WebRTC VAD for voice detection.
+    """Check for voice activity using AudioCapture's already-open stream.
 
-    Uses WebRTC VAD to detect actual human speech rather than just amplitude.
-    This prevents ambient noise (fans, traffic, etc.) from waking the system.
-
-    Returns:
-        Tuple of (has_voice, db_level, threshold)
+    Reads buffered audio from the mic capture thread instead of opening a new
+    sr.Microphone — avoids the stop/start cycle that causes WM8960 speaker pops.
     """
-    try:
-        from src.audio_capture import start_mic_capture, stop_mic_capture
-
-        stop_mic_capture()
-    except Exception:
-        pass
+    import audioop
+    import math
 
     try:
+        from src.audio_capture import get_mic_audio
+
         settings = load_settings()
         vad_threshold_db = settings.get("vadThresholdDb", -50.0)
+
+        audio_data, sample_rate, sample_width = get_mic_audio(0.5)
+        if not audio_data:
+            return False, -100.0, vad_threshold_db
+
+        rms = audioop.rms(audio_data, sample_width)
+        max_val = (1 << (8 * sample_width - 1)) - 1
+        db_level = 20 * math.log10(rms / max_val + 1e-10) if rms > 0 else -100.0
 
         if get_audio_activity_detector:
             detector = get_audio_activity_detector()
             detector.configure(vad_threshold_db=vad_threshold_db)
-        else:
-            detector = None
 
-        mic_index = find_microphone_device_index()
-
-        with sr.Microphone(device_index=mic_index) as source:
-            if source.stream is None:
-                return False, -100.0, vad_threshold_db
-
-            sample_duration = 0.5
-            sample_frames = int(source.SAMPLE_RATE * sample_duration)
-            audio_data = source.stream.read(sample_frames)
-
-            if not audio_data:
-                return False, -100.0, vad_threshold_db
-
-            if detector:
-                import audioop
-                import math
-
-                rms = audioop.rms(audio_data, source.SAMPLE_WIDTH)
-                max_val = (1 << (8 * source.SAMPLE_WIDTH - 1)) - 1
-                db_level = 20 * math.log10(rms / max_val + 1e-10) if rms > 0 else -100.0
-
-                # WebRTC VAD requires 16000 Hz sample rate
-                # Resample audio if needed before VAD check
-                vad_sample_rate = 16000
-                vad_audio = audio_data
-                if source.SAMPLE_RATE != vad_sample_rate:
-                    vad_audio, _ = audioop.ratecv(
-                        audio_data,
-                        source.SAMPLE_WIDTH,
-                        1,
-                        source.SAMPLE_RATE,
-                        vad_sample_rate,
-                        None,
-                    )
-
-                has_voice = detector.detect_voice(
-                    vad_audio,
-                    sample_width=source.SAMPLE_WIDTH,
-                    sample_rate=vad_sample_rate,
+            vad_sample_rate = 16000
+            vad_audio = audio_data
+            if sample_rate != vad_sample_rate:
+                vad_audio, _ = audioop.ratecv(
+                    audio_data, sample_width, 1, sample_rate, vad_sample_rate, None
                 )
-                return has_voice, db_level, vad_threshold_db
-            else:
-                import audioop
-                import math
 
-                rms = audioop.rms(audio_data, source.SAMPLE_WIDTH)
-                if rms > 0:
-                    max_val = (1 << (8 * source.SAMPLE_WIDTH - 1)) - 1
-                    db = 20 * math.log10(rms / max_val + 1e-10)
-                else:
-                    db = -100.0
-                return db > vad_threshold_db, db, vad_threshold_db
+            has_voice = detector.detect_voice(
+                vad_audio, sample_width=sample_width, sample_rate=vad_sample_rate
+            )
+            return has_voice, db_level, vad_threshold_db
+        else:
+            return db_level > vad_threshold_db, db_level, vad_threshold_db
 
     except Exception as e:
-        logger.error("Audio level check error: %s", e)
+        if not getattr(_check_audio_level_sync, "_last_error_logged", None) == str(e):
+            logger.error("Audio level check error: %s", e)
+            _check_audio_level_sync._last_error_logged = str(e)
         return False, -100.0, -50.0
-    finally:
-        try:
-            from src.audio_capture import start_mic_capture
-
-            start_mic_capture()
-        except Exception:
-            pass
 
 
 async def check_audio_level_above_threshold() -> bool:
@@ -181,25 +137,18 @@ async def check_audio_level_above_threshold() -> bool:
     return has_voice
 
 
-async def restore_display_header(display):
-    """Restore display with IP and CPU temp header."""
-    if display is None:
-        return
-
-    async with display_lock:
-        display.fill(0)
-        draw_i2c_header(display)
-        display.show()
-
-
-async def idle_loop(display):
-    """Run idle loop - periodically check for audio and manage screensaver."""
+async def idle_loop():
     global _idle_mode_active
 
     _idle_mode_active = True
     logger.info("Entering idle mode")
 
-    await restore_display_header(display)
+    from src.display.auxiliary import (
+        check_screensaver_all,
+        restore_all_headers,
+    )
+
+    await restore_all_headers()
 
     try:
         while _idle_mode_active:
@@ -207,35 +156,28 @@ async def idle_loop(display):
 
             if has_audio:
                 logger.info("Audio detected, exiting idle mode")
-
-                i2c_display_register_activity()
-
                 register_all_display_activity()
 
-                # Proactively wake full display manager if available
-
                 dm = get_display_manager()
-
                 if dm and dm.is_available:
                     await dm.register_activity_async()
 
                 _idle_mode_active = False
-
-                await restore_display_header(display)
-
+                await restore_all_headers()
                 return True
 
-            await i2c_display_check_screensaver(display)
+            settings = load_settings()
+            await check_screensaver_all(settings)
             await asyncio.sleep(_IDLE_CHECK_INTERVAL)
 
     except asyncio.CancelledError:
         _idle_mode_active = False
-        await restore_display_header(display)
+        await restore_all_headers()
         raise
     except Exception as e:
         logger.error("Error in idle loop: %s", e, exc_info=True)
         _idle_mode_active = False
-        await restore_display_header(display)
+        await restore_all_headers()
         return True
 
     return False
@@ -243,6 +185,8 @@ async def idle_loop(display):
 
 async def main():
     global _consecutive_silence_count, _idle_mode_active
+
+    from src.display.auxiliary import restore_all_headers
 
     state_task = None
 
@@ -257,21 +201,22 @@ async def main():
                     _consecutive_silence_count,
                 )
 
-                should_listen = await idle_loop(i2c_display)
+                should_listen = await idle_loop()
                 _consecutive_silence_count = 0
 
                 if not should_listen:
                     continue
 
-                await restore_display_header(i2c_display)
+                await restore_all_headers()
 
             stop_event = asyncio.Event()
             state_task = asyncio.create_task(
-                display_state("Listening", i2c_display, stop_event)
+                display_state("Listening", stop_event)
             )
 
+            text = None
             try:
-                text = await listen(i2c_display, state_task, stop_event)
+                text = await listen(state_task, stop_event)
                 logger.debug(f"[app] listen() returned: {text!r}")
             except Exception as e:
                 logger.error(f"Listening timed out: {traceback.format_exc()}")
@@ -287,7 +232,6 @@ async def main():
 
             if text:
                 _consecutive_silence_count = 0
-                i2c_display_register_activity()
                 register_all_display_activity()
 
                 clean_text = text.lower().translate(
@@ -298,6 +242,7 @@ async def main():
                 if keyword in clean_text:
                     actual_text = clean_text.split(keyword, 1)[1].strip()
                     logger.info("Keyword found, actual_text: %r", actual_text)
+                    await duck_volume()
                 else:
                     _consecutive_silence_count += 1
                     continue
@@ -316,13 +261,13 @@ async def main():
                     query_task = asyncio.create_task(action_router(actual_text))
 
                     if enable_heard:
-                        await speak_with_display(heard_message, i2c_display)
+                        await speak_with_display(heard_message)
 
                     response_message = await query_task
                     logger.info("action_router returned: %r", response_message)
                     logger.success(response_message)
 
-                    await speak_with_display(response_message, i2c_display)
+                    await speak_with_display(response_message)
 
                     _consecutive_silence_count = 0
                     dm = get_display_manager()
@@ -336,32 +281,10 @@ async def main():
             _consecutive_silence_count += 1
         except sr.RequestError as e:
             error_message = f"Could not request results; {e}"
-            await handle_error(error_message, state_task, i2c_display)
+            await handle_error(error_message, state_task)
         except Exception as e:
             error_message = f"Something Went Wrong: {e}"
-            await handle_error(error_message, state_task, i2c_display)
-
-
-i2c_display = None  # Global I2C display reference
-
-
-def _get_host_ip() -> str:
-    """Get host LAN IP address."""
-    import subprocess
-
-    try:
-        result = subprocess.run(
-            ["nsenter", "-t", "1", "-n", "hostname", "-I"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip().split()[0]
-    except Exception:
-        pass
-
-    return "gpt-home.local"
+            await handle_error(error_message, state_task)
 
 
 async def _init_tables():
@@ -399,12 +322,36 @@ async def _init_tables():
         await conn.commit()
 
 
-async def startup():
-    """Initialize system and run main loop."""
-    global i2c_display
-    i2c_display = await initialize_system()
+async def _init_settings_from_db():
+    pool = await get_db_pool()
+    async with pool.connection() as conn:
+        cur = await conn.execute(
+            "SELECT value FROM app_settings WHERE key = 'settings'"
+        )
+        row = await cur.fetchone()
 
+    if row:
+        from src.common import set_settings_cache
+        set_settings_cache(json.loads(row[0]))
+        logger.debug("Settings loaded from database")
+    else:
+        from src.common import load_settings, set_settings_cache
+        defaults = load_settings()
+        set_settings_cache(defaults)
+        async with pool.connection() as conn:
+            await conn.execute(
+                "INSERT INTO app_settings (key, value, updated_at) VALUES ('settings', %s, NOW())",
+                (json.dumps(defaults),)
+            )
+            await conn.commit()
+        logger.info("Settings seeded into database from defaults")
+
+
+async def startup():
     await _init_tables()
+    await _init_settings_from_db()
+
+    await initialize_system()
 
     try:
         from src.waveform import WaveformSource, get_waveform_mediator
@@ -413,7 +360,6 @@ async def startup():
         if get_audio_activity_detector:
             mediator.set_audio_detector(get_audio_activity_detector())
 
-        # Wire continuous mic capture to waveform mediator for always-on visualization
         from src.audio_capture import set_mic_callback, start_mic_capture
 
         def _continuous_mic_callback(values: list):
@@ -427,16 +373,21 @@ async def startup():
         logger.error("Waveform mediator init failed: %s", e)
 
     api_key = os.getenv("LITELLM_API_KEY")
+    if not api_key:
+        from src.display.auxiliary import get_all_auxiliary, show_message_all
 
-    if not api_key and i2c_display:
-        i2c_display.fill(0)
-        ip_address = _get_host_ip()
-        i2c_display.text("Missing API Key", 0, 0, 1)
-        i2c_display.text("To update it, visit:", 0, 10, 1)
-        if ip_address:
-            i2c_display.text(f"{ip_address}/settings", 0, 20, 1)
-        else:
-            i2c_display.text("gpt-home.local/settings", 0, 20, 1)
-        i2c_display.show()
+        if get_all_auxiliary():
+            import subprocess
+
+            try:
+                result = subprocess.run(
+                    ["nsenter", "-t", "1", "-n", "hostname", "-I"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                ip = result.stdout.strip().split()[0] if result.returncode == 0 else ""
+            except Exception:
+                ip = ""
+            url = f"{ip}/settings" if ip else "gpt-home.local/settings"
+            await show_message_all(["Missing API Key", "To update it, visit:", url])
 
     await main()

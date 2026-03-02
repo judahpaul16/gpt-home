@@ -24,24 +24,34 @@ const PasswordModal: React.FC<PasswordModalProps> = ({
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
+    const [backendAvailable, setBackendAvailable] = useState(true);
 
     useEffect(() => {
-        axios
-            .post("/getHashedPassword")
-            .then((response) => {
-                if (response.data.success) {
-                    setHashedPassword(response.data.hashedPassword);
-                } else {
-                    setError(
-                        `Error fetching hashed password: ${response.data.error}`,
-                    );
-                }
-            })
-            .catch((error) => {
-                console.error("Error fetching hashed password:", error);
-            })
-            .finally(() => setInitialLoading(false));
-    }, []);
+        const fetchPassword = () => {
+            axios
+                .post("/getHashedPassword")
+                .then((response) => {
+                    if (response.data.success) {
+                        setHashedPassword(response.data.hashedPassword);
+                    } else {
+                        setError(
+                            `Error fetching hashed password: ${response.data.error}`,
+                        );
+                    }
+                    setBackendAvailable(true);
+                })
+                .catch(() => {
+                    setBackendAvailable(false);
+                })
+                .finally(() => setInitialLoading(false));
+        };
+
+        fetchPassword();
+        const interval = setInterval(() => {
+            if (!backendAvailable) fetchPassword();
+        }, 5000);
+        return () => clearInterval(interval);
+    }, [backendAvailable]);
 
     const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
         setInput(e.target.value);
@@ -177,6 +187,13 @@ const PasswordModal: React.FC<PasswordModalProps> = ({
                     {initialLoading ? (
                         <div className="flex justify-center py-8">
                             <Spinner size="lg" />
+                        </div>
+                    ) : !backendAvailable ? (
+                        <div className="flex flex-col items-center justify-center py-8 space-y-3">
+                            <Spinner size="md" />
+                            <p className="text-slate-500 dark:text-slate-400 text-sm">
+                                Waiting for backend...
+                            </p>
                         </div>
                     ) : (
                         <div className="space-y-4">

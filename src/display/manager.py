@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import math
 import os
@@ -83,7 +82,6 @@ def check_and_clear_activity() -> bool:
     return False
 
 
-SETTINGS_PATH = Path(__file__).parent.parent / "settings.json"
 TARGET_FPS = 120
 FRAME_TIME = 1.0 / TARGET_FPS
 
@@ -273,10 +271,7 @@ class DisplayManager:
             await multi_mgr.detect_and_create_displays()
             full_display = multi_mgr.get_mirrored_display()
             if full_display:
-                logger.debug(
-                    "Using multi-display manager (mirror=%s)",
-                    multi_mgr.get_config().mirror_enabled,
-                )
+                logger.debug("Using multi-display manager")
         except Exception:
             pass
 
@@ -322,36 +317,32 @@ class DisplayManager:
         return False
 
     def _load_saved_mode(self) -> Optional[DisplayMode]:
-        """Load the saved display mode from settings.json."""
         try:
-            if SETTINGS_PATH.exists():
-                with SETTINGS_PATH.open("r") as f:
-                    settings = json.load(f)
-                mode_name = settings.get("display_mode", "smart").lower()
-                mode_map = {
-                    "smart": DisplayMode.SMART,
-                    "clock": DisplayMode.CLOCK,
-                    "weather": DisplayMode.WEATHER,
-                    "gallery": DisplayMode.GALLERY,
-                    "waveform": DisplayMode.WAVEFORM,
-                    "off": DisplayMode.OFF,
-                }
-                return mode_map.get(mode_name, DisplayMode.SMART)
+            from src.common import load_settings
+            settings = load_settings()
+            mode_name = settings.get("display_mode", "smart").lower()
+            mode_map = {
+                "smart": DisplayMode.SMART,
+                "clock": DisplayMode.CLOCK,
+                "weather": DisplayMode.WEATHER,
+                "gallery": DisplayMode.GALLERY,
+                "waveform": DisplayMode.WAVEFORM,
+                "off": DisplayMode.OFF,
+            }
+            return mode_map.get(mode_name, DisplayMode.SMART)
         except Exception:
             pass
         return None
 
     def _load_screensaver_settings(self) -> None:
-        """Load screensaver settings from settings.json."""
         try:
-            if SETTINGS_PATH.exists():
-                with SETTINGS_PATH.open("r") as f:
-                    settings = json.load(f)
-                self._screensaver_enabled = settings.get("screensaver_enabled", True)
-                self._screensaver_timeout = float(
-                    settings.get("screensaver_timeout", 300)
-                )
-                self._screensaver_style = settings.get("screensaver_style", "starfield")
+            from src.common import load_settings
+            settings = load_settings()
+            self._screensaver_enabled = settings.get("screensaver_enabled", True)
+            self._screensaver_timeout = float(
+                settings.get("screensaver_timeout", 300)
+            )
+            self._screensaver_style = settings.get("screensaver_style", "starfield")
         except Exception:
             pass
 

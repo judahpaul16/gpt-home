@@ -5,7 +5,6 @@ Provides functionality to set, delete, and snooze alarms and reminders.
 Uses the user's configured speech engine for reminder announcements.
 """
 
-import json
 import logging
 import os
 import re
@@ -13,24 +12,19 @@ import re
 logger = logging.getLogger("tools.alarm")
 import subprocess
 from datetime import datetime, timedelta
-from pathlib import Path
 from threading import Timer
 
 from langchain_core.tools import tool
 
 _alarms: dict[str, Timer] = {}
-SETTINGS_PATH = Path(__file__).parent.parent / "settings.json"
 
 
 def _load_settings() -> dict:
-    """Load settings from settings.json."""
     try:
-        if SETTINGS_PATH.exists():
-            with open(SETTINGS_PATH, "r") as f:
-                return json.load(f)
+        from src.common import load_settings
+        return load_settings()
     except Exception:
-        pass
-    return {}
+        return {}
 
 
 def _parse_time_expression(time_expr: str) -> datetime:

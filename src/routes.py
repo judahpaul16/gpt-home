@@ -12,11 +12,9 @@ Design Patterns Used:
 """
 
 import asyncio
-import json
 import os
 import re
 from asyncio import TimeoutError as AsyncTimeoutError
-from pathlib import Path
 from typing import Optional
 
 from langgraph.checkpoint.memory import MemorySaver
@@ -42,12 +40,8 @@ _connection_pool = None
 
 
 def _load_settings() -> dict:
-    """Load settings from settings.json."""
-    settings_path = Path(__file__).parent / "settings.json"
-    if settings_path.exists():
-        with open(settings_path, "r") as f:
-            return json.load(f)
-    return {}
+    from src.common import load_settings
+    return load_settings()
 
 
 async def _close_persistence():
@@ -184,9 +178,22 @@ def _is_pool_error(error: Exception) -> bool:
 
 
 def _is_chat_history_error(error: Exception) -> bool:
-    """Check if error is a corrupted chat history error."""
     error_str = str(error)
     return "INVALID_CHAT_HISTORY" in error_str or "ToolMessage" in error_str
+
+
+async def _clear_thread_checkpoints(thread_id: str) -> None:
+    if not _connection_pool:
+        return
+    try:
+        async with _connection_pool.connection() as conn:
+            for table in ("checkpoint_writes", "checkpoint_blobs", "checkpoints"):
+                await conn.execute(
+                    f"DELETE FROM {table} WHERE thread_id = %s", (thread_id,)
+                )
+        logger.info("Cleared corrupted checkpoints for thread %s", thread_id)
+    except Exception as ex:
+        logger.warning("Failed to clear checkpoints for %s: %s", thread_id, ex)
 
 
 async def action_router(
@@ -254,11 +261,9 @@ async def action_router(
                 except Exception as reconnect_error:
                     logger.error(f"Reconnection failed: {reconnect_error}")
 
-            # Handle corrupted chat history by starting fresh thread
             if _is_chat_history_error(e) and attempt < max_retries - 1:
-                logger.info("Chat history error detected, starting fresh session...")
-                # Use a new thread ID to bypass corrupted history
-                thread_id = f"session_{user_id}_{int(asyncio.get_event_loop().time())}"
+                logger.info("Chat history error detected, clearing corrupted thread %s", thread_id)
+                await _clear_thread_checkpoints(thread_id)
                 continue
 
             # Return friendly error message

@@ -5,8 +5,9 @@ RUN apk add --no-cache git && \
     git config --global --add safe.directory /app
 
 WORKDIR /app
+ENV GENERATE_SOURCEMAP=false
 COPY src/frontend/package*.json ./
-RUN npm install
+RUN npm install --maxsockets=5 --fetch-retries=5 --fetch-retry-mintimeout=20000
 
 COPY .git ./.git
 COPY src/frontend ./
