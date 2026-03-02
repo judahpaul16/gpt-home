@@ -503,12 +503,10 @@ if [ -n "$CONFIG_TXT" ]; then
         fi
 
         if [ "$RASPIAUDIO_DETECTED" = false ]; then
-            if lsmod 2>/dev/null | grep -q snd_rpi_googlevoicehat; then
-                PROBE_CARD=$(arecord -l 2>/dev/null | grep -i "googlevoicehat\|voicehat" | head -1 | sed -n 's/^card \([0-9]*\).*/\1/p')
-                if [ -n "$PROBE_CARD" ]; then
-                    RASPIAUDIO_DETECTED=true
-                    echo -e "${GREEN}RaspiAudio HAT detected (driver loaded, card ${PROBE_CARD} present)${NC}"
-                fi
+            PROBE_CARD=$(arecord -l 2>/dev/null | grep -i "googlevoicehat\|voicehat" | head -1 | sed -n 's/^card \([0-9]*\).*/\1/p')
+            if [ -n "$PROBE_CARD" ]; then
+                RASPIAUDIO_DETECTED=true
+                echo -e "${GREEN}RaspiAudio HAT detected (card ${PROBE_CARD} present)${NC}"
             elif [ -n "$OVERLAYS_DIR" ]; then
                 if [ ! -f "$OVERLAYS_DIR/googlevoicehat-soundcard.dtbo" ]; then
                     curl -fsSL https://github.com/raspberrypi/firmware/raw/master/boot/overlays/googlevoicehat-soundcard.dtbo \
@@ -527,8 +525,10 @@ if [ -n "$CONFIG_TXT" ]; then
                     sudo dtparam i2s=on 2>/dev/null || true
                     sleep 0.5
 
-                    if sudo dtoverlay "$OVERLAYS_DIR/googlevoicehat-soundcard.dtbo" 2>&1 | grep -qi "error\|fail"; then
-                        echo -e "${YELLOW}Could not load googlevoicehat overlay for probe${NC}"
+                    DTOVERLAY_OUTPUT=$(sudo dtoverlay "$OVERLAYS_DIR/googlevoicehat-soundcard.dtbo" 2>&1)
+                    DTOVERLAY_RC=$?
+                    if [ $DTOVERLAY_RC -ne 0 ]; then
+                        echo -e "${YELLOW}Could not load googlevoicehat overlay for probe (rc=$DTOVERLAY_RC: $DTOVERLAY_OUTPUT)${NC}"
                     else
                         sleep 1
                         PROBE_CARD=$(arecord -l 2>/dev/null | grep -i "googlevoicehat\|voicehat" | head -1 | sed -n 's/^card \([0-9]*\).*/\1/p')
