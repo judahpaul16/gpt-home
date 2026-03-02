@@ -59,9 +59,16 @@ class KmsdrmDisplay(BaseDisplay):
             pygame.mouse.set_visible(False)
 
             self._back_buffer = pygame.Surface(
-                (self.width, self.height), pygame.SRCALPHA
+                (self.width, self.height)
+            ).convert(self._screen)
+            self._back_buffer.fill((0, 0, 0))
+
+            screen_bits = self._screen.get_bitsize()
+            screen_masks = self._screen.get_masks()
+            logger.debug(
+                "Screen surface: %d-bit, masks R=0x%X G=0x%X B=0x%X",
+                screen_bits, screen_masks[0], screen_masks[1], screen_masks[2],
             )
-            self._back_buffer.fill((0, 0, 0, 255))
 
             self._running = True
             self._initialized = True
@@ -116,7 +123,7 @@ class KmsdrmDisplay(BaseDisplay):
 
     def clear_sync(self, color: Color = Colors.BLACK) -> None:
         if self._back_buffer:
-            self._back_buffer.fill((color.r, color.g, color.b, 255))
+            self._back_buffer.fill((color.r, color.g, color.b))
 
     def fill_rect_sync(
         self, x: int, y: int, w: int, h: int, color: Color = Colors.WHITE
@@ -137,7 +144,6 @@ class KmsdrmDisplay(BaseDisplay):
         if self._pygame:
             font = self._get_font(size, font_path)
             return font.size(text)
-        # Fallback estimate if pygame not available
         return (len(text) * int(size * 0.6), size)
 
     def set_clip(self, x: int, y: int, w: int, h: int) -> None:
@@ -297,6 +303,7 @@ class KmsdrmDisplay(BaseDisplay):
             return
 
         self._screen.blit(self._back_buffer, (0, 0))
+
         with _suppress_stderr():
             self._pygame.display.flip()
 

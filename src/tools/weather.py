@@ -218,17 +218,6 @@ async def weather_tool(query: str) -> str:
     )
     city = city_match.group(1).strip().rstrip(",") if city_match else None
 
-    # Trigger weather animation on display
-    try:
-        from common import show_tool_animation
-
-        await show_tool_animation(
-            "weather", {"requested_location": city.title() if city else None}
-        )
-    except Exception:
-        pass
-
-    # If no city specified, try IP geolocation
     if not city:
         city = await _get_city_from_ip()
         if not city:
@@ -238,6 +227,15 @@ async def weather_tool(query: str) -> str:
                 "'What's the weather in New York?'"
             )
         logger.info(f"Using IP-detected location: {city}")
+
+    try:
+        from common import show_tool_animation
+
+        await show_tool_animation(
+            "weather", {"requested_location": city.title() if city else None}
+        )
+    except Exception:
+        pass
 
     coords = await _get_coords_from_city(city, api_key)
     if not coords:

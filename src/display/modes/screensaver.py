@@ -222,7 +222,8 @@ async def render_matrix(
 
 
 async def render_bounce(
-    d: BaseDisplay, dt: float, pos: List[float], vel: List[float], hue: float
+    d: BaseDisplay, dt: float, pos: List[float], vel: List[float], hue: float,
+    text: str = "GPT Home",
 ) -> float:
     """Render bouncing logo screensaver. Returns updated hue."""
     d.clear_sync(Color(3, 3, 10))
@@ -231,7 +232,7 @@ async def render_bounce(
     pos[0] += vel[0] * speed_mult
     pos[1] += vel[1] * speed_mult
 
-    logo_text = "GPT Home"
+    logo_text = text
     font_size = d.scale_font(48)
     logo_w, logo_h = d.get_text_size(logo_text, font_size)
 
@@ -435,6 +436,33 @@ async def render_fade(d: BaseDisplay, dt: float, state: Dict[str, Any]) -> None:
     )
 
 
+def init_style(d: BaseDisplay, style: str, settings: Dict = None) -> Dict[str, Any]:
+    if style == "matrix":
+        chars, drops = init_matrix(d, max(4, d.width // 12))
+        return {"matrix_chars": chars, "matrix_drops": drops}
+    elif style == "bounce":
+        pos, vel, hue = init_bounce(d)
+        text = (settings or {}).get("screensaver_bounce_text", "GPT Home")
+        return {"pos": pos, "vel": vel, "hue": hue, "text": text}
+    elif style == "fade":
+        return {"fade": init_fade(d)}
+    else:
+        return {"stars": init_starfield(d, max(80, d.width * d.height // 550))}
+
+
+async def render_style(d: BaseDisplay, style: str, dt: float, state: Dict[str, Any]) -> None:
+    if style == "matrix":
+        await render_matrix(d, dt, state["matrix_chars"], state["matrix_drops"])
+    elif style == "bounce":
+        state["hue"] = await render_bounce(
+            d, dt, state["pos"], state["vel"], state["hue"], state["text"],
+        )
+    elif style == "fade":
+        await render_fade(d, dt, state["fade"])
+    else:
+        await render_starfield(d, dt, state["stars"])
+
+
 async def screensaver_loop(
     manager: "DisplayManager",
     style: str,
@@ -442,45 +470,23 @@ async def screensaver_loop(
     activity_check: Callable[[], bool],
     deactivate_callback: Callable,
 ) -> None:
-    """Main screensaver loop that dispatches to appropriate renderer."""
     d = manager._display
     if not d:
         return
 
     style = style.lower()
-
-    # Initialize based on style
-    if style == "starfield":
-        stars = init_starfield(d, 350)
-        matrix_chars, matrix_drops = None, None
-        bounce_pos, bounce_vel, bounce_hue = None, None, None
-        fade_state = None
-    elif style == "matrix":
-        stars = None
-        matrix_chars, matrix_drops = init_matrix(d, 45)
-        bounce_pos, bounce_vel, bounce_hue = None, None, None
-        fade_state = None
-    elif style == "bounce":
-        stars = None
-        matrix_chars, matrix_drops = None, None
-        bounce_pos, bounce_vel, bounce_hue = init_bounce(d)
-        fade_state = None
-    elif style == "fade":
-        stars = None
-        matrix_chars, matrix_drops = None, None
-        bounce_pos, bounce_vel, bounce_hue = None, None, 0.0
-        fade_state = init_fade(d)
-    else:
-        # Default to starfield
-        stars = init_starfield(d, 350)
-        matrix_chars, matrix_drops = None, None
-        bounce_pos, bounce_vel, bounce_hue = None, None, None
-        fade_state = None
+    if style not in ("starfield", "matrix", "bounce", "fade"):
         style = "starfield"
 
+    try:
+        from src.common import load_settings
+        settings = load_settings()
+    except Exception:
+        settings = {}
+
+    state = init_style(d, style, settings)
     last_frame = time.perf_counter()
-    target_fps = 60
-    frame_time = 1.0 / target_fps
+    frame_time = 1.0 / 60
 
     try:
         while not stop_check() and manager._screensaver_active:
@@ -506,17 +512,7 @@ async def screensaver_loop(
                 if not d or stop_check() or not manager._screensaver_active:
                     should_break = True
                 else:
-                    if style == "starfield":
-                        await render_starfield(d, dt, stars)
-                    elif style == "matrix":
-                        await render_matrix(d, dt, matrix_chars, matrix_drops)
-                    elif style == "bounce":
-                        bounce_hue = await render_bounce(
-                            d, dt, bounce_pos, bounce_vel, bounce_hue
-                        )
-                    elif style == "fade":
-                        await render_fade(d, dt, fade_state)
-
+                    await render_style(d, style, dt, state)
                     d.show_sync()
             finally:
                 manager._render_lock.release()
@@ -525,8 +521,7 @@ async def screensaver_loop(
                 break
 
             elapsed = time.perf_counter() - now
-            sleep_time = max(0.001, frame_time - elapsed)
-            await asyncio.sleep(sleep_time)
+            await asyncio.sleep(max(0.001, frame_time - elapsed))
 
     except asyncio.CancelledError:
         pass
@@ -534,3 +529,7 @@ async def screensaver_loop(
         logging.getLogger("display.modes.screensaver").error(
             "Screensaver loop error: %s", e
         )
+        try:
+            await deactivate_callback()
+        except Exception:
+            manager._screensaver_active = False

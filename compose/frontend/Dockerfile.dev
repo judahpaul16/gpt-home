@@ -7,7 +7,7 @@ WORKDIR /app
 
 COPY src/frontend/package*.json ./
 
-RUN npm ci
+RUN npm install
 
 ENV CHOKIDAR_USEPOLLING=true
 

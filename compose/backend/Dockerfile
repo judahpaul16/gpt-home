@@ -34,7 +34,7 @@ COPY src/requirements.txt /app/src/requirements.txt
 # Use --default-timeout=1000 to handle slow PyPI connections on limited bandwidth networks
 RUN python3 -m venv /env && \
     /env/bin/pip install --no-cache-dir --default-timeout=1000 --retries 5 --upgrade pip wheel setuptools && \
-    CFLAGS="-O0" /env/bin/pip install --no-cache-dir --default-timeout=1000 --retries 5 -r src/requirements.txt
+    MAKEFLAGS="-j1" CFLAGS="-O0" /env/bin/pip install --no-cache-dir --default-timeout=1000 --retries 5 -r src/requirements.txt
 
 COPY src /app/src
 COPY contrib/alarm.wav /usr/share/sounds/alarm.wav

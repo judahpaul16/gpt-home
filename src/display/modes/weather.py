@@ -128,8 +128,8 @@ async def weather_loop(
                     else:
                         draw_sun(d, d.width - d.scale_x(100), d.scale_y(90), phase)
 
-                # Draw clouds
-                _update_and_render_clouds(d, clouds, delta_time)
+                if "clear" not in cond and "sun" not in cond:
+                    _update_and_render_clouds(d, clouds, delta_time)
 
                 # Draw rain if applicable
                 if "rain" in cond or "drizzle" in cond:

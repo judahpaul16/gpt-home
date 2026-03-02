@@ -11,7 +11,7 @@ logger = logging.getLogger("display.detection")
 
 _logged_no_displays = False
 
-_TFT_OVERLAY_NAMES = ["piscreen", "waveshare35a", "tft35a", "pitft35"]
+_PISCREEN_OVERLAY_NAMES = ["piscreen", "waveshare35a", "tft35a", "pitft35"]
 
 
 def _read_hardware_mode() -> Optional[str]:
@@ -19,7 +19,7 @@ def _read_hardware_mode() -> Optional[str]:
         if not Path(path).exists():
             continue
         try:
-            has_tft = False
+            has_piscreen = False
             has_vc4 = False
             with open(path) as f:
                 for line in f:
@@ -27,18 +27,18 @@ def _read_hardware_mode() -> Optional[str]:
                     if stripped.startswith("#"):
                         continue
                     if any(
-                        f"dtoverlay={name}" in stripped for name in _TFT_OVERLAY_NAMES
+                        f"dtoverlay={name}" in stripped for name in _PISCREEN_OVERLAY_NAMES
                     ):
-                        has_tft = True
+                        has_piscreen = True
                     if (
                         "dtoverlay=vc4-kms-v3d" in stripped
                         or "dtoverlay=vc4-fkms-v3d" in stripped
                     ):
                         has_vc4 = True
-            if has_tft and has_vc4:
+            if has_piscreen and has_vc4:
                 return "conflict"
-            if has_tft:
-                return "tft"
+            if has_piscreen:
+                return "piscreen"
             return "hdmi"
         except Exception:
             pass
@@ -50,26 +50,37 @@ def detect_displays() -> List[DisplayInfo]:
 
     displays.extend(_detect_drm_displays())
 
-    drm_tft_display = _detect_drm_tft()
-    if drm_tft_display:
-        displays.append(drm_tft_display)
+    st7789 = _detect_st7789()
+    if st7789:
+        displays.append(st7789)
+        logger.debug("ST7789 detected — skipping DRM PiScreen detection (shared SPI bus)")
     else:
-        spi_tft_display = _detect_spi_tft()
-        if spi_tft_display:
-            displays.append(spi_tft_display)
+        drm_piscreen_display = _detect_drm_piscreen()
+        if drm_piscreen_display:
+            displays.append(drm_piscreen_display)
+        else:
+            ili9486_display = _detect_ili9486()
+            if ili9486_display:
+                displays.append(ili9486_display)
 
-    i2c_displays = _detect_i2c_oled()
+    i2c_displays = _detect_ssd1306()
     displays.extend(i2c_displays)
 
     hw_mode = _read_hardware_mode()
-    if hw_mode == "tft":
-        tft_displays = [d for d in displays if d.screen_type == ScreenType.SPI_TFT]
-        if tft_displays:
-            displays = tft_displays + [
-                d for d in displays if d.screen_type == ScreenType.I2C
+    if hw_mode == "piscreen":
+        spi_displays = [
+            d for d in displays
+            if d.screen_type in (ScreenType.ILI9486, ScreenType.ST7789)
+        ]
+        if spi_displays:
+            displays = spi_displays + [
+                d for d in displays if d.screen_type == ScreenType.SSD1306
             ]
     elif hw_mode == "hdmi":
-        displays = [d for d in displays if d.screen_type != ScreenType.SPI_TFT]
+        displays = [
+            d for d in displays
+            if d.screen_type not in (ScreenType.ILI9486,)
+        ]
 
     global _logged_no_displays
     if not displays:
@@ -118,12 +129,12 @@ def _log_detection_diagnostics() -> None:
 
 def detect_full_displays() -> List[DisplayInfo]:
     all_displays = detect_displays()
-    return [d for d in all_displays if d.screen_type != ScreenType.I2C]
+    return [d for d in all_displays if d.screen_type not in (ScreenType.SSD1306, ScreenType.ST7789)]
 
 
 def detect_simple_displays() -> List[DisplayInfo]:
     all_displays = detect_displays()
-    return [d for d in all_displays if d.screen_type == ScreenType.I2C]
+    return [d for d in all_displays if d.screen_type == ScreenType.SSD1306]
 
 
 def _detect_drm_displays() -> List[DisplayInfo]:
@@ -206,7 +217,7 @@ def _detect_drm_displays() -> List[DisplayInfo]:
     return displays
 
 
-def _detect_drm_tft() -> Optional[DisplayInfo]:
+def _detect_drm_piscreen() -> Optional[DisplayInfo]:
     drm_class = Path("/sys/class/drm")
     if not drm_class.exists():
         return None
@@ -259,14 +270,14 @@ def _detect_drm_tft() -> Optional[DisplayInfo]:
                     continue
 
                 logger.debug(
-                    "DRM TFT detected: %dx%d at %s (connector: %s)",
+                    "DRM PiScreen detected: %dx%d at %s (connector: %s)",
                     w,
                     h,
                     card_path,
                     connector.name,
                 )
                 return DisplayInfo(
-                    screen_type=ScreenType.SPI_TFT,
+                    screen_type=ScreenType.ILI9486,
                     width=w,
                     height=h,
                     device_path=card_path,
@@ -350,7 +361,7 @@ def _get_drm_resolution(card_path: Path) -> tuple[int, int]:
     return _get_drm_resolution_from_sysfs()
 
 
-def _detect_spi_tft() -> Optional[DisplayInfo]:
+def _detect_ili9486() -> Optional[DisplayInfo]:
     for fb_name in ["fb1", "fb0"]:
         fb_path = Path(f"/dev/{fb_name}")
 
@@ -366,16 +377,16 @@ def _detect_spi_tft() -> Optional[DisplayInfo]:
 
         if width > 0 and height > 0:
             return DisplayInfo(
-                screen_type=ScreenType.SPI_TFT,
+                screen_type=ScreenType.ILI9486,
                 width=width,
                 height=height,
                 device_path=str(fb_path),
                 driver="fbdev",
             )
 
-    fbtft_path = Path("/sys/class/graphics")
-    if fbtft_path.exists():
-        for fb_dir in fbtft_path.iterdir():
+    graphics_path = Path("/sys/class/graphics")
+    if graphics_path.exists():
+        for fb_dir in graphics_path.iterdir():
             if not fb_dir.name.startswith("fb"):
                 continue
             name_file = fb_dir / "name"
@@ -398,7 +409,7 @@ def _detect_spi_tft() -> Optional[DisplayInfo]:
                                     height,
                                 )
                                 return DisplayInfo(
-                                    screen_type=ScreenType.SPI_TFT,
+                                    screen_type=ScreenType.ILI9486,
                                     width=width,
                                     height=height,
                                     device_path=str(fb_path),
@@ -457,11 +468,59 @@ def _get_fb_resolution(fb_path: Path) -> tuple[int, int]:
     except Exception:
         pass
 
-    # Default for common 3.5" TFT displays
+    # Default for common 3.5" PiScreen displays
     return 480, 320
 
 
-def _detect_i2c_oled() -> List[DisplayInfo]:
+def _detect_st7789() -> Optional[DisplayInfo]:
+    try:
+        from src.common import load_settings
+
+        settings = load_settings()
+    except Exception:
+        return None
+
+    cfg = settings.get("st7789")
+    if not cfg:
+        return None
+
+    bus = cfg.get("spi_bus", 0)
+    cs = cfg.get("spi_cs", 0)
+    spi_device = Path(f"/dev/spidev{bus}.{cs}")
+
+    if not spi_device.exists():
+        logger.debug("SPI display configured but %s not found", spi_device)
+        return None
+
+    if not os.access(spi_device, os.R_OK | os.W_OK):
+        logger.debug("No read/write access to %s", spi_device)
+        return None
+
+    width = cfg.get("width", 240)
+    height = cfg.get("height", 280)
+    gpio_dc = cfg.get("gpio_dc")
+    if gpio_dc is None:
+        logger.debug("SPI display configured but gpio_dc not set")
+        return None
+
+    logger.debug("SPI display detected: %dx%d on spidev%d.%d", width, height, bus, cs)
+    return DisplayInfo(
+        screen_type=ScreenType.ST7789,
+        width=width,
+        height=height,
+        driver="st7789",
+        spi_bus=bus,
+        spi_cs=cs,
+        gpio_dc=gpio_dc,
+        gpio_rst=cfg.get("gpio_rst"),
+        gpio_bl=cfg.get("gpio_bl"),
+        gpio_bl_active_low=cfg.get("gpio_bl_active_low", True),
+        rotation=cfg.get("rotation", 0),
+        spi_speed_hz=cfg.get("spi_speed_hz"),
+    )
+
+
+def _detect_ssd1306() -> List[DisplayInfo]:
     displays = []
 
     if not Path("/dev/i2c-1").exists():
@@ -482,7 +541,7 @@ def _detect_i2c_oled() -> List[DisplayInfo]:
             width, height = 128, 32
             displays.append(
                 DisplayInfo(
-                    screen_type=ScreenType.I2C,
+                    screen_type=ScreenType.SSD1306,
                     width=width,
                     height=height,
                     bus=1,
@@ -530,7 +589,7 @@ def get_display_info_string(displays: List[DisplayInfo]) -> str:
 
     lines = []
     for d in displays:
-        if d.screen_type == ScreenType.I2C:
+        if d.screen_type == ScreenType.SSD1306:
             lines.append(
                 f"I2C display: {d.width}x{d.height} at bus={d.bus} addr=0x{d.address:02x}"
             )

@@ -11,11 +11,13 @@ import asyncio
 import logging
 import math
 import os
+import queue as _queue_mod
 import re
 import struct
 import subprocess
 import threading
 import time
+from collections import deque
 from enum import Enum
 from typing import Callable, Optional
 
@@ -24,6 +26,18 @@ import numpy as np
 logger = logging.getLogger("audio_capture")
 
 _logged_alsa_card = None
+
+MIC_PRIORITIES = [
+    ("usb", 100),
+    ("microphone", 90),
+    ("mic", 80),
+    ("audio", 70),
+    ("voicehat", 60),
+    ("googlevoice", 60),
+    ("wm8960", 60),
+    ("input", 50),
+    ("capture", 40),
+]
 
 
 class CaptureMode(Enum):
@@ -106,17 +120,31 @@ def _get_pyaudio_instance():
     global _pyaudio_instance
     with _pyaudio_instance_lock:
         if _pyaudio_instance is not None:
-            return _pyaudio_instance
+            try:
+                _pyaudio_instance.get_device_count()
+                return _pyaudio_instance
+            except Exception:
+                try:
+                    _pyaudio_instance.terminate()
+                except Exception:
+                    pass
+                _pyaudio_instance = None
 
         pyaudio = _get_pyaudio()
         if pyaudio is None:
             return None
 
         try:
-            _pyaudio_instance = pyaudio.PyAudio()
+            inst = pyaudio.PyAudio()
+            inst.get_device_count()
+            _pyaudio_instance = inst
             return _pyaudio_instance
         except Exception as e:
             logger.error("Failed to create PyAudio instance: %s", e)
+            try:
+                inst.terminate()
+            except Exception:
+                pass
             return None
 
 
@@ -168,6 +196,10 @@ class AudioCapture:
         # Adaptive gain: track recent peak to auto-scale
         self._recent_peak = 0.0
         self._peak_decay = 0.95  # Slow decay for stable gain
+
+        self._raw_buffer: deque = deque(maxlen=25)
+        self._capture_sample_rate: int = self.RATE
+        self._listen_queue: Optional[_queue_mod.Queue] = None
 
     def _find_monitor_device(self, p: "pyaudio.PyAudio") -> Optional[int]:
         """
@@ -249,12 +281,7 @@ class AudioCapture:
             if result.returncode != 0:
                 return None
 
-            mic_priorities = [
-                ("usb", 100),
-                ("microphone", 90),
-                ("mic", 80),
-                ("audio", 70),
-            ]
+            mic_priorities = MIC_PRIORITIES
 
             best_card = None
             best_priority = -1
@@ -323,6 +350,14 @@ class AudioCapture:
 
     def _find_microphone_device(self, p: "pyaudio.PyAudio") -> Optional[int]:
         """Find the best microphone device for capturing user speech."""
+        try:
+            info = p.get_default_input_device_info()
+            idx = int(info["index"])
+            logger.debug("Using default ALSA input device (index %d)", idx)
+            return idx
+        except Exception:
+            pass
+
         alsa_card = self._find_microphone_device_alsa()
         if alsa_card is not None:
             pyaudio_idx = self._find_pyaudio_index_for_card(p, alsa_card)
@@ -331,13 +366,7 @@ class AudioCapture:
 
         logger.debug("ALSA detection failed, trying PyAudio enumeration")
 
-        mic_priorities = [
-            ("usb", 100),
-            ("microphone", 90),
-            ("mic", 80),
-            ("input", 70),
-            ("capture", 60),
-        ]
+        mic_priorities = MIC_PRIORITIES
 
         best_device = None
         best_priority = -1
@@ -373,6 +402,13 @@ class AudioCapture:
                 pass
 
         return best_device
+
+    def get_recent_audio(self, duration_s: float = 0.5) -> tuple:
+        chunks_needed = max(1, int(duration_s * self._capture_sample_rate / self.CHUNK))
+        recent = list(self._raw_buffer)[-chunks_needed:]
+        if not recent:
+            return b"", self._capture_sample_rate, 2
+        return b"".join(recent), self._capture_sample_rate, 2
 
     def _calculate_bar_values(self, data: bytes) -> list:
         """
@@ -446,73 +482,89 @@ class AudioCapture:
             self._running = False
             return
 
-        # Initialize FORMAT now that pyaudio is available
         if not self._format_initialized:
             self.FORMAT = pyaudio.paInt16
             self._format_initialized = True
 
-        try:
+        device_index = None
+        for attempt in range(5):
+            if not self._running:
+                return
+
             self._pyaudio = _get_pyaudio_instance()
             if self._pyaudio is None:
-                self._running = False
-                return
+                time.sleep(1.0 * (attempt + 1))
+                continue
 
             if self._mode == CaptureMode.MICROPHONE:
                 device_index = self._find_microphone_device(self._pyaudio)
-                if device_index is None:
-                    self._running = False
-                    return
-                if not self._validate_device(self._pyaudio, device_index):
-                    self._running = False
-                    return
+                if device_index is not None and self._validate_device(self._pyaudio, device_index):
+                    break
+                device_index = None
             else:
                 device_index = self._find_monitor_device(self._pyaudio)
 
                 if device_index is None:
                     self._setup_pulseaudio_monitor()
+                    _release_pyaudio_instance()
+                    self._pyaudio = _get_pyaudio_instance()
+                    if self._pyaudio:
+                        device_index = self._find_monitor_device(self._pyaudio)
 
-                    self._pyaudio.terminate()
-                    self._pyaudio = pyaudio.PyAudio()
-                    device_index = self._find_monitor_device(self._pyaudio)
-
-                if device_index is None:
+                if device_index is None and self._pyaudio:
                     device_index = self._find_default_input(self._pyaudio)
-                    if device_index is None:
-                        self._running = False
-                        return
 
-                if not self._validate_device(self._pyaudio, device_index):
-                    self._running = False
-                    return
+                if device_index is not None and self._validate_device(self._pyaudio, device_index):
+                    break
+                device_index = None
 
+            _release_pyaudio_instance()
+            time.sleep(1.0 * (attempt + 1))
+
+        if device_index is None:
+            logger.error("Could not find audio device after retries")
+            self._running = False
+            self._cleanup()
+            return
+
+        try:
             device_info = self._pyaudio.get_device_info_by_index(device_index)
             sample_rate = int(device_info.get("defaultSampleRate", self.RATE))
 
-            try:
-                self._stream = self._pyaudio.open(
-                    format=self.FORMAT,
-                    channels=self.CHANNELS,
-                    rate=sample_rate,
-                    input=True,
-                    input_device_index=device_index,
-                    frames_per_buffer=self.CHUNK,
-                )
-            except Exception as e:
-                logger.error("Failed to open stream: %s", e)
-                self._running = False
-                return
+            self._capture_sample_rate = sample_rate
+
+            self._stream = self._pyaudio.open(
+                format=self.FORMAT,
+                channels=self.CHANNELS,
+                rate=sample_rate,
+                input=True,
+                input_device_index=device_index,
+                frames_per_buffer=self.CHUNK,
+            )
 
             while self._running:
+                if self._stream is None:
+                    time.sleep(0.05)
+                    continue
                 try:
                     data = self._stream.read(self.CHUNK, exception_on_overflow=False)
+                    self._raw_buffer.append(data)
+                    lq = self._listen_queue
+                    if lq is not None:
+                        try:
+                            lq.put_nowait(data)
+                        except _queue_mod.Full:
+                            pass
                     bar_values = self._calculate_bar_values(data)
 
                     if self._callback and self._running:
                         self._callback(bar_values)
 
-                except IOError as e:
+                except IOError:
                     continue
                 except Exception as e:
+                    if self._stream is None:
+                        continue
                     logger.error("Error in capture loop: %s", e)
                     break
 
@@ -600,7 +652,6 @@ class AudioCapture:
         self._prev_values = [0.0] * self.NUM_BARS
 
     def is_running(self) -> bool:
-        """Check if capture is running."""
         return self._running
 
 
@@ -695,15 +746,35 @@ def stop_mic_capture():
 
 
 def is_mic_capturing() -> bool:
-    """Check if microphone capture is running."""
     return _mic_capture is not None and _mic_capture.is_running()
 
 
 def get_current_mic_values() -> list:
-    """Get current microphone amplitude values (32 floats 0-1)."""
     if _mic_capture and _mic_capture.is_running():
         return list(_mic_capture._prev_values)
     return [0.0] * 32
+
+
+def get_mic_audio(duration_s: float = 0.5) -> tuple:
+    if _mic_capture and _mic_capture.is_running():
+        return _mic_capture.get_recent_audio(duration_s)
+    return b"", 44100, 2
+
+
+def get_mic_capture_info() -> tuple:
+    if _mic_capture and _mic_capture.is_running():
+        return _mic_capture._capture_sample_rate, _mic_capture.CHUNK
+    return 44100, 1024
+
+
+def start_mic_listen_feed(q: _queue_mod.Queue) -> None:
+    if _mic_capture:
+        _mic_capture._listen_queue = q
+
+
+def stop_mic_listen_feed() -> None:
+    if _mic_capture:
+        _mic_capture._listen_queue = None
 
 
 # Async wrappers for use in async code

@@ -10,13 +10,13 @@ from ..base import BaseDisplay, Color, Colors, DisplayInfo
 logger = logging.getLogger(__name__)
 
 
-class I2COledDisplay(BaseDisplay):
+class I2cDisplay(BaseDisplay):
     """I2C display driver for simple text output.
 
     This is a simple text-only display used for showing assistant responses
     and status messages. It does NOT support the complex display modes
     (SMART, CLOCK, WEATHER, GALLERY, WAVEFORM) - those are only available
-    on full graphical displays like TFT LCD or HDMI framebuffer.
+    on full graphical displays like PiScreen or HDMI framebuffer.
 
     The I2C display is an optional peripheral that provides a convenient way
     to see responses without looking at the web interface.
@@ -196,6 +196,11 @@ class I2COledDisplay(BaseDisplay):
         await self.stop_animation()
         if self._device:
             self._device.fill(0)
+            self._device.show()
+
+    def set_rotation(self, rotation: int) -> None:
+        if self._device:
+            self._device.rotation = rotation
             self._device.show()
 
     def _get_font(self, size: int, font_name: Optional[str] = None):

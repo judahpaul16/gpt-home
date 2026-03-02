@@ -6,6 +6,7 @@ latest_release=$(curl -s https://api.github.com/repos/judahpaul16/gpt-home/relea
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
+ORANGE='\033[0;38;5;208m'
 BLUE='\033[0;34m'
 MAGENTA='\033[0;35m'
 CYAN='\033[0;36m'
@@ -55,6 +56,8 @@ echo -e "${NC}"
 NO_BUILD=false
 NO_CACHE=false
 PRUNE=false
+
+NEEDS_REBOOT=false
 
 for arg in "$@"; do
     case $arg in
@@ -184,8 +187,40 @@ install libdrm2
 install libgbm1
 install mesa-utils
 install unzip
+install ufw
+install i2c-tools
 sudo systemctl enable docker
 sudo systemctl start docker
+
+echo "Checking swap space..."
+CURRENT_SWAP=$(free -m | awk '/^Swap:/ {print $2}')
+if [ "$CURRENT_SWAP" -lt 2048 ]; then
+    echo -e "${YELLOW}Swap is ${CURRENT_SWAP}MB - increasing to 2GB...${NC}"
+    if [ -f /etc/dphys-swapfile ]; then
+        sudo sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile
+        sudo systemctl restart dphys-swapfile 2>/dev/null || sudo /etc/init.d/dphys-swapfile restart 2>/dev/null || true
+        for i in 1 2 3 4 5; do
+            NEW_SWAP=$(free -m | awk '/^Swap:/ {print $2}')
+            [ "$NEW_SWAP" -ge 2048 ] 2>/dev/null && break
+            sleep 2
+        done
+    fi
+    NEW_SWAP=$(free -m | awk '/^Swap:/ {print $2}')
+    if [ "$NEW_SWAP" -lt 2048 ] 2>/dev/null; then
+        sudo swapoff /swapfile 2>/dev/null || true
+        sudo rm -f /swapfile
+        sudo fallocate -l 2G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=2048
+        sudo chmod 600 /swapfile
+        sudo mkswap /swapfile
+        sudo swapon /swapfile
+        if ! grep -q '/swapfile' /etc/fstab; then
+            echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab > /dev/null
+        fi
+    fi
+    echo -e "${GREEN}Swap configured: $(free -m | awk '/^Swap:/ {print $2}')MB${NC}"
+else
+    echo -e "${GREEN}Swap is sufficient: ${CURRENT_SWAP}MB${NC}"
+fi
 
 # Create ALSA config (asound.conf, adjust as needed)
 sudo tee /etc/asound.conf > /dev/null <<EOF
@@ -232,6 +267,7 @@ fi
 
 if [ -n "$CONFIG_TXT" ]; then
     echo "Found config at: $CONFIG_TXT"
+    CONFIG_CHECKSUM_BEFORE=$(md5sum "$CONFIG_TXT" 2>/dev/null | awk '{print $1}')
 
     # Backup config.txt if not already backed up
     if [ ! -f "${CONFIG_TXT}.gpt-home-backup" ]; then
@@ -273,7 +309,11 @@ if [ -n "$CONFIG_TXT" ]; then
         echo "dtoverlay=vc4-kms-v3d" | sudo tee -a "$CONFIG_TXT" > /dev/null
     fi
 
-    echo -e "${GREEN}HDMI configuration updated. Changes will take effect after reboot.${NC}"
+    CONFIG_CHECKSUM_AFTER=$(md5sum "$CONFIG_TXT" 2>/dev/null | awk '{print $1}')
+    if [ "$CONFIG_CHECKSUM_BEFORE" != "$CONFIG_CHECKSUM_AFTER" ]; then
+        NEEDS_REBOOT=true
+    fi
+    echo -e "${GREEN}HDMI configuration updated.${NC}"
 else
     echo -e "${YELLOW}Could not find config.txt - HDMI configuration skipped.${NC}"
 fi
@@ -319,15 +359,15 @@ sudo usermod -aG render $(whoami) 2>/dev/null || true
 echo -e "${GREEN}DRM display configuration complete.${NC}"
 
 # ============================================================
-# SPI TFT Display Support (3.5" Waveshare/Goodtft LCD screens)
+# PiScreen Display Support (3.5" Waveshare/Goodtft ILI9486)
 # ============================================================
-# Always install the TFT overlay and enable SPI. The overlay is
+# Always install the PiScreen overlay and enable SPI. The overlay is
 # harmless when no display is connected - it just won't find
 # hardware. This way the display works immediately when plugged in
 # without any extra steps from the user.
 
 if [ -n "$CONFIG_TXT" ]; then
-    echo "Configuring SPI TFT display support..."
+    echo "Configuring PiScreen display support..."
 
     OVERLAYS_DIR=""
     if [ -d /boot/firmware/current/overlays ]; then
@@ -340,26 +380,255 @@ if [ -n "$CONFIG_TXT" ]; then
 
     if [ -n "$OVERLAYS_DIR" ]; then
         if [ -f "$OVERLAYS_DIR/piscreen.dtbo" ]; then
-            echo -e "${GREEN}TFT overlay file already installed${NC}"
+            echo -e "${GREEN}PiScreen overlay file already installed${NC}"
         else
             if curl -fsSL https://github.com/raspberrypi/firmware/raw/master/boot/overlays/piscreen.dtbo -o "$OVERLAYS_DIR/piscreen.dtbo" 2>/dev/null; then
-                echo -e "${GREEN}TFT overlay file installed${NC}"
+                echo -e "${GREEN}PiScreen overlay file installed${NC}"
             else
                 echo -e "${YELLOW}Could not download piscreen.dtbo (non-fatal)${NC}"
             fi
         fi
 
-        if ! grep -q "dtparam=spi=on" "$CONFIG_TXT"; then
-            echo "#dtparam=spi=on" | sudo tee -a "$CONFIG_TXT" > /dev/null
+        if ! grep -q "^dtparam=spi=on" "$CONFIG_TXT"; then
+            if grep -q "^#dtparam=spi=on" "$CONFIG_TXT"; then
+                sudo sed -i 's/^#dtparam=spi=on/dtparam=spi=on/' "$CONFIG_TXT"
+            else
+                echo "dtparam=spi=on" | sudo tee -a "$CONFIG_TXT" > /dev/null
+            fi
+            NEEDS_REBOOT=true
         fi
 
-        if ! grep -qE "dtoverlay=(piscreen|waveshare35a|tft35a)" "$CONFIG_TXT"; then
-            echo "#dtoverlay=piscreen,drm" | sudo tee -a "$CONFIG_TXT" > /dev/null
+        if ! grep -qE "^dtoverlay=(piscreen|waveshare35a|tft35a)" "$CONFIG_TXT"; then
+            echo "#dtoverlay=piscreen,drm,speed=16000000" | sudo tee -a "$CONFIG_TXT" > /dev/null
         fi
 
-        echo -e "${GREEN}SPI TFT display support configured${NC}"
+        echo -e "${GREEN}PiScreen display support configured${NC}"
     fi
 fi
+
+# ============================================================
+# WM8960 Audio Codec Support (WhisPlay HAT, WM8960 Audio HAT)
+# ============================================================
+
+if [ -n "$CONFIG_TXT" ]; then
+    if ! grep -q "^dtparam=i2c_arm=on" "$CONFIG_TXT"; then
+        echo "dtparam=i2c_arm=on" | sudo tee -a "$CONFIG_TXT" > /dev/null
+        NEEDS_REBOOT=true
+    fi
+
+    if ! [ -e /dev/i2c-1 ]; then
+        sudo modprobe i2c-bcm2835 2>/dev/null || true
+        sudo modprobe i2c-dev 2>/dev/null || true
+        sleep 0.5
+    fi
+
+    WM8960_DETECTED=false
+    WM8960_I2C_PROBED=false
+
+    if command -v i2cdetect >/dev/null 2>&1 && [ -e /dev/i2c-1 ]; then
+        WM8960_I2C_PROBED=true
+        if sudo i2cdetect -y 1 2>/dev/null | grep -q " 1a "; then
+            WM8960_DETECTED=true
+            echo -e "${GREEN}WM8960 detected on I2C bus at 0x1a${NC}"
+        fi
+    fi
+
+    if [ "$WM8960_DETECTED" = false ] && [ "$WM8960_I2C_PROBED" = false ]; then
+        if lsmod 2>/dev/null | grep -q snd_soc_wm8960; then
+            WM8960_DETECTED=true
+            echo -e "${GREEN}WM8960 audio codec already loaded${NC}"
+        elif [ -d /proc/device-tree ] && ls /proc/device-tree/soc/*/wm8960* 2>/dev/null; then
+            WM8960_DETECTED=true
+            echo -e "${GREEN}WM8960 overlay already configured${NC}"
+        fi
+    fi
+
+    if [ "$WM8960_DETECTED" = false ] && [ "$WM8960_I2C_PROBED" = false ] && grep -q "^dtoverlay=wm8960-soundcard" "$CONFIG_TXT"; then
+        WM8960_DETECTED=true
+        echo -e "${GREEN}WM8960 overlay active in config.txt (I2C probe unavailable)${NC}"
+    fi
+
+    if [ "$WM8960_DETECTED" = true ]; then
+        echo "Configuring WM8960 audio codec support..."
+
+        if ! grep -q "^dtparam=i2s=on" "$CONFIG_TXT"; then
+            echo "dtparam=i2s=on" | sudo tee -a "$CONFIG_TXT" > /dev/null
+            NEEDS_REBOOT=true
+        fi
+
+        if ! grep -q "^dtoverlay=i2s-mmap" "$CONFIG_TXT"; then
+            if grep -q "^#dtoverlay=i2s-mmap" "$CONFIG_TXT"; then
+                sudo sed -i 's/^#dtoverlay=i2s-mmap/dtoverlay=i2s-mmap/' "$CONFIG_TXT"
+            else
+                echo "dtoverlay=i2s-mmap" | sudo tee -a "$CONFIG_TXT" > /dev/null
+            fi
+            NEEDS_REBOOT=true
+        fi
+
+        if ! grep -q "^dtoverlay=wm8960-soundcard" "$CONFIG_TXT"; then
+            if grep -q "^#dtoverlay=wm8960-soundcard" "$CONFIG_TXT"; then
+                sudo sed -i 's/^#dtoverlay=wm8960-soundcard/dtoverlay=wm8960-soundcard/' "$CONFIG_TXT"
+            else
+                echo "dtoverlay=wm8960-soundcard" | sudo tee -a "$CONFIG_TXT" > /dev/null
+            fi
+            NEEDS_REBOOT=true
+        fi
+
+        echo -e "${GREEN}WM8960 audio codec configured${NC}"
+    else
+        echo -e "${YELLOW}WM8960 not detected — skipping audio codec overlay${NC}"
+
+        if grep -q "^dtoverlay=wm8960-soundcard" "$CONFIG_TXT"; then
+            echo -e "${YELLOW}Disabling stale WM8960 overlay in config.txt${NC}"
+            sudo sed -i 's/^dtoverlay=wm8960-soundcard/#dtoverlay=wm8960-soundcard/' "$CONFIG_TXT"
+            NEEDS_REBOOT=true
+        fi
+        if grep -q "^dtoverlay=i2s-mmap" "$CONFIG_TXT"; then
+            sudo sed -i 's/^dtoverlay=i2s-mmap/#dtoverlay=i2s-mmap/' "$CONFIG_TXT"
+        fi
+    fi
+fi
+
+# ============================================================
+# RaspiAudio HAT Support (MIC+, Audio+, Speakers+, Ultra+)
+# ============================================================
+
+if [ -n "$CONFIG_TXT" ]; then
+    RASPIAUDIO_DETECTED=false
+
+    if [ "$WM8960_DETECTED" = true ]; then
+        if grep -q "^dtoverlay=googlevoicehat-soundcard" "$CONFIG_TXT"; then
+            echo -e "${YELLOW}Removing stale RaspiAudio overlay (WM8960 detected, not a RaspiAudio HAT)${NC}"
+            sudo sed -i 's/^dtoverlay=googlevoicehat-soundcard/#dtoverlay=googlevoicehat-soundcard/' "$CONFIG_TXT"
+            NEEDS_REBOOT=true
+        fi
+    else
+        if [ -f /proc/device-tree/hat/vendor ]; then
+            HAT_VENDOR=$(tr -d '\0' < /proc/device-tree/hat/vendor 2>/dev/null)
+            if echo "$HAT_VENDOR" | grep -qi "raspiaudio"; then
+                RASPIAUDIO_DETECTED=true
+                HAT_PRODUCT=$(tr -d '\0' < /proc/device-tree/hat/product 2>/dev/null)
+                echo -e "${GREEN}RaspiAudio HAT detected via EEPROM: ${HAT_PRODUCT}${NC}"
+            fi
+        fi
+
+        if [ "$RASPIAUDIO_DETECTED" = false ]; then
+            if lsmod 2>/dev/null | grep -q snd_rpi_googlevoicehat; then
+                echo "RaspiAudio overlay loaded — verifying hardware with I2S capture..."
+                PROBE_CARD=$(arecord -l 2>/dev/null | grep -i "googlevoicehat\|voicehat" | head -1 | sed -n 's/^card \([0-9]*\).*/\1/p')
+                if [ -n "$PROBE_CARD" ]; then
+                    PROBE_FILE="/tmp/raspi_audio_probe.raw"
+                    rm -f "$PROBE_FILE"
+                    timeout 3 arecord -D "plughw:${PROBE_CARD},0" -f S16_LE -r 16000 -c 1 -d 1 "$PROBE_FILE" 2>/dev/null
+                    if [ -f "$PROBE_FILE" ] && [ -s "$PROBE_FILE" ]; then
+                        UNIQUE=$(od -An -tx2 -w2 "$PROBE_FILE" 2>/dev/null | sort -u | wc -l)
+                        rm -f "$PROBE_FILE"
+                        if [ "$UNIQUE" -gt 20 ]; then
+                            RASPIAUDIO_DETECTED=true
+                            echo -e "${GREEN}RaspiAudio HAT verified (${UNIQUE} unique I2S samples)${NC}"
+                        else
+                            echo -e "${YELLOW}I2S bus idle (${UNIQUE} unique samples) — no RaspiAudio hardware${NC}"
+                        fi
+                    else
+                        echo -e "${YELLOW}I2S capture failed — no RaspiAudio hardware${NC}"
+                    fi
+                fi
+            elif [ -n "$OVERLAYS_DIR" ]; then
+                if [ ! -f "$OVERLAYS_DIR/googlevoicehat-soundcard.dtbo" ]; then
+                    curl -fsSL https://github.com/raspberrypi/firmware/raw/master/boot/overlays/googlevoicehat-soundcard.dtbo \
+                        -o "$OVERLAYS_DIR/googlevoicehat-soundcard.dtbo" 2>/dev/null
+                fi
+
+                if [ -f "$OVERLAYS_DIR/googlevoicehat-soundcard.dtbo" ]; then
+                    echo "Probing for I2S audio HAT (no EEPROM, no I2C codec)..."
+
+                    if lsmod 2>/dev/null | grep -q snd_soc_wm8960; then
+                        sudo dtoverlay -r wm8960-soundcard 2>/dev/null || true
+                        sudo modprobe -r snd_soc_wm8960 2>/dev/null || true
+                        sleep 0.5
+                    fi
+
+                    sudo dtparam i2s=on 2>/dev/null || true
+                    sleep 0.5
+
+                    if sudo dtoverlay googlevoicehat-soundcard 2>&1 | grep -qi "error\|fail"; then
+                        echo -e "${YELLOW}Could not load googlevoicehat overlay for probe${NC}"
+                    else
+                        sleep 1
+                        PROBE_CARD=$(arecord -l 2>/dev/null | grep -i "googlevoicehat\|voicehat" | head -1 | sed -n 's/^card \([0-9]*\).*/\1/p')
+                        if [ -n "$PROBE_CARD" ]; then
+                            PROBE_FILE="/tmp/raspi_audio_probe.raw"
+                            rm -f "$PROBE_FILE"
+                            timeout 3 arecord -D "plughw:${PROBE_CARD},0" -f S16_LE -r 16000 -c 1 -d 1 "$PROBE_FILE" 2>/dev/null
+                            if [ -f "$PROBE_FILE" ] && [ -s "$PROBE_FILE" ]; then
+                                UNIQUE=$(od -An -tx2 -w2 "$PROBE_FILE" 2>/dev/null | sort -u | wc -l)
+                                rm -f "$PROBE_FILE"
+                                if [ "$UNIQUE" -gt 20 ]; then
+                                    RASPIAUDIO_DETECTED=true
+                                    echo -e "${GREEN}RaspiAudio HAT detected via I2S probe (${UNIQUE} unique samples)${NC}"
+                                fi
+                            fi
+                        fi
+                        sudo dtoverlay -r googlevoicehat-soundcard 2>/dev/null || true
+                    fi
+                fi
+            fi
+        fi
+    fi
+
+    if [ "$RASPIAUDIO_DETECTED" = true ]; then
+        echo "Configuring RaspiAudio HAT support..."
+
+        if grep -q "^dtoverlay=wm8960-soundcard" "$CONFIG_TXT"; then
+            echo -e "${YELLOW}Disabling WM8960 overlay (conflicts with RaspiAudio)${NC}"
+            sudo sed -i 's/^dtoverlay=wm8960-soundcard/#dtoverlay=wm8960-soundcard/' "$CONFIG_TXT"
+            NEEDS_REBOOT=true
+        fi
+
+        if ! grep -q "^dtparam=i2s=on" "$CONFIG_TXT"; then
+            echo "dtparam=i2s=on" | sudo tee -a "$CONFIG_TXT" > /dev/null
+            NEEDS_REBOOT=true
+        fi
+
+        if grep -q "^dtparam=audio=on" "$CONFIG_TXT"; then
+            sudo sed -i 's/^dtparam=audio=on/#dtparam=audio=on/' "$CONFIG_TXT"
+            NEEDS_REBOOT=true
+        fi
+
+        if ! grep -q "^dtoverlay=googlevoicehat-soundcard" "$CONFIG_TXT"; then
+            if grep -q "^#dtoverlay=googlevoicehat-soundcard" "$CONFIG_TXT"; then
+                sudo sed -i 's/^#dtoverlay=googlevoicehat-soundcard/dtoverlay=googlevoicehat-soundcard/' "$CONFIG_TXT"
+            else
+                echo "dtoverlay=googlevoicehat-soundcard" | sudo tee -a "$CONFIG_TXT" > /dev/null
+            fi
+            NEEDS_REBOOT=true
+        fi
+
+        echo -e "${GREEN}RaspiAudio HAT configured${NC}"
+    else
+        if grep -q "^dtoverlay=googlevoicehat-soundcard" "$CONFIG_TXT"; then
+            echo -e "${YELLOW}Disabling stale RaspiAudio overlay (hardware not detected)${NC}"
+            sudo sed -i 's/^dtoverlay=googlevoicehat-soundcard/#dtoverlay=googlevoicehat-soundcard/' "$CONFIG_TXT"
+            NEEDS_REBOOT=true
+        fi
+
+        if [ "$WM8960_DETECTED" = false ] && grep -q "^#dtparam=audio=on" "$CONFIG_TXT"; then
+            echo -e "${GREEN}Re-enabling onboard audio (no audio HAT detected)${NC}"
+            sudo sed -i 's/^#dtparam=audio=on/dtparam=audio=on/' "$CONFIG_TXT"
+            NEEDS_REBOOT=true
+        fi
+
+        echo -e "${YELLOW}RaspiAudio HAT not detected — skipping googlevoicehat overlay${NC}"
+    fi
+fi
+
+# ============================================================
+# SPI / GPIO Permissions (WhisPlay, userspace SPI displays)
+# ============================================================
+
+sudo chmod 666 /dev/spidev* 2>/dev/null || true
+sudo usermod -aG spi $(whoami) 2>/dev/null || true
+sudo usermod -aG gpio $(whoami) 2>/dev/null || true
 
 # Ensure framebuffer permissions for any detected displays
 sudo chmod 666 /dev/fb* 2>/dev/null || true
@@ -407,38 +676,56 @@ else
     exit 1
 fi
 
-if [[ "$NO_BUILD" == "false" ]]; then
-    # Increase swap to prevent OOM during Docker build
-    echo "Checking swap space for Docker build..."
-    CURRENT_SWAP=$(free -m | awk '/^Swap:/ {print $2}')
-    if [ "$CURRENT_SWAP" -lt 2048 ]; then
-        echo -e "${YELLOW}Swap is ${CURRENT_SWAP}MB - increasing to 2GB for Docker build...${NC}"
-        if [ -f /etc/dphys-swapfile ]; then
-            sudo sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile
-            sudo systemctl restart dphys-swapfile 2>/dev/null || sudo /etc/init.d/dphys-swapfile restart 2>/dev/null || true
-            sleep 2
-        elif [ ! -f /swapfile ]; then
-            sudo fallocate -l 2G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=2048
-            sudo chmod 600 /swapfile
-            sudo mkswap /swapfile
-            sudo swapon /swapfile
-        fi
-        echo -e "${GREEN}Swap configured: $(free -m | awk '/^Swap:/ {print $2}')MB${NC}"
-    else
-        echo -e "${GREEN}Swap is sufficient: ${CURRENT_SWAP}MB${NC}"
-    fi
+if [[ "$NEEDS_REBOOT" == "true" ]]; then
+    echo ""
+    echo -e "${RED}╔══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${RED}║                                                          ║${NC}"
+    echo -e "${RED}║  ${YELLOW}REBOOT REQUIRED${RED}                                         ║${NC}"
+    echo -e "${RED}║                                                          ║${NC}"
+    echo -e "${RED}║  ${WHITE}Hardware configuration changes were made to config.txt.${RED} ║${NC}"
+    echo -e "${RED}║  ${WHITE}A reboot is needed before continuing setup.${RED}             ║${NC}"
+    echo -e "${RED}║                                                          ║${NC}"
+    echo -e "${RED}║  ${GREEN}Run:  sudo reboot${RED}                                       ║${NC}"
+    echo -e "${RED}║  ${WHITE}Then re-run this script to complete setup.${RED}              ║${NC}"
+    echo -e "${RED}║                                                          ║${NC}"
+    echo -e "${RED}╚══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    exit 0
+fi
 
-    [ -d ~/gpt-home ] && rm -rf ~/gpt-home
-    git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
+if [[ "$NO_BUILD" == "false" ]]; then
+    if [ -d ~/gpt-home ]; then
+        echo -ne "${ORANGE}~/gpt-home already exists. Remove and re-clone? [y/N] ${NC}"
+        read -r reclone_confirm
+        if [[ "$reclone_confirm" =~ ^[Yy]$ ]]; then
+            rm -rf ~/gpt-home
+            git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
+        fi
+    else
+        git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
+    fi
     cd ~/gpt-home
 
     echo "Stopping any running gpt-home services..."
     $COMPOSE down 2>/dev/null || true
 
     if [[ "$PRUNE" == "true" ]]; then
-        echo "Pruning Docker system..."
-        docker system prune -af
-        docker volume prune -f
+        echo ""
+        echo -e "${RED}╔══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${RED}║  WARNING: This will remove ALL Docker images, containers,║${NC}"
+        echo -e "${RED}║  networks, build cache, and unused volumes.              ║${NC}"
+        echo -e "${RED}║  This includes the PostgreSQL database volume.           ║${NC}"
+        echo -e "${RED}╚══════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        echo -ne "${ORANGE}Are you sure you want to prune? [y/N] ${NC}"
+        read -r prune_confirm
+        if [[ "$prune_confirm" =~ ^[Yy]$ ]]; then
+            echo "Pruning Docker system..."
+            docker system prune -af
+            docker volume prune -f
+        else
+            echo -e "${YELLOW}Skipping prune${NC}"
+        fi
     fi
 
     # Use the default docker driver for buildx (not docker-container which has network issues on Pi)
@@ -451,29 +738,78 @@ if [[ "$NO_BUILD" == "false" ]]; then
     fi
     docker buildx use default 2>/dev/null || true
 
-    echo "Building and starting gpt-home with docker compose..."
-    if [[ "$NO_CACHE" == "true" ]]; then
-        DOCKER_DEFAULT_PLATFORM=linux/arm64 $COMPOSE build --no-cache
-    else
-        DOCKER_DEFAULT_PLATFORM=linux/arm64 $COMPOSE build
+    TOTAL_RAM_MB=$(awk '/^MemTotal:/ {printf "%d", $2/1024}' /proc/meminfo)
+    LOW_RAM=false
+    if [ "$TOTAL_RAM_MB" -le 1024 ]; then
+        LOW_RAM=true
+        echo -e "${YELLOW}Low RAM detected (${TOTAL_RAM_MB}MB) — building services sequentially${NC}"
+        sudo sysctl -w vm.swappiness=100 > /dev/null 2>&1
+        sync && echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null 2>&1
     fi
 
-    if [ $? -ne 0 ]; then
-        echo -e "${YELLOW}Build failed, resetting buildkit state and retrying...${NC}\n"
+    echo "Building and starting gpt-home with docker compose..."
+    BUILD_OK=true
+    if [ "$LOW_RAM" = true ]; then
+        for svc in backend frontend spotify; do
+            echo "Building $svc..."
+            if [[ "$NO_CACHE" == "true" ]]; then
+                DOCKER_DEFAULT_PLATFORM=linux/arm64 $COMPOSE build --no-cache "$svc" || { BUILD_OK=false; break; }
+            else
+                DOCKER_DEFAULT_PLATFORM=linux/arm64 $COMPOSE build "$svc" || { BUILD_OK=false; break; }
+            fi
+            sync && echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null 2>&1
+        done
+    else
+        if [[ "$NO_CACHE" == "true" ]]; then
+            DOCKER_DEFAULT_PLATFORM=linux/arm64 $COMPOSE build --no-cache || BUILD_OK=false
+        else
+            DOCKER_DEFAULT_PLATFORM=linux/arm64 $COMPOSE build || BUILD_OK=false
+        fi
+    fi
+
+    if [ "$BUILD_OK" = false ]; then
+        echo ""
+        echo -e "${RED}Build failed.${NC} This can sometimes be fixed by resetting BuildKit state."
+        echo -e "${RED}This will remove all Docker build cache (not images or volumes).${NC}"
+        echo ""
+        echo -ne "${ORANGE}Reset BuildKit and retry? [y/N] ${NC}"
+        read -r retry_confirm
+        if [[ ! "$retry_confirm" =~ ^[Yy]$ ]]; then
+            echo "Docker build failed. Exiting..."
+            exit 1
+        fi
         docker buildx prune -f
         sudo systemctl stop docker
         sudo rm -rf /var/lib/docker/buildkit
         sudo systemctl start docker
         sleep 3
-        if [[ "$NO_CACHE" == "true" ]]; then
-            DOCKER_DEFAULT_PLATFORM=linux/arm64 $COMPOSE build --no-cache
+        BUILD_OK=true
+        if [ "$LOW_RAM" = true ]; then
+            sync && echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null 2>&1
+            for svc in backend frontend spotify; do
+                echo "Retrying $svc..."
+                if [[ "$NO_CACHE" == "true" ]]; then
+                    DOCKER_DEFAULT_PLATFORM=linux/arm64 $COMPOSE build --no-cache "$svc" || { BUILD_OK=false; break; }
+                else
+                    DOCKER_DEFAULT_PLATFORM=linux/arm64 $COMPOSE build "$svc" || { BUILD_OK=false; break; }
+                fi
+                sync && echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null 2>&1
+            done
         else
-            DOCKER_DEFAULT_PLATFORM=linux/arm64 $COMPOSE build
+            if [[ "$NO_CACHE" == "true" ]]; then
+                DOCKER_DEFAULT_PLATFORM=linux/arm64 $COMPOSE build --no-cache || BUILD_OK=false
+            else
+                DOCKER_DEFAULT_PLATFORM=linux/arm64 $COMPOSE build || BUILD_OK=false
+            fi
         fi
-        if [ $? -ne 0 ]; then
+        if [ "$BUILD_OK" = false ]; then
             echo "Docker build failed. Exiting..."
             exit 1
         fi
+    fi
+
+    if [ "$LOW_RAM" = true ]; then
+        sudo sysctl -w vm.swappiness=60 > /dev/null 2>&1
     fi
 
     $COMPOSE up -d
@@ -483,8 +819,16 @@ if [[ "$NO_BUILD" == "false" ]]; then
 fi
 
 if [[ "$NO_BUILD" == "true" ]]; then
-    [ -d ~/gpt-home ] && rm -rf ~/gpt-home
-    git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
+    if [ -d ~/gpt-home ]; then
+        echo -ne "${ORANGE}~/gpt-home already exists. Remove and re-clone? [y/N] ${NC}"
+        read -r reclone_confirm
+        if [[ "$reclone_confirm" =~ ^[Yy]$ ]]; then
+            rm -rf ~/gpt-home
+            git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
+        fi
+    else
+        git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
+    fi
     cd ~/gpt-home
 
     $COMPOSE down 2>/dev/null || true

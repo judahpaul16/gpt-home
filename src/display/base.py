@@ -19,8 +19,9 @@ class DisplayMode(Enum):
 
 class ScreenType(Enum):
     HDMI = "hdmi"
-    SPI_TFT = "spi_tft"
-    I2C = "i2c"
+    ILI9486 = "ili9486"
+    ST7789 = "st7789"
+    SSD1306 = "ssd1306"
 
 
 @dataclass
@@ -34,6 +35,13 @@ class DisplayInfo:
     rotation: int = 0
     driver: Optional[str] = None
     connector: Optional[str] = None
+    spi_bus: Optional[int] = None
+    spi_cs: Optional[int] = None
+    gpio_dc: Optional[int] = None
+    gpio_rst: Optional[int] = None
+    gpio_bl: Optional[int] = None
+    gpio_bl_active_low: bool = True
+    spi_speed_hz: Optional[int] = None
 
 
 @dataclass
@@ -83,7 +91,7 @@ class BaseDisplay(ABC):
     Displays are categorized into two types:
     - Full displays (supports_modes=True): Support all display modes (SMART, CLOCK,
       WEATHER, GALLERY, WAVEFORM, OFF) with animations and graphics. Examples:
-      TFT LCD, HDMI framebuffer displays.
+      PiScreen, HDMI framebuffer, SPI displays.
     - Simple displays (supports_modes=False): Text-only displays used for showing
       responses and status messages. Examples: I2C display (128x32, 128x64).
     """
@@ -243,6 +251,10 @@ class BaseDisplay(ABC):
 
     def show_sync(self) -> None:
         """Synchronous show/flip buffers - override in drivers for performance."""
+        pass
+
+    def set_rotation(self, rotation: int) -> None:
+        """Set display rotation (0-3). Override in drivers that support it."""
         pass
 
     def restore_tty(self) -> None:

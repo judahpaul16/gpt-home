@@ -15,6 +15,7 @@ import json
 import logging
 import math
 import os
+import queue
 import re
 import string
 import struct
@@ -34,7 +35,6 @@ from threading import Timer
 from typing import Optional
 
 import aiohttp
-import busio
 import caldav
 import litellm
 import pyttsx3
@@ -42,6 +42,11 @@ import requests
 import speech_recognition as sr
 from dotenv import load_dotenv
 from phue import Bridge
+
+from src.audio_capture import MIC_PRIORITIES
+
+
+_softvol_configured = False
 
 
 def _configure_alsa_for_pyaudio():
@@ -51,15 +56,34 @@ def _configure_alsa_for_pyaudio():
     no valid default input device is configured. This ensures /etc/asound.conf
     has an asymmetric config with a valid capture device.
     """
+    global _softvol_configured
     try:
         asound_path = "/etc/asound.conf"
 
-        # Check if asound.conf exists and already has capture configured
         if os.path.exists(asound_path):
             with open(asound_path, "r") as f:
                 content = f.read()
             if "capture.pcm" in content:
-                return
+                configured_cards = set(re.findall(r'hw:(\d+)', content))
+                if configured_cards:
+                    available_cards = set()
+                    for cmd in [["aplay", "-l"], ["arecord", "-l"]]:
+                        try:
+                            r = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                            if r.returncode == 0:
+                                for m in re.finditer(r'card\s+(\d+):', r.stdout):
+                                    available_cards.add(m.group(1))
+                        except Exception:
+                            pass
+                    if configured_cards.issubset(available_cards):
+                        return
+                    print(
+                        f"[AUDIO] Configured cards {configured_cards} not all present "
+                        f"(available: {available_cards}), reconfiguring",
+                        flush=True,
+                    )
+                else:
+                    return
 
         # Find microphone card
         result = subprocess.run(
@@ -71,7 +95,7 @@ def _configure_alsa_for_pyaudio():
         if result.returncode != 0 or "card" not in result.stdout.lower():
             return
 
-        mic_priorities = [("usb", 100), ("microphone", 90), ("mic", 80), ("audio", 70)]
+        mic_priorities = MIC_PRIORITIES
         best_card = None
         best_priority = -1
 
@@ -95,16 +119,101 @@ def _configure_alsa_for_pyaudio():
         if not best_card:
             return
 
-        # Get playback card from existing config or default to 0
         playback_card = "0"
-        if os.path.exists(asound_path):
-            with open(asound_path, "r") as f:
-                content = f.read()
-            card_match = re.search(r"card\s+(\w+)", content)
-            if card_match:
-                playback_card = card_match.group(1)
+        is_bcm2835 = False
+        try:
+            aplay_result = subprocess.run(
+                ["aplay", "-l"], capture_output=True, text=True, timeout=5
+            )
+            if aplay_result.returncode == 0:
+                best_play_card = None
+                best_play_priority = -1
+                for line in aplay_result.stdout.lower().split("\n"):
+                    if "card" not in line:
+                        continue
+                    play_card_match = re.search(r"card\s+(\d+):", line)
+                    if play_card_match:
+                        card_num = play_card_match.group(1)
+                        for keyword, priority in mic_priorities:
+                            if keyword in line and priority > best_play_priority:
+                                best_play_card = card_num
+                                best_play_priority = priority
+                                break
+                if best_play_card:
+                    playback_card = best_play_card
+                for line in aplay_result.stdout.lower().split("\n"):
+                    if f"card {playback_card}:" in line and "bcm2835" in line:
+                        is_bcm2835 = True
+                        break
+        except Exception:
+            pass
 
-        asound_config = f"""pcm.!default {{
+        has_playback_mixer = False
+        has_capture_mixer = False
+        volume_controls = ["PCM", "Master", "Speaker", "Headphone", "HDMI"]
+        capture_controls = ["Capture", "Mic", "Input", "Digital"]
+        for control in volume_controls:
+            try:
+                result = subprocess.run(
+                    ["amixer", "-c", playback_card, "sget", control],
+                    capture_output=True, text=True, timeout=5,
+                )
+                if result.returncode == 0 and re.search(r"\[\d+%\]", result.stdout):
+                    has_playback_mixer = True
+                    break
+            except Exception:
+                pass
+        for control in capture_controls:
+            try:
+                result = subprocess.run(
+                    ["amixer", "-c", best_card, "sget", control],
+                    capture_output=True, text=True, timeout=5,
+                )
+                if result.returncode == 0 and re.search(r"\[\d+%\]", result.stdout):
+                    has_capture_mixer = True
+                    break
+            except Exception:
+                pass
+
+        softvol_playback = ""
+        softvol_capture = ""
+        playback_pcm = '"dmixer"'
+        capture_pcm = f'"hw:{best_card},0"'
+
+        if not has_playback_mixer:
+            softvol_playback = f"""
+pcm.softvol_out {{
+    type softvol
+    slave.pcm "dmixer"
+    control {{
+        name "SoftMaster"
+        card {playback_card}
+    }}
+    min_dB -51.0
+    max_dB 0.0
+}}
+"""
+            playback_pcm = '"softvol_out"'
+
+        if not has_capture_mixer:
+            softvol_capture = f"""
+pcm.softvol_cap {{
+    type softvol
+    slave.pcm "hw:{best_card},0"
+    control {{
+        name "Capture"
+        card {best_card}
+    }}
+    min_dB -20.0
+    max_dB 40.0
+}}
+"""
+            capture_pcm = '"softvol_cap"'
+            _softvol_configured = True
+
+        if is_bcm2835:
+            asound_config = f"""{softvol_capture}
+pcm.!default {{
     type asym
     playback.pcm {{
         type plug
@@ -112,9 +221,42 @@ def _configure_alsa_for_pyaudio():
     }}
     capture.pcm {{
         type plug
-        slave.pcm "hw:{best_card},0"
+        slave.pcm {capture_pcm}
     }}
 }}
+
+ctl.!default {{
+    type hw
+    card {playback_card}
+}}
+"""
+        else:
+            asound_config = f"""pcm.dmixer {{
+    type dmix
+    ipc_key 1024
+    ipc_perm 0666
+    slave {{
+        pcm "hw:{playback_card},0"
+        rate 48000
+        format S16_LE
+        channels 2
+        period_size 1024
+        buffer_size 4096
+    }}
+}}
+{softvol_playback}{softvol_capture}
+pcm.!default {{
+    type asym
+    playback.pcm {{
+        type plug
+        slave.pcm {playback_pcm}
+    }}
+    capture.pcm {{
+        type plug
+        slave.pcm {capture_pcm}
+    }}
+}}
+
 ctl.!default {{
     type hw
     card {playback_card}
@@ -122,8 +264,18 @@ ctl.!default {{
 """
         with open(asound_path, "w") as f:
             f.write(asound_config)
+        shared_path = "/etc/alsa-shared/asound.conf"
+        if os.path.isdir(os.path.dirname(shared_path)):
+            with open(shared_path, "w") as f:
+                f.write(asound_config)
+        softvol_info = []
+        if not has_playback_mixer:
+            softvol_info.append("playback=softvol_out")
+        if not has_capture_mixer:
+            softvol_info.append("capture=softvol_cap")
+        softvol_str = f" ({', '.join(softvol_info)})" if softvol_info else ""
         print(
-            f"[AUDIO] Configured asound.conf: playback=card {playback_card}, capture=card {best_card}",
+            f"[AUDIO] Configured asound.conf: playback=card {playback_card}, capture=card {best_card}{softvol_str}",
             flush=True,
         )
     except Exception as e:
@@ -356,19 +508,6 @@ logging.getLogger("uvicorn").setLevel(logging.INFO)
 logging.getLogger("uvicorn.access").setLevel(logging.INFO)
 logging.getLogger("spotipy").setLevel(logging.WARNING)
 
-try:
-    from board import SCL, SDA
-except Exception:
-    logger.debug(
-        "Board not detected. Skipping... \n    Reason: {e}\n{traceback.format_exc()}"
-    )
-try:
-    import adafruit_ssd1306
-except Exception as e:
-    logger.debug(
-        f"Failed to import adafruit_ssd1306. Skipping...\n    Reason: {e}\n{traceback.format_exc()}"
-    )
-
 executor = ThreadPoolExecutor()
 
 sys.modules["common"] = sys.modules[__name__]
@@ -412,6 +551,11 @@ async def show_tool_animation(tool_name: str, context: dict = None):
     if dm and dm.is_available:
         await dm.show_tool_animation(tool_name, context or {}, "")
 
+    if tool_name == "weather":
+        from src.display.auxiliary import show_weather_all
+        location = (context or {}).get("requested_location")
+        await show_weather_all(location)
+
 
 def show_tool_animation_sync(tool_name: str, context: dict = None):
     """Synchronous wrapper for show_tool_animation.
@@ -422,25 +566,31 @@ def show_tool_animation_sync(tool_name: str, context: dict = None):
 
     logger.debug("Tool animation (sync): %s, context: %s", tool_name, context)
     dm = get_display_manager()
-    if dm and dm.is_available:
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.run_coroutine_threadsafe(
-                    dm.show_tool_animation(tool_name, context or {}, ""), loop
-                )
-            else:
-                loop.run_until_complete(
-                    dm.show_tool_animation(tool_name, context or {}, "")
-                )
-        except Exception:
-            pass
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        return
+
+    async def _run():
+        if dm and dm.is_available:
+            await dm.show_tool_animation(tool_name, context or {}, "")
+        if tool_name == "weather":
+            from src.display.auxiliary import show_weather_all
+            location = (context or {}).get("requested_location")
+            await show_weather_all(location)
+
+    try:
+        if loop.is_running():
+            asyncio.run_coroutine_threadsafe(_run(), loop)
+        else:
+            loop.run_until_complete(_run())
+    except Exception:
+        pass
 
 
 # Initialize the speech recognition engine
 r = sr.Recognizer()
 
-_cached_mic_index = None
 _mic_index_checked = False
 _cached_alsa_card = None
 
@@ -461,13 +611,6 @@ def _find_alsa_microphone_card():
         if result.returncode != 0:
             return None
 
-        mic_priorities = [
-            ("usb", 100),
-            ("microphone", 90),
-            ("mic", 80),
-            ("audio", 70),
-        ]
-
         best_card = None
         best_priority = -1
 
@@ -481,7 +624,7 @@ def _find_alsa_microphone_card():
                     continue
                 card_num = int(card_match.group(1))
 
-                for keyword, priority in mic_priorities:
+                for keyword, priority in MIC_PRIORITIES:
                     if keyword in line and priority > best_priority:
                         best_card = card_num
                         best_priority = priority
@@ -545,13 +688,6 @@ def _find_pyaudio_index_for_alsa_card(alsa_card: int):
 
         # Second pass: match by device name keywords (USB, mic, etc.)
         # This is a fallback if the hw:N pattern doesn't match
-        mic_priorities = [
-            ("usb", 100),
-            ("microphone", 90),
-            ("mic", 80),
-            ("audio", 70),
-        ]
-
         best_idx = None
         best_priority = -1
 
@@ -566,7 +702,7 @@ def _find_pyaudio_index_for_alsa_card(alsa_card: int):
                     if "monitor" in name or "loopback" in name:
                         continue
 
-                    for keyword, priority in mic_priorities:
+                    for keyword, priority in MIC_PRIORITIES:
                         if keyword in name and priority > best_priority:
                             best_idx = i
                             best_priority = priority
@@ -585,42 +721,25 @@ def _find_pyaudio_index_for_alsa_card(alsa_card: int):
 def _find_microphone_device_index():
     """Find the best available microphone device index for speech recognition.
 
-    Returns the PyAudio device index or None if no suitable device is found.
-    Result is cached to avoid repeated device enumeration.
-
-    IMPORTANT: This returns a PyAudio device index, NOT an ALSA card number.
-    PyAudio indices are different from ALSA card numbers and must be used
-    with sr.Microphone(device_index=...).
+    Always returns None so sr.Microphone uses the ALSA default device,
+    which _configure_alsa_for_pyaudio() has set up with proper capture routing
+    (through softvol_cap when the card lacks hardware capture mixer controls).
     """
-    global _cached_mic_index, _mic_index_checked, _cached_alsa_card
+    global _cached_alsa_card, _mic_index_checked
 
     if _mic_index_checked:
-        return _cached_mic_index
+        return None
 
     _mic_index_checked = True
 
-    # First find the ALSA card
     _cached_alsa_card = _find_alsa_microphone_card()
 
     if _cached_alsa_card is None:
         logger.warning("No ALSA microphone card found")
-        return None
-
-    logger.debug(f"Found microphone device via ALSA: card {_cached_alsa_card}")
-
-    # Convert ALSA card to PyAudio index
-    _cached_mic_index = _find_pyaudio_index_for_alsa_card(_cached_alsa_card)
-
-    if _cached_mic_index is not None:
-        logger.debug(
-            f"Mapped ALSA card {_cached_alsa_card} to PyAudio index {_cached_mic_index}"
-        )
     else:
-        logger.warning(
-            f"Could not find PyAudio index for ALSA card {_cached_alsa_card}"
-        )
+        logger.debug("Found microphone on ALSA card %d, using ALSA default device", _cached_alsa_card)
 
-    return _cached_mic_index
+    return None
 
 
 # Configure speech recognizer with fixed energy threshold
@@ -632,10 +751,8 @@ r.phrase_threshold = 0.3  # Minimum seconds of speech to consider a phrase
 
 
 def _load_speech_timing_settings():
-    """Load speech recognition timing settings from settings.json."""
     try:
-        with open(SOURCE_DIR / "settings.json", "r") as f:
-            settings = json.load(f)
+        settings = load_settings()
         r.pause_threshold = settings.get("pauseThreshold", 1.2)
         r.non_speaking_duration = settings.get("nonSpeakingDuration", 0.8)
     except Exception:
@@ -647,11 +764,8 @@ _load_speech_timing_settings()
 
 
 def get_phrase_time_limit():
-    """Get phrase time limit from settings."""
     try:
-        with open(SOURCE_DIR / "settings.json", "r") as f:
-            settings = json.load(f)
-        return settings.get("phraseTimeLimit", 30)
+        return load_settings().get("phraseTimeLimit", 30)
     except Exception:
         return 30
 
@@ -661,6 +775,42 @@ def reload_speech_timing_settings():
     _load_speech_timing_settings()
 
 
+class MicrophoneSource(sr.AudioSource):
+    """Reads from the active AudioCapture stream via a queue.
+
+    Unlike sr.Microphone, this never creates/destroys a PyAudio instance,
+    so the WM8960 speaker amp doesn't pop from Pa_Terminate/Pa_Initialize.
+    """
+
+    def __init__(self):
+        self.SAMPLE_RATE = 44100
+        self.SAMPLE_WIDTH = 2
+        self.CHUNK = 1024
+        self.stream = None
+
+    def __enter__(self):
+        from src.audio_capture import get_mic_capture_info, start_mic_listen_feed
+
+        self.SAMPLE_RATE, self.CHUNK = get_mic_capture_info()
+        self._queue = queue.Queue(maxsize=200)
+        start_mic_listen_feed(self._queue)
+        self.stream = self._QueueStream(self._queue)
+        return self
+
+    def __exit__(self, *args):
+        from src.audio_capture import stop_mic_listen_feed
+
+        stop_mic_listen_feed()
+        self.stream = None
+
+    class _QueueStream:
+        def __init__(self, q):
+            self._queue = q
+
+        def read(self, size):
+            return self._queue.get(timeout=10)
+
+
 def calibrate_ambient_noise(duration: float = 1.0):
     """Calibrate the recognizer for ambient noise levels.
 
@@ -668,8 +818,7 @@ def calibrate_ambient_noise(duration: float = 1.0):
     speech detection accuracy and reduce false positives.
     """
     try:
-        mic_index = _find_microphone_device_index()
-        with sr.Microphone(device_index=mic_index) as source:
+        with MicrophoneSource() as source:
             logger.debug(f"Calibrating ambient noise for {duration}s...")
             r.adjust_for_ambient_noise(source, duration=duration)
             logger.debug(
@@ -683,6 +832,7 @@ def audio_has_speech(
     audio_data: sr.AudioData,
     threshold_db: float = -35.0,
     min_duration: float = 1.0,
+    min_peak: float = 0.05,
 ) -> bool:
     """Check if audio contains speech. Rejects short/quiet audio to prevent Whisper hallucinations."""
     try:
@@ -706,16 +856,17 @@ def audio_has_speech(
         max_val = (1 << (8 * audio_data.sample_width - 1)) - 1
         peak_val = audioop.max(raw_data, audio_data.sample_width)
         peak_ratio = peak_val / max_val
-        if peak_ratio < 0.05:
-            logger.debug("Peak too low: %.3f, rejecting", peak_ratio)
+        if peak_ratio < min_peak:
+            logger.debug("Peak too low: %.3f < %.3f, rejecting", peak_ratio, min_peak)
             has_speech = False
 
         logger.debug(
-            "VAD: dB=%.1f, threshold=%s, duration=%.2fs, peak=%.3f, has_speech=%s",
+            "VAD: dB=%.1f, threshold=%s, duration=%.2fs, peak=%.3f (min=%.3f), has_speech=%s",
             metrics.db_level,
             threshold_db,
             duration,
             peak_ratio,
+            min_peak,
             has_speech,
         )
         return has_speech
@@ -735,426 +886,13 @@ engine.setProperty("volume", 1.0)
 # Direct audio to specific hardware
 engine.setProperty("alsa_device", "hw:Headphones,0")
 speak_lock = asyncio.Lock()
-display_lock = asyncio.Lock()
-
-# I2C display screensaver state
-_i2c_display_screensaver_active = False
-_i2c_display_last_activity_time = time.time()
-_i2c_display_screensaver_task = None
-_i2c_display_screensaver_render_task = None
-_i2c_display_ref = None
-
-
-def draw_i2c_header(display):
-    """Draw the IP address and CPU temperature header on the I2C display.
-
-    This should be called whenever the display needs to restore its header
-    (after screensaver, after listening waveform, etc.).
-    """
-    if display is None:
-        return
-
-    ip_to_show = ""
-    try:
-        result = subprocess.run(
-            ["nsenter", "-t", "1", "-n", "hostname", "-I"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            ip_to_show = result.stdout.strip().split()[0]
-    except Exception:
-        pass
-
-    if not ip_to_show:
-        try:
-            with open("/run/gpt-home/host-ip", "r") as f:
-                ip_to_show = f.read().strip()
-        except Exception:
-            pass
-
-    if ip_to_show:
-        display.text(f"{ip_to_show}", 0, 0, 1)
-
-    try:
-        cpu_temp = int(
-            float(
-                subprocess.check_output(["vcgencmd", "measure_temp"])
-                .decode("utf-8")
-                .split("=")[1]
-                .split("'")[0]
-            )
-        )
-        temp_text_x = 100
-        display.text(f"{cpu_temp}", temp_text_x, 0, 1)
-        degree_x = 100 + len(f"{cpu_temp}") * 7
-        degree_y = 2
-        degree_symbol(display, degree_x, degree_y, 2, 1)
-        c_x = degree_x + 7
-        display.text("C", c_x, 0, 1)
-    except Exception:
-        pass
-
-
-def i2c_display_register_activity():
-    """Register activity on I2C display to reset screensaver timer and wake display."""
-    global \
-        _i2c_display_last_activity_time, \
-        _i2c_display_screensaver_active, \
-        _i2c_display_screensaver_render_task
-    _i2c_display_last_activity_time = time.time()
-    if _i2c_display_screensaver_active:
-        logger.debug("Waking I2C screensaver due to activity")
-        _i2c_display_screensaver_active = False
-        if (
-            _i2c_display_screensaver_render_task
-            and not _i2c_display_screensaver_render_task.done()
-        ):
-            _i2c_display_screensaver_render_task.cancel()
-        _i2c_display_screensaver_render_task = None
-        if _i2c_display_ref is not None:
-            _i2c_display_ref.fill(0)
-            draw_i2c_header(_i2c_display_ref)
-            _i2c_display_ref.show()
-
 
 def register_all_display_activity():
-    """Register activity on both I2C display and full display manager."""
-    i2c_display_register_activity()
+    from src.display.auxiliary import register_all_auxiliary_activity
+    register_all_auxiliary_activity()
     dm = get_display_manager()
     if dm and dm.is_available:
         dm.register_activity()
-
-
-async def i2c_display_check_screensaver(display):
-    """Check if I2C display screensaver should activate."""
-    global _i2c_display_screensaver_active, _i2c_display_screensaver_render_task
-
-    if display is None:
-        return
-
-    settings = load_settings()
-    if not settings.get("screensaver_enabled", True):
-        return
-
-    if _i2c_display_screensaver_active:
-        return
-
-    # Don't activate screensaver while Spotify is playing
-    if _i2c_spotify_active:
-        return
-
-    timeout = float(settings.get("screensaver_timeout", 300))
-    elapsed = time.time() - _i2c_display_last_activity_time
-
-    if elapsed >= timeout:
-        _i2c_display_screensaver_active = True
-        logger.debug(
-            "I2C display screensaver activated after %.0fs of inactivity", elapsed
-        )
-        _i2c_display_screensaver_render_task = asyncio.create_task(
-            _i2c_display_screensaver_animation(display)
-        )
-
-
-async def _i2c_display_screensaver_animation(display):
-    """Animated screensaver for I2C OLED - moving dots to prevent burn-in."""
-    import random
-
-    dots = []
-    for _ in range(5):
-        dots.append(
-            {
-                "x": random.randint(0, 127),
-                "y": random.randint(0, 31),
-                "vx": random.choice([-1, 1]) * random.uniform(0.5, 1.5),
-                "vy": random.choice([-1, 1]) * random.uniform(0.3, 0.8),
-            }
-        )
-
-    try:
-        while _i2c_display_screensaver_active:
-            async with display_lock:
-                display.fill(0)
-
-                for dot in dots:
-                    dot["x"] += dot["vx"]
-                    dot["y"] += dot["vy"]
-
-                    if dot["x"] <= 0 or dot["x"] >= 127:
-                        dot["vx"] = -dot["vx"]
-                        dot["x"] = max(0, min(127, dot["x"]))
-                    if dot["y"] <= 0 or dot["y"] >= 31:
-                        dot["vy"] = -dot["vy"]
-                        dot["y"] = max(0, min(31, dot["y"]))
-
-                    x, y = int(dot["x"]), int(dot["y"])
-                    display.pixel(x, y, 1)
-                    if x > 0:
-                        display.pixel(x - 1, y, 1)
-                    if x < 127:
-                        display.pixel(x + 1, y, 1)
-                    if y > 0:
-                        display.pixel(x, y - 1, 1)
-                    if y < 31:
-                        display.pixel(x, y + 1, 1)
-
-                display.show()
-
-            await asyncio.sleep(0.05)
-    except asyncio.CancelledError:
-        pass
-    except Exception as e:
-        logger.error(f"I2C screensaver animation error: {e}")
-    finally:
-        async with display_lock:
-            display.fill(0)
-            draw_i2c_header(display)
-            display.show()
-
-
-async def i2c_display_restore_header(display):
-    """Restore the I2C display header after screensaver or other full-screen state."""
-    if display is None:
-        return
-    async with display_lock:
-        display.fill(0)
-        draw_i2c_header(display)
-        display.show()
-
-
-async def i2c_display_screensaver_monitor(display):
-    """Background task to monitor I2C display inactivity and activate screensaver."""
-    global _i2c_display_screensaver_task
-    try:
-        while True:
-            await asyncio.sleep(10)  # Check every 10 seconds
-            await i2c_display_check_screensaver(display)
-    except asyncio.CancelledError:
-        pass
-    except Exception as e:
-        logger.error(f"I2C display screensaver monitor error: {e}")
-
-
-async def i2c_display_stop_screensaver(display):
-    """Stop I2C display screensaver and restore normal display."""
-    global \
-        _i2c_display_screensaver_active, \
-        _i2c_display_screensaver_render_task, \
-        _i2c_display_last_activity_time
-    if not _i2c_display_screensaver_active:
-        return
-    _i2c_display_screensaver_active = False
-    if (
-        _i2c_display_screensaver_render_task
-        and not _i2c_display_screensaver_render_task.done()
-    ):
-        _i2c_display_screensaver_render_task.cancel()
-    _i2c_display_screensaver_render_task = None
-    _i2c_display_last_activity_time = time.time()
-    if display is not None:
-        async with display_lock:
-            display.fill(0)
-            draw_i2c_header(display)
-            display.show()
-
-
-def start_i2c_display_screensaver_monitor(display):
-    """Start the I2C display screensaver monitor task."""
-    global _i2c_display_screensaver_task
-    if _i2c_display_screensaver_task is None or _i2c_display_screensaver_task.done():
-        _i2c_display_screensaver_task = asyncio.create_task(
-            i2c_display_screensaver_monitor(display)
-        )
-        logger.debug("I2C display screensaver monitor started")
-
-
-def is_i2c_display_screensaver_active():
-    """Check if I2C display screensaver is currently active."""
-    return _i2c_display_screensaver_active
-
-
-# I2C display Spotify player state
-_i2c_spotify_active = False
-_i2c_spotify_track = ""
-_i2c_spotify_artist = ""
-_i2c_spotify_progress_ms = 0
-_i2c_spotify_duration_ms = 0
-_i2c_spotify_render_task = None
-_i2c_spotify_scroll_offset = 0
-_i2c_spotify_scroll_pause = 0
-
-
-def is_i2c_spotify_active():
-    """Check if I2C Spotify player is currently active."""
-    return _i2c_spotify_active
-
-
-async def i2c_display_show_spotify(
-    display, track: str, artist: str, progress_ms: int = 0, duration_ms: int = 0
-):
-    """Show Spotify now playing on I2C display with scrolling text.
-
-    This does NOT block agent listening - it runs as a background render task.
-    The screensaver is prevented while Spotify is playing.
-
-    Args:
-        display: I2C display object
-        track: Track name
-        artist: Artist name
-        progress_ms: Current playback position in milliseconds
-        duration_ms: Total track duration in milliseconds
-    """
-    global _i2c_spotify_active, _i2c_spotify_track, _i2c_spotify_artist
-    global _i2c_spotify_progress_ms, _i2c_spotify_duration_ms
-    global \
-        _i2c_spotify_render_task, \
-        _i2c_spotify_scroll_offset, \
-        _i2c_spotify_scroll_pause
-
-    if display is None:
-        return
-
-    # Check if track changed - reset scroll position
-    track_changed = track != _i2c_spotify_track or artist != _i2c_spotify_artist
-
-    # Update state
-    _i2c_spotify_track = track
-    _i2c_spotify_artist = artist
-    _i2c_spotify_progress_ms = progress_ms
-    _i2c_spotify_duration_ms = duration_ms
-
-    if track_changed:
-        _i2c_spotify_scroll_offset = 0
-        _i2c_spotify_scroll_pause = 2.0  # Pause at start before scrolling
-
-    # Register activity to prevent screensaver
-    _i2c_display_last_activity_time = time.time()
-
-    # Start render task if not already running
-    if not _i2c_spotify_active:
-        _i2c_spotify_active = True
-        # Cancel screensaver if active
-        if _i2c_display_screensaver_active:
-            i2c_display_register_activity()
-        if _i2c_spotify_render_task is None or _i2c_spotify_render_task.done():
-            _i2c_spotify_render_task = asyncio.create_task(
-                _i2c_spotify_render_loop(display)
-            )
-
-
-async def i2c_display_stop_spotify(display):
-    """Stop the I2C Spotify display and restore normal header."""
-    global _i2c_spotify_active, _i2c_spotify_render_task
-    global _i2c_spotify_track, _i2c_spotify_artist
-
-    _i2c_spotify_active = False
-    _i2c_spotify_track = ""
-    _i2c_spotify_artist = ""
-
-    if _i2c_spotify_render_task and not _i2c_spotify_render_task.done():
-        _i2c_spotify_render_task.cancel()
-        try:
-            await _i2c_spotify_render_task
-        except asyncio.CancelledError:
-            pass
-    _i2c_spotify_render_task = None
-
-    # Restore normal display
-    if display:
-        async with display_lock:
-            display.fill(0)
-            draw_i2c_header(display)
-            display.show()
-
-
-async def _i2c_spotify_render_loop(display):
-    """Background render loop for I2C Spotify player with scrolling text.
-
-    This loop runs independently and does NOT block agent listening.
-    """
-    global _i2c_spotify_scroll_offset, _i2c_spotify_scroll_pause
-    global _i2c_spotify_active
-
-    # Scrolling parameters
-    scroll_speed = 30  # pixels per second
-    char_width = 6  # approximate pixels per character
-    display_width = 128
-    last_frame = time.time()
-
-    try:
-        while _i2c_spotify_active:
-            now = time.time()
-            dt = now - last_frame
-            last_frame = now
-
-            # Build display text: "Track - Artist"
-            display_text = f"{_i2c_spotify_track} - {_i2c_spotify_artist}"
-            text_width = len(display_text) * char_width
-            needs_scroll = text_width > display_width
-
-            # Update scroll position
-            if needs_scroll:
-                if _i2c_spotify_scroll_pause > 0:
-                    _i2c_spotify_scroll_pause -= dt
-                else:
-                    _i2c_spotify_scroll_offset += scroll_speed * dt
-                    max_scroll = text_width - display_width + char_width * 3
-                    if _i2c_spotify_scroll_offset >= max_scroll:
-                        # Reset to start with pause
-                        _i2c_spotify_scroll_offset = 0
-                        _i2c_spotify_scroll_pause = 2.0
-
-            # Format progress time
-            if _i2c_spotify_duration_ms > 0:
-                prog_min = _i2c_spotify_progress_ms // 60000
-                prog_sec = (_i2c_spotify_progress_ms % 60000) // 1000
-                dur_min = _i2c_spotify_duration_ms // 60000
-                dur_sec = (_i2c_spotify_duration_ms % 60000) // 1000
-                time_str = f"{prog_min}:{prog_sec:02d}/{dur_min}:{dur_sec:02d}"
-            else:
-                time_str = ""
-
-            # Render to display
-            async with display_lock:
-                display.fill(0)
-
-                # Header line: IP and temp (same as normal)
-                draw_i2c_header(display)
-
-                # Line 2 (y=12): Scrolling track/artist text
-                scroll_x = -int(_i2c_spotify_scroll_offset) if needs_scroll else 0
-                display.text(display_text, scroll_x, 12, 1)
-
-                # Line 3 (y=24): Progress bar and time
-                if _i2c_spotify_duration_ms > 0:
-                    # Progress bar (left side)
-                    bar_width = 80
-                    bar_height = 4
-                    bar_y = 26
-                    progress_pct = _i2c_spotify_progress_ms / _i2c_spotify_duration_ms
-                    filled_width = int(bar_width * min(1.0, progress_pct))
-
-                    # Draw bar outline
-                    display.rect(0, bar_y, bar_width, bar_height, 1)
-                    # Draw filled portion
-                    if filled_width > 0:
-                        display.fill_rect(0, bar_y, filled_width, bar_height, 1)
-
-                    # Time on right side
-                    display.text(time_str, 85, 24, 1)
-
-                display.show()
-
-            await asyncio.sleep(0.1)  # 10 FPS is enough for I2C display
-
-    except asyncio.CancelledError:
-        pass
-    except Exception as e:
-        logger.error(f"I2C Spotify render error: {e}")
-    finally:
-        _i2c_spotify_active = False
 
 
 # Public alias for _find_microphone_device_index (for use in app.py)
@@ -1172,8 +910,7 @@ def reset_microphone_cache():
 
     Call this when audio devices may have changed (e.g., USB device plugged in).
     """
-    global _cached_mic_index, _mic_index_checked, _cached_alsa_card
-    _cached_mic_index = None
+    global _mic_index_checked, _cached_alsa_card
     _mic_index_checked = False
     _cached_alsa_card = None
 
@@ -1212,17 +949,6 @@ async def load_integration_statuses() -> dict[str, bool]:
         ),
         "caldav": has_keys(data.get("caldav", {}), ["URL", "USERNAME", "PASSWORD"]),
     }
-
-
-# Manually draw a degree symbol °
-def degree_symbol(display, x, y, radius, color):
-    for i in range(x - radius, x + radius + 1):
-        for j in range(y - radius, y + radius + 1):
-            if (i - x) ** 2 + (j - y) ** 2 <= radius**2:
-                display.pixel(i, j, color)
-                # clear center of circle
-                if (i - x) ** 2 + (j - y) ** 2 <= (radius - 1) ** 2:
-                    display.pixel(i, j, 0)
 
 
 async def calculate_delay(message):
@@ -1269,138 +995,56 @@ def estimate_word_duration(word, base_wpm=150):
     return base_duration
 
 
-def init_i2c_display():
-    """Initialize the I2C display (SSD1306).
-
-    Returns the display object or None if initialization fails.
-    """
-    try:
-        import os
-
-        i2c = busio.I2C(SCL, SDA)
-        display = adafruit_ssd1306.SSD1306_I2C(128, 32, i2c)
-        display.rotation = load_settings().get("i2c_rotation", 2)
-        display.fill(0)
-        draw_i2c_header(display)
-        display.show()
-        logger.debug("I2C display initialized successfully")
-        return display
-    except Exception as e:
-        logger.debug(f"I2C display init failed: {e}")
-        return None
-
-
 async def initialize_system():
-    """Initialize the system including I2C display and network connection."""
-    global _i2c_display_ref
-    display = init_i2c_display()
-    stop_event_init = asyncio.Event()
-    state_task = asyncio.create_task(
-        display_state("Connecting", display, stop_event_init)
+    from src.display.auxiliary import (
+        display_state_all,
+        init_auxiliary_displays,
+        restore_all_headers,
+        start_all_screensaver_monitors,
     )
+
+    await init_auxiliary_displays()
+
+    stop_event_init = asyncio.Event()
+    state_tasks = await display_state_all("Connecting", stop_event_init)
+
     while not network_connected():
         await asyncio.sleep(1)
-        message = "Network not connected. Retrying..."
-        logger.info(message)
-    stop_event_init.set()  # Signal to stop the 'Connecting' display
-    state_task.cancel()  # Cancel the display task
-    display = init_i2c_display()  # Reinitialize the display
+        logger.info("Network not connected. Retrying...")
 
-    # Store reference and start screensaver monitor
-    if display is not None:
-        _i2c_display_ref = display
-        start_i2c_display_screensaver_monitor(display)
+    stop_event_init.set()
+    for task in state_tasks:
+        task.cancel()
 
-    return display
+    await restore_all_headers()
+    start_all_screensaver_monitors()
 
 
-def load_settings():
+_settings_cache: Optional[dict] = None
+
+
+def load_settings() -> dict:
+    if _settings_cache is not None:
+        return _settings_cache.copy()
     settings_path = SOURCE_DIR / "settings.json"
     with open(settings_path, "r") as f:
-        settings = json.load(f)
-        return settings
+        return json.load(f)
 
 
 def save_settings(settings: dict):
-    """Save settings to settings.json file."""
+    global _settings_cache
+    _settings_cache = settings.copy()
     settings_path = SOURCE_DIR / "settings.json"
-    with open(settings_path, "w") as f:
-        json.dump(settings, f, indent=2)
+    try:
+        with open(settings_path, "w") as f:
+            json.dump(settings, f, indent=2)
+    except Exception:
+        pass
 
 
-async def update_i2c_display(
-    text, display, stop_event=None, delay=0.02, word_sync_event=None
-):
-    """
-    Update I2C display with text.
-
-    Args:
-        text: Text to display
-        display: I2C display object (SSD1306)
-        stop_event: Event to signal when to stop
-        delay: Delay between characters (legacy, used when word_sync_event is None)
-        word_sync_event: asyncio.Event that gets set each time a word should be displayed
-    """
-    if display is None:
-        return
-
-    async with display_lock:
-        if stop_event is None:
-            stop_event = asyncio.Event()
-
-        async def display_text_legacy(delay):
-            """Legacy character-by-character display with fixed delay."""
-            i = 0
-            while not (stop_event and stop_event.is_set()) and i < line_count:
-                if line_count > 2:
-                    await display_lines_legacy(i, min(i + 2, line_count), delay)
-                    i += 2
-                else:
-                    await display_lines_legacy(0, line_count, delay)
-                    break
-                await asyncio.sleep(0.02)
-
-        async def display_lines_legacy(start, end, delay):
-            display.fill_rect(0, 10, 128, 22, 0)
-            for i, line_index in enumerate(range(start, end)):
-                for j, char in enumerate(lines[line_index]):
-                    if stop_event.is_set():
-                        break
-                    try:
-                        display.text(char, j * 6, 10 + i * 10, 1)
-                    except struct.error as e:
-                        logger.error(f"Struct Error: {e}, skipping character {char}")
-                        continue
-                    display.show()
-                    await asyncio.sleep(delay)
-
-        def init_display_header():
-            """Initialize display with IP and temp header."""
-            display.fill(0)
-            draw_i2c_header(display)
-            display.show()
-
-        init_display_header()
-        lines = textwrap.fill(text, 21).split("\n")
-        line_count = len(lines)
-        await display_text_legacy(delay)
-
-
-_i2c_waveform_observer = None
-
-
-def _get_i2c_waveform_observer():
-    global _i2c_waveform_observer
-    if _i2c_waveform_observer is None:
-        try:
-            from src.waveform import I2CDisplayWaveformObserver, get_waveform_mediator
-
-            _i2c_waveform_observer = I2CDisplayWaveformObserver()
-            mediator = get_waveform_mediator()
-            mediator.register_observer(_i2c_waveform_observer)
-        except Exception as e:
-            logger.error("Failed to init waveform observer: %s", e)
-    return _i2c_waveform_observer
+def set_settings_cache(settings: dict):
+    global _settings_cache
+    _settings_cache = settings.copy()
 
 
 def _update_waveform_from_chunk(audio_chunk: sr.AudioData):
@@ -1562,47 +1206,25 @@ def _listen_with_streaming_waveform(source, timeout=3, phrase_time_limit=15):
         _notify_waveform_stop_sync()
 
 
-# Volume ducking state
-_original_volume: Optional[int] = None
 _original_spotify_volume: Optional[int] = None
-_spotify_was_ducked_for_listen: bool = False
-_DUCK_VOLUME_PERCENT = 30  # Duck to 30% of original volume
-_LISTEN_DUCK_VOLUME = 10  # Duck Spotify to 10% while listening for wake word
+_MUSIC_PLAYING_PEAK_THRESHOLD = 0.55
+
+
+def _is_spotify_playing() -> bool:
+    try:
+        from src.backend import _spotify_playback_cache
+        return bool(_spotify_playback_cache and _spotify_playback_cache.get("is_playing"))
+    except Exception:
+        return False
 
 
 async def duck_volume() -> None:
-    """Lower system and Spotify volume temporarily when wake word is detected."""
-    global _original_volume, _original_spotify_volume
+    """Lower Spotify volume temporarily when wake word is detected."""
+    global _original_spotify_volume
     try:
         import aiohttp
 
         async with aiohttp.ClientSession() as session:
-            # Duck system volume
-            try:
-                async with session.get(
-                    "http://localhost:8000/api/audio/volume",
-                    timeout=aiohttp.ClientTimeout(total=2),
-                ) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        current_vol = data.get("volume")
-                        if current_vol and current_vol > _DUCK_VOLUME_PERCENT:
-                            _original_volume = current_vol
-                            ducked_vol = max(10, int(current_vol * 0.3))
-                            async with session.post(
-                                "http://localhost:8000/api/audio/volume",
-                                json={"volume": ducked_vol},
-                                timeout=aiohttp.ClientTimeout(total=2),
-                            ) as _:
-                                logger.debug(
-                                    "System volume ducked from %d%% to %d%%",
-                                    current_vol,
-                                    ducked_vol,
-                                )
-            except Exception as e:
-                logger.error("Failed to duck system volume: %s", e)
-
-            # Duck Spotify volume if playing
             try:
                 async with session.get(
                     "http://localhost:8000/api/spotify/playback",
@@ -1618,7 +1240,6 @@ async def duck_volume() -> None:
                             current_spotify_vol,
                         )
                         if is_playing:
-                            # Volume comes directly from MPRIS as "volume" (0-100)
                             if (
                                 current_spotify_vol is not None
                                 and current_spotify_vol > 20
@@ -1627,7 +1248,6 @@ async def duck_volume() -> None:
                                 ducked_spotify_vol = max(
                                     10, int(current_spotify_vol * 0.2)
                                 )
-                                # Set Spotify volume via control endpoint
                                 async with session.post(
                                     "http://localhost:8000/spotify-control",
                                     json={"command": f"volume {ducked_spotify_vol}"},
@@ -1646,27 +1266,13 @@ async def duck_volume() -> None:
 
 
 async def restore_volume() -> None:
-    """Restore system and Spotify volume after interaction completes."""
-    global _original_volume, _original_spotify_volume
+    """Restore Spotify volume after interaction completes."""
+    global _original_spotify_volume
     try:
         import aiohttp
 
-        async with aiohttp.ClientSession() as session:
-            # Restore system volume
-            if _original_volume is not None:
-                try:
-                    async with session.post(
-                        "http://localhost:8000/api/audio/volume",
-                        json={"volume": _original_volume},
-                        timeout=aiohttp.ClientTimeout(total=2),
-                    ) as _:
-                        logger.debug("System volume restored to %d%%", _original_volume)
-                    _original_volume = None
-                except Exception as e:
-                    logger.error("Failed to restore system volume: %s", e)
-
-            # Restore Spotify volume
-            if _original_spotify_volume is not None:
+        if _original_spotify_volume is not None:
+            async with aiohttp.ClientSession() as session:
                 try:
                     async with session.post(
                         "http://localhost:8000/spotify-control",
@@ -1684,7 +1290,7 @@ async def restore_volume() -> None:
         logger.error("Failed to restore volume: %s", e)
 
 
-async def listen(display, state_task, stop_event):
+async def listen(state_task, stop_event):
     """Listen for voice input and return recognized text.
 
     Uses streaming audio capture to show real-time waveform visualization
@@ -1717,13 +1323,8 @@ async def listen(display, state_task, stop_event):
             else:
                 raise ValueError(f"No STT support for provider: {provider}")
 
-            mic_index = _find_microphone_device_index()
-
             def _do_listen():
-                with sr.Microphone(device_index=mic_index) as source:
-                    if source.stream is None:
-                        raise RuntimeError("Microphone not initialized.")
-
+                with MicrophoneSource() as source:
                     return _listen_with_streaming_waveform(
                         source, timeout=3, phrase_time_limit=get_phrase_time_limit()
                     )
@@ -1733,14 +1334,12 @@ async def listen(display, state_task, stop_event):
             if audio is None:
                 return None
 
-            if not audio_has_speech(audio, threshold_db=vad_threshold_db):
+            peak_min = _MUSIC_PLAYING_PEAK_THRESHOLD if _is_spotify_playing() else 0.05
+            if not audio_has_speech(audio, threshold_db=vad_threshold_db, min_peak=peak_min):
                 logger.debug(
-                    "Audio rejected by VAD (threshold: %s dB)", vad_threshold_db
+                    "Audio rejected by VAD (threshold: %s dB, min_peak: %.3f)", vad_threshold_db, peak_min
                 )
                 return None
-
-            # Duck Spotify volume
-            await duck_volume()
 
             register_all_display_activity()
 
@@ -1809,13 +1408,8 @@ async def listen(display, state_task, stop_event):
     async def recognize_audio_google():
         """Fallback to Google speech recognition with real-time streaming waveform."""
         try:
-            mic_index = _find_microphone_device_index()
-
             def _do_listen():
-                with sr.Microphone(device_index=mic_index) as source:
-                    if source.stream is None:
-                        raise RuntimeError("Microphone not initialized.")
-
+                with MicrophoneSource() as source:
                     return _listen_with_streaming_waveform(
                         source, timeout=3, phrase_time_limit=get_phrase_time_limit()
                     )
@@ -1825,15 +1419,13 @@ async def listen(display, state_task, stop_event):
             if audio is None:
                 return None
 
-            if not audio_has_speech(audio, threshold_db=vad_threshold_db):
+            peak_min = _MUSIC_PLAYING_PEAK_THRESHOLD if _is_spotify_playing() else 0.05
+            if not audio_has_speech(audio, threshold_db=vad_threshold_db, min_peak=peak_min):
                 logger.debug(
-                    "Google STT: audio rejected by VAD (threshold: %s dB)",
-                    vad_threshold_db,
+                    "Google STT: audio rejected by VAD (threshold: %s dB, min_peak: %.3f)",
+                    vad_threshold_db, peak_min,
                 )
                 return None
-
-            # Duck Spotify volume
-            await duck_volume()
 
             register_all_display_activity()
 
@@ -1849,33 +1441,18 @@ async def listen(display, state_task, stop_event):
         except sr.UnknownValueError:
             return None
 
-    try:
-        from src.audio_capture import start_mic_capture, stop_mic_capture
+    text = None
+    if stt_engine == "litellm" and litellm_stt_available():
+        text = await recognize_audio_litellm()
 
-        await loop.run_in_executor(None, stop_mic_capture)
-    except Exception:
-        pass
+    if text is None:
+        text = await recognize_audio_google()
 
-    try:
-        text = None
-        if stt_engine == "litellm" and litellm_stt_available():
-            text = await recognize_audio_litellm()
+    if text:
+        state_task.cancel()
 
-        if text is None:
-            text = await recognize_audio_google()
-
-        if text:
-            state_task.cancel()
-
-        await restore_volume()
-        return text
-    finally:
-        try:
-            from src.audio_capture import start_mic_capture
-
-            await loop.run_in_executor(None, start_mic_capture)
-        except Exception:
-            pass
+    await restore_volume()
+    return text
 
 
 async def _notify_backend_user_listening(start: bool):
@@ -1888,117 +1465,28 @@ async def _notify_backend_user_listening(start: bool):
             await dm.stop_waveform()
 
 
-async def display_state(state, display, stop_event):
-    if display is None:
-        return
-
-    # Register activity when display state changes (wakes screensaver on both displays)
+async def display_state(state, stop_event):
     register_all_display_activity()
 
-    # Also wake the full display screensaver asynchronously if active
     dm = get_display_manager()
     if dm and dm.is_available:
         if dm._screensaver_active:
-            logger.debug("Waking screensaver for state: %s", state)
             await dm.register_activity_async()
         else:
-            # Still register activity to reset timer
             dm.register_activity()
 
-    if state == "Connecting":
-        async with display_lock:
-            display.text("No Network", 0, 0, 1)
-            cpu_temp = int(
-                float(
-                    subprocess.check_output(["vcgencmd", "measure_temp"])
-                    .decode("utf-8")
-                    .split("=")[1]
-                    .split("'")[0]
-                )
-            )
-            temp_text_x = 100
-            display.text(f"{cpu_temp}", temp_text_x, 0, 1)
-            degree_x = 100 + len(f"{cpu_temp}") * 7
-            degree_y = 2
-            degree_symbol(display, degree_x, degree_y, 2, 1)
-            c_x = degree_x + 7
-            display.text("C", c_x, 0, 1)
-            display.show()
+    from src.display.auxiliary import display_state_all
 
-    elif state == "Listening":
+    if state == "Listening":
         await _notify_backend_user_listening(True)
         try:
-            await _display_listening_waveform(display, stop_event)
+            tasks = await display_state_all(state, stop_event)
+            await asyncio.gather(*tasks, return_exceptions=True)
         finally:
             await _notify_backend_user_listening(False)
     else:
-        while not stop_event.is_set():
-            for i in range(4):
-                if stop_event.is_set():
-                    break
-                async with display_lock:
-                    display.fill_rect(0, 10, 128, 22, 0)
-                    display.text(f"{state}" + "." * i, 0, 20, 1)
-                    display.show()
-                await asyncio.sleep(0.5)
-
-
-async def _display_listening_waveform(display, stop_event):
-    """Display real-time waveform bars on I2C display while listening."""
-    # When Spotify is active, don't show waveform - keep Spotify display visible
-    if _i2c_spotify_active:
-        while not stop_event.is_set():
-            await asyncio.sleep(0.1)
-        return
-
-    if _i2c_display_screensaver_active:
-        await i2c_display_stop_screensaver(display)
-
-    observer = _get_i2c_waveform_observer()
-    if observer is None:
-        return
-
-    bar_count = 16
-    bar_width = 6
-    bar_spacing = 2
-    total_width = bar_count * (bar_width + bar_spacing) - bar_spacing
-    start_x = (128 - total_width) // 2
-    base_y = 31
-    max_bar_height = 18
-    min_bar_height = 2
-
-    async with display_lock:
-        display.fill(0)
-        draw_i2c_header(display)
-        display.show()
-
-    while not stop_event.is_set():
-        waveform_snapshot = observer.get_render_values()
-        current_max = max(waveform_snapshot) if waveform_snapshot else 0.0
-
-        if current_max > 0.02:
-            register_all_display_activity()
-
-        async with display_lock:
-            display.fill_rect(0, 10, 128, 22, 0)
-            display.text("Listening", 34, 10, 1)
-
-            for i in range(bar_count):
-                # Combine two adjacent values for 16-bar I2C display
-                idx1 = i * 2
-                idx2 = i * 2 + 1
-                val = (waveform_snapshot[idx1] + waveform_snapshot[idx2]) / 2.0
-
-                # Always show bars - minimum height ensures visibility
-                bar_height = max(min_bar_height, int(val * max_bar_height))
-                x = start_x + i * (bar_width + bar_spacing)
-                y = base_y - bar_height
-
-                display.fill_rect(x, y, bar_width, bar_height, 1)
-
-            display.show()
-
-        await asyncio.sleep(0.033)
+        tasks = await display_state_all(state, stop_event)
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 async def speak(text, stop_event=asyncio.Event(), word_callback=None):
@@ -2061,9 +1549,7 @@ async def speak(text, stop_event=asyncio.Event(), word_callback=None):
                     except Exception:
                         total_duration = len(words) * 0.4
 
-                    # Play audio - use 'default' device which routes through asound.conf
-                    # asound.conf handles HDMI IEC958 conversion automatically
-                    audio_device = "default"
+                    audio_device = os.environ.get("AUDIODEV", "default")
                     logger.debug("TTS playing audio on device: %s", audio_device)
                     audio_proc = subprocess.Popen(
                         f"ffmpeg -i {tmp.name} -f wav -acodec pcm_s16le -ar 44100 - 2>/dev/null | aplay -D {audio_device}",
@@ -2076,9 +1562,16 @@ async def speak(text, stop_event=asyncio.Event(), word_callback=None):
                     start_time = time.time()
                     word_idx = 0
                     word_duration = total_duration / len(words) if words else 0
+                    timeout = total_duration + 15
 
                     while audio_proc.poll() is None:
                         elapsed = time.time() - start_time
+
+                        if elapsed > timeout:
+                            logger.warning("TTS aplay timed out after %.1fs (expected %.1fs), killing", elapsed, total_duration)
+                            audio_proc.kill()
+                            audio_proc.wait()
+                            break
 
                         if word_queue and words:
                             expected_word = (
@@ -2100,11 +1593,10 @@ async def speak(text, stop_event=asyncio.Event(), word_callback=None):
                             )
                             word_idx += 1
 
-                    # Check for audio errors
-                    _, stderr = audio_proc.communicate()
+                    _, stderr = audio_proc.communicate(timeout=5)
                     if stderr:
                         stderr_text = stderr.decode("utf-8", errors="ignore").strip()
-                        if stderr_text:
+                        if stderr_text and audio_proc.returncode != 0:
                             logger.warning("TTS audio stderr: %s", stderr_text)
                     os.unlink(tmp.name)
 
@@ -2204,73 +1696,37 @@ async def speak(text, stop_event=asyncio.Event(), word_callback=None):
         stop_event.set()
 
 
-async def speak_with_display(text, display, display_manager=None):
-    """
-    Speak text with synchronized display updates.
-    Words appear on screen as they are spoken.
-
-    Args:
-        text: Text to speak
-        display: I2C display object (can be None)
-        display_manager: Optional DisplayManager for framebuffer display
-    """
+async def speak_with_display(text, display_manager=None):
     register_all_display_activity()
 
-    # Get the display manager if not provided
     dm = display_manager or get_display_manager()
 
-    if display is None and dm is None:
+    from src.display.auxiliary import get_all_auxiliary, restore_all_headers, show_word_all
+
+    aux_displays = get_all_auxiliary()
+    has_any_display = bool(aux_displays) or (dm and dm.is_available)
+
+    if not has_any_display:
         stop_event = asyncio.Event()
         await speak(text, stop_event)
         return
 
-    words = text.split()
-    current_display_text = []
+    aux_word_lists: dict = {}
 
     async def on_word(word_idx, word):
-        """Callback invoked as each word is spoken."""
-        nonlocal current_display_text
-        current_display_text.append(word)
+        await show_word_all(word, aux_word_lists)
 
-        # Update I2C display
-        if display is not None:
-            display_text = " ".join(current_display_text)
-
-            async with display_lock:
-                # Clear text area (keep header)
-                display.fill_rect(0, 10, 128, 22, 0)
-
-                # Word-wrap and show recent text that fits on screen
-                lines = textwrap.fill(display_text, 21).split("\n")
-
-                # Show last 2 lines (most recent)
-                visible_lines = lines[-2:] if len(lines) > 2 else lines
-
-                for i, line in enumerate(visible_lines):
-                    try:
-                        display.text(line, 0, 10 + i * 10, 1)
-                    except struct.error:
-                        pass
-                display.show()
-
-        # Update full display (if available and not showing tool animation)
         if dm and dm.is_available and not dm._has_tool_animation:
             try:
                 await dm.stream_response_word(word)
             except Exception:
                 pass
 
-    # Initialize I2C display header
-    if display is not None:
-        async with display_lock:
-            display.fill(0)
-            draw_i2c_header(display)
-            display.show()
+    await restore_all_headers()
 
     stop_event = asyncio.Event()
     await speak(text, stop_event, word_callback=on_word)
 
-    # Clear streaming text on full display after TTS completes
     if dm and dm.is_available:
         try:
             await dm.clear_streaming()
@@ -2278,9 +1734,9 @@ async def speak_with_display(text, display, display_manager=None):
             pass
 
 
-async def handle_error(message, state_task, display):
+async def handle_error(message, state_task):
     if state_task:
         state_task.cancel()
     stop_event = asyncio.Event()
-    await speak_with_display(message, display)
+    await speak_with_display(message)
     logger.critical(f"An error occurred: {message}\n{traceback.format_exc()}")

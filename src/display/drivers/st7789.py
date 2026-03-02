@@ -1,118 +1,222 @@
-"""Framebuffer Display Driver for SPI PiScreen displays.
-
-This driver renders to /dev/fb1 (or other framebuffer devices) used by
-SPI-connected PiScreen displays like the 3.5" RPi displays.
-
-These displays use kernel drivers (fbtft) that expose a standard Linux
-framebuffer interface, allowing rendering via pygame's fbcon driver.
-"""
-
 import logging
 import os
-import sys
-from contextlib import contextmanager
-from pathlib import Path
+import time
 from typing import Any, Dict, Optional, Tuple
 
+import numpy as np
 from PIL import Image
 
 from ..base import BaseDisplay, Color, Colors, DisplayInfo
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("display.st7789")
+
+_ST7789_SWRESET = 0x01
+_ST7789_SLPOUT = 0x11
+_ST7789_NORON = 0x13
+_ST7789_INVON = 0x21
+_ST7789_DISPON = 0x29
+_ST7789_DISPOFF = 0x28
+_ST7789_SLPIN = 0x10
+_ST7789_CASET = 0x2A
+_ST7789_RASET = 0x2B
+_ST7789_RAMWR = 0x2C
+_ST7789_COLMOD = 0x3A
+_ST7789_MADCTL = 0x36
+
+_MADCTL_ROTATION = {
+    0: 0x00,
+    90: 0x60,
+    180: 0xC0,
+    270: 0xA0,
+}
 
 
-@contextmanager
-def _suppress_stderr():
-    stderr_fd = sys.stderr.fileno()
-    orig_stderr_fd = os.dup(stderr_fd)
-    devnull = os.open(os.devnull, os.O_WRONLY)
-    try:
-        os.dup2(devnull, stderr_fd)
-        yield
-    finally:
-        os.dup2(orig_stderr_fd, stderr_fd)
-        os.close(orig_stderr_fd)
-        os.close(devnull)
-
-
-class FbdevDisplay(BaseDisplay):
-    """Framebuffer display driver for SPI PiScreen displays."""
-
-    supports_modes: bool = True
+class St7789Display(BaseDisplay):
+    supports_modes: bool = False
 
     def __init__(self, info: DisplayInfo):
         super().__init__(info)
         self._pygame = None
-        self._screen = None
         self._back_buffer = None
         self._font_cache: Dict[Tuple[int, Optional[str]], Any] = {}
+        self._spi = None
+        self._dc_pin = info.gpio_dc
+        self._rst_pin = info.gpio_rst
+        self._bl_pin = info.gpio_bl
         self._initialized = False
-        self._fb_device = info.device_path or "/dev/fb1"
+        self._bl_active_low = info.gpio_bl_active_low
+        self._col_offset = 0
+        self._row_offset = 0
+        self._caset_cmd = None
+        self._raset_cmd = None
+        self._rgb565_buf = None
+
+    def _compute_offsets(self):
+        r = self.info.rotation % 360
+        native_w, native_h = 240, 280
+        if r in (0, 180):
+            self._col_offset = 0
+            self._row_offset = (320 - native_h) // 2
+        else:
+            self._col_offset = (320 - native_h) // 2
+            self._row_offset = 0
 
     async def initialize(self) -> bool:
-        logger.info(f"Initializing framebuffer display on {self._fb_device}...")
-
-        fb_path = Path(self._fb_device)
-        if not fb_path.exists():
-            logger.error(f"Framebuffer device {self._fb_device} not found")
-            return False
-
-        if not os.access(fb_path, os.R_OK | os.W_OK):
-            logger.error(f"No read/write access to {self._fb_device}")
-            return False
-
-        # Configure SDL to use the specific framebuffer
-        os.environ["SDL_VIDEODRIVER"] = "fbcon"
-        os.environ["SDL_FBDEV"] = self._fb_device
-        os.environ.setdefault("XDG_RUNTIME_DIR", "/tmp")
+        logger.debug("Initializing SPI LCD display (%dx%d)...", self.width, self.height)
 
         try:
+            import spidev
+        except ImportError:
+            logger.error("spidev not installed")
+            return False
+
+        try:
+            import RPi.GPIO as GPIO
+            self._GPIO = GPIO
+        except ImportError:
+            logger.error("RPi.GPIO not installed")
+            return False
+
+        bus = self.info.spi_bus if self.info.spi_bus is not None else 0
+        cs = self.info.spi_cs if self.info.spi_cs is not None else 0
+        spi_device = f"/dev/spidev{bus}.{cs}"
+
+        if not os.path.exists(spi_device):
+            logger.error("SPI device %s not found", spi_device)
+            return False
+
+        try:
+            self._spi = spidev.SpiDev()
+            self._spi.open(bus, cs)
+            self._spi.max_speed_hz = self.info.spi_speed_hz or 62_500_000
+            self._spi.mode = 0
+            self._spi.no_cs = False
+
+            GPIO.setwarnings(False)
+            GPIO.setmode(GPIO.BCM)
+
+            if self._dc_pin is not None:
+                GPIO.setup(self._dc_pin, GPIO.OUT, initial=GPIO.HIGH)
+            else:
+                logger.error("gpio_dc pin is required for SPI LCD")
+                return False
+
+            if self._rst_pin is not None:
+                GPIO.setup(self._rst_pin, GPIO.OUT, initial=GPIO.HIGH)
+
+            if self._bl_pin is not None:
+                bl_off = GPIO.HIGH if self._bl_active_low else GPIO.LOW
+                GPIO.setup(self._bl_pin, GPIO.OUT, initial=bl_off)
+
+            self._hw_reset()
+            self._init_st7789()
+
+            if self._bl_pin is not None:
+                bl_on = GPIO.LOW if self._bl_active_low else GPIO.HIGH
+                GPIO.output(self._bl_pin, bl_on)
+
             import pygame
-
             self._pygame = pygame
+            pygame.font.init()
 
-            with _suppress_stderr():
-                pygame.display.init()
-                pygame.font.init()
+            self._back_buffer = pygame.Surface((self.width, self.height))
+            self._back_buffer.fill((0, 0, 0))
 
-            # Get display info and create screen
-            display_info = pygame.display.Info()
-            target_width = self.width or display_info.current_w or 480
-            target_height = self.height or display_info.current_h or 320
+            self._compute_offsets()
+            self._precompute_window_cmds()
+            self._rgb565_buf = np.empty((self.height, self.width), dtype=np.uint16)
 
-            self._screen = pygame.display.set_mode(
-                (target_width, target_height), pygame.FULLSCREEN
-            )
-            self.width, self.height = self._screen.get_size()
-
-            pygame.mouse.set_visible(False)
-
-            self._back_buffer = pygame.Surface(
-                (self.width, self.height), pygame.SRCALPHA
-            )
-            self._back_buffer.fill((0, 0, 0, 255))
+            self.show_sync()
 
             self._running = True
             self._initialized = True
 
-            logger.info(
-                f"Framebuffer display initialized: {self.width}x{self.height} "
-                f"on {self._fb_device} (driver: {pygame.display.get_driver()})"
+            logger.debug(
+                "SPI LCD initialized: %dx%d on spidev%d.%d",
+                self.width, self.height, bus, cs,
             )
             return True
 
         except Exception as e:
-            logger.error(f"Framebuffer init failed: {e}")
-            import traceback
-
-            logger.debug(traceback.format_exc())
-            if self._pygame:
-                try:
-                    self._pygame.quit()
-                except Exception:
-                    pass
-            self._pygame = None
+            logger.error("SPI LCD init failed: %s", e)
+            self._cleanup_hw()
             return False
+
+    def _hw_reset(self):
+        if self._rst_pin is None:
+            return
+        GPIO = self._GPIO
+        GPIO.output(self._rst_pin, GPIO.HIGH)
+        time.sleep(0.05)
+        GPIO.output(self._rst_pin, GPIO.LOW)
+        time.sleep(0.05)
+        GPIO.output(self._rst_pin, GPIO.HIGH)
+        time.sleep(0.15)
+
+    def _send_command(self, cmd: int, data: bytes = None):
+        GPIO = self._GPIO
+        GPIO.output(self._dc_pin, GPIO.LOW)
+        self._spi.writebytes([cmd])
+        if data:
+            GPIO.output(self._dc_pin, GPIO.HIGH)
+            self._spi.writebytes2(list(data))
+
+    def _init_st7789(self):
+        self._send_command(_ST7789_SWRESET)
+        time.sleep(0.15)
+
+        self._send_command(_ST7789_SLPOUT)
+        time.sleep(0.5)
+
+        self._send_command(_ST7789_COLMOD, bytes([0x05]))
+
+        rotation = self.info.rotation % 360
+        madctl = _MADCTL_ROTATION.get(rotation, 0x00)
+        self._send_command(_ST7789_MADCTL, bytes([madctl]))
+
+        self._send_command(_ST7789_INVON)
+
+        self._send_command(_ST7789_NORON)
+        time.sleep(0.01)
+
+        self._send_command(_ST7789_DISPON)
+        time.sleep(0.1)
+
+    def _precompute_window_cmds(self):
+        x0, y0 = self._col_offset, self._row_offset
+        x1 = x0 + self.width - 1
+        y1 = y0 + self.height - 1
+        self._caset_cmd = bytes([
+            (x0 >> 8) & 0xFF, x0 & 0xFF,
+            (x1 >> 8) & 0xFF, x1 & 0xFF,
+        ])
+        self._raset_cmd = bytes([
+            (y0 >> 8) & 0xFF, y0 & 0xFF,
+            (y1 >> 8) & 0xFF, y1 & 0xFF,
+        ])
+
+    def _set_window(self):
+        self._send_command(_ST7789_CASET, self._caset_cmd)
+        self._send_command(_ST7789_RASET, self._raset_cmd)
+
+    def _cleanup_hw(self):
+        if self._spi:
+            try:
+                self._spi.close()
+            except Exception:
+                pass
+            self._spi = None
+        if hasattr(self, '_GPIO') and self._GPIO:
+            try:
+                if self._bl_pin is not None:
+                    bl_off = self._GPIO.HIGH if self._bl_active_low else self._GPIO.LOW
+                    self._GPIO.output(self._bl_pin, bl_off)
+                self._GPIO.cleanup([
+                    p for p in [self._dc_pin, self._rst_pin, self._bl_pin]
+                    if p is not None
+                ])
+            except Exception:
+                pass
 
     def _get_font(self, size: int, font_path: Optional[str] = None) -> Any:
         cache_key = (size, font_path)
@@ -146,7 +250,7 @@ class FbdevDisplay(BaseDisplay):
 
     def clear_sync(self, color: Color = Colors.BLACK) -> None:
         if self._back_buffer:
-            self._back_buffer.fill((color.r, color.g, color.b, 255))
+            self._back_buffer.fill((color.r, color.g, color.b))
 
     def fill_rect_sync(
         self, x: int, y: int, w: int, h: int, color: Color = Colors.WHITE
@@ -267,6 +371,32 @@ class FbdevDisplay(BaseDisplay):
             surface = self._pygame.image.fromstring(raw_data, img.size, "RGBA")
             self._back_buffer.blit(surface, (x, y))
 
+    def show_sync(self) -> None:
+        if not self._back_buffer or not self._pygame or not self._spi:
+            return
+
+        raw = self._pygame.image.tostring(self._back_buffer, "RGB")
+        arr = np.frombuffer(raw, dtype=np.uint8).reshape(self.height, self.width, 3)
+
+        r = arr[:, :, 0].astype(np.uint16)
+        g = arr[:, :, 1].astype(np.uint16)
+        b = arr[:, :, 2].astype(np.uint16)
+        np.bitwise_or(
+            np.bitwise_or(np.left_shift(r, 8) & 0xF800, np.left_shift(g, 3) & 0x07E0),
+            np.right_shift(b, 3),
+            out=self._rgb565_buf,
+        )
+
+        pixel_data = self._rgb565_buf.astype(">u2").tobytes()
+
+        self._set_window()
+
+        GPIO = self._GPIO
+        GPIO.output(self._dc_pin, GPIO.LOW)
+        self._spi.writebytes([_ST7789_RAMWR])
+        GPIO.output(self._dc_pin, GPIO.HIGH)
+        self._spi.writebytes2(pixel_data)
+
     async def clear(self, color: Color = Colors.BLACK) -> None:
         self.clear_sync(color)
 
@@ -312,33 +442,32 @@ class FbdevDisplay(BaseDisplay):
                 if self._back_buffer:
                     self._back_buffer.blit(img, (x, y))
         except Exception as e:
-            logger.error(f"Failed to load image {image_path}: {e}")
-
-    def show_sync(self) -> None:
-        if not self._screen or not self._back_buffer or not self._pygame:
-            return
-
-        self._screen.blit(self._back_buffer, (0, 0))
-        with _suppress_stderr():
-            self._pygame.display.flip()
+            logger.error("Failed to load image %s: %s", image_path, e)
 
     async def show(self) -> None:
         self.show_sync()
 
     async def shutdown(self) -> None:
-        logger.info("Shutting down framebuffer display...")
+        logger.debug("Shutting down SPI LCD display")
         self._running = False
         self._initialized = False
 
+        if self._spi:
+            try:
+                self._send_command(_ST7789_DISPOFF)
+                self._send_command(_ST7789_SLPIN)
+            except Exception:
+                pass
+
+        self._cleanup_hw()
+
         if self._pygame:
             try:
-                self._pygame.quit()
-            except Exception as e:
-                logger.warning(f"Error during pygame shutdown: {e}")
+                self._pygame.font.quit()
+            except Exception:
+                pass
             self._pygame = None
 
-        self._screen = None
         self._back_buffer = None
         self._font_cache.clear()
-
-        logger.info("Framebuffer display shutdown complete")
+        self._rgb565_buf = None

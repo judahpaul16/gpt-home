@@ -12,9 +12,11 @@ class DisplayFactory:
     def create(info: DisplayInfo) -> Optional[BaseDisplay]:
         if info.screen_type == ScreenType.HDMI:
             return DisplayFactory._create_kmsdrm_display(info)
-        elif info.screen_type == ScreenType.SPI_TFT:
+        elif info.screen_type == ScreenType.ILI9486:
             return DisplayFactory._create_fbdev_display(info)
-        elif info.screen_type == ScreenType.I2C:
+        elif info.screen_type == ScreenType.ST7789:
+            return DisplayFactory._create_st7789_display(info)
+        elif info.screen_type == ScreenType.SSD1306:
             return DisplayFactory._create_i2c_display(info)
         return None
 
@@ -33,7 +35,7 @@ class DisplayFactory:
     def _create_fbdev_display(info: DisplayInfo) -> Optional[BaseDisplay]:
         if info.driver == "kmsdrm":
             logger.debug(
-                "Creating KMSDRM display for TFT: %dx%d on %s",
+                "Creating KMSDRM display for PiScreen: %dx%d on %s",
                 info.width,
                 info.height,
                 info.device_path,
@@ -43,7 +45,7 @@ class DisplayFactory:
 
                 return KmsdrmDisplay(info)
             except Exception as e:
-                logger.error("Failed to create KmsdrmDisplay for TFT: %s", e)
+                logger.error("Failed to create KmsdrmDisplay for PiScreen: %s", e)
             return None
 
         logger.debug(
@@ -61,18 +63,28 @@ class DisplayFactory:
         return None
 
     @staticmethod
+    def _create_st7789_display(info: DisplayInfo) -> Optional[BaseDisplay]:
+        try:
+            from .drivers.st7789 import St7789Display
+
+            return St7789Display(info)
+        except ImportError:
+            logger.error("st7789 driver not available (missing spidev or RPi.GPIO?)")
+        return None
+
+    @staticmethod
     def _create_i2c_display(info: DisplayInfo) -> Optional[BaseDisplay]:
         try:
-            from .drivers.i2c import I2COledDisplay
+            from .drivers.i2c import I2cDisplay
 
-            return I2COledDisplay(info)
+            return I2cDisplay(info)
         except ImportError:
             return None
 
     @staticmethod
     def auto_detect() -> Optional[BaseDisplay]:
         displays = detect_displays()
-        priority = [ScreenType.HDMI, ScreenType.SPI_TFT, ScreenType.I2C]
+        priority = [ScreenType.HDMI, ScreenType.ILI9486, ScreenType.ST7789, ScreenType.SSD1306]
 
         for screen_type in priority:
             for info in displays:
@@ -85,7 +97,7 @@ class DisplayFactory:
     @staticmethod
     def auto_detect_full_display() -> Optional[BaseDisplay]:
         displays = detect_displays()
-        full_display_types = [ScreenType.HDMI, ScreenType.SPI_TFT]
+        full_display_types = [ScreenType.HDMI, ScreenType.ILI9486]
 
         preferred_connector = DisplayFactory._get_cmdline_connector()
         if preferred_connector:
@@ -125,7 +137,7 @@ class DisplayFactory:
         displays = detect_displays()
 
         for info in displays:
-            if info.screen_type == ScreenType.I2C:
+            if info.screen_type == ScreenType.SSD1306:
                 display = DisplayFactory.create(info)
                 if display and not display.supports_modes:
                     return display
@@ -154,7 +166,7 @@ class DisplayFactory:
         detected = detect_displays()
 
         for info in detected:
-            if info.screen_type == ScreenType.I2C:
+            if info.screen_type in (ScreenType.SSD1306, ScreenType.ST7789):
                 continue
             display = DisplayFactory.create(info)
             if display and display.supports_modes:
