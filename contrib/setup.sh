@@ -675,7 +675,7 @@ fi
 if [[ "$NO_BUILD" == "false" ]]; then
     if [ -d ~/gpt-home ]; then
         echo -ne "${ORANGE}~/gpt-home already exists. Remove and re-clone? [y/N] ${NC}"
-        read -r reclone_confirm
+        read -r reclone_confirm < /dev/tty
         if [[ "$reclone_confirm" =~ ^[Yy]$ ]]; then
             rm -rf ~/gpt-home
             git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
@@ -804,7 +804,7 @@ fi
 if [[ "$NO_BUILD" == "true" ]]; then
     if [ -d ~/gpt-home ]; then
         echo -ne "${ORANGE}~/gpt-home already exists. Remove and re-clone? [y/N] ${NC}"
-        read -r reclone_confirm
+        read -r reclone_confirm < /dev/tty
         if [[ "$reclone_confirm" =~ ^[Yy]$ ]]; then
             rm -rf ~/gpt-home
             git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
