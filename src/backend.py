@@ -3294,7 +3294,6 @@ _PISCREEN_DTBO_URL = (
 
 def _find_boot_overlays_dir() -> Optional[str]:
     candidates = [
-        "/boot/firmware/current/overlays",
         "/boot/firmware/overlays",
         "/boot/overlays",
     ]
