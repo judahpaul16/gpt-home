@@ -11,9 +11,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsqlite3-dev llvm libncursesw5-dev xz-utils tk-dev \
     libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev libjpeg-dev \
     portaudio19-dev alsa-utils libasound2-dev i2c-tools \
-    python3.11 python3-pip python3.11-dev python3-smbus python3.11-venv \
+    python3.11 python3-pip python3.11-dev python3.11-venv \
     jackd2 libogg0 libflac-dev flac libespeak1 cmake openssl \
-    libpq-dev postgresql-client nano libraspberrypi-bin docker.io \
+    libpq-dev postgresql-client nano docker.io libgpiod-dev \
     ffmpeg \
     libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
     libdrm-dev libgbm-dev libinput-dev libudev-dev \
@@ -39,8 +39,6 @@ RUN python3 -m venv /env && \
 COPY src /app/src
 COPY contrib/alarm.wav /usr/share/sounds/alarm.wav
 COPY contrib/asound.conf /etc/asound.conf
-COPY src/display/font5x8.bin /app/font5x8.bin
-
 RUN mkdir -p /app/logs
 RUN touch /app/logs/events.log
 

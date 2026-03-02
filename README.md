@@ -5,7 +5,6 @@
 ![Python Version](https://img.shields.io/badge/Python-v3.11-blue?style=flat-square&logo=python)
 ![Node.js Version](https://img.shields.io/badge/Node.js-v18.17.1-green?style=flat-square&logo=node.js)
 [![Release](https://img.shields.io/github/v/release/judahpaul16/gpt-home?style=flat-square)](https://github.com/judahpaul16/gpt-home/tags)
-[![Docker Pulls](https://img.shields.io/docker/pulls/judahpaul/gpt-home?style=flat-square)](https://hub.docker.com/r/judahpaul/gpt-home)
 
 ChatGPT at home! Basically a better Google Nest Hub or Amazon Alexa home assistant. Built on the Raspberry P iusing LiteLLM and LangGraph.
 
@@ -546,7 +545,7 @@ The `setup.sh` script supports the following flags:
         <tr><td>5</td><td>❔</td></tr>
         <tr><td>Zero 2 W</td><td>✅</td></tr>
         <tr><td>Orange Pi 3B</td><td>✅</td></tr>
-        <tr><td colspan=2><a href="https://learn.adafruit.com/circuitpython-on-orangepi-linux/circuitpython-orangepi">*Blinka only supports<br>the Orange Pi PC and<br>R1 if you're using i2c*</td></tr>
+        <tr><td>Orange Pi Zero 2W</td><td>✅</td></tr>
     </table>
     </td>
     <!-- Python -->
@@ -613,7 +612,7 @@ The `setup.sh` script supports the following flags:
 <td>
 
 - [GPIO Pinout](https://www.raspberrypi.com/documentation/computers/images/GPIO-Pinout-Diagram-2.png)
-- [Adafruit SSD1306 Docs](https://circuitpython.readthedocs.io/projects/ssd1306/en/latest/)
+- [luma.oled Docs](https://luma-oled.readthedocs.io/en/latest/)
 - [pyttsx3 Docs](https://pypi.org/project/pyttsx3/)
 - [I2C Docs](https://i2c.readthedocs.io/en/latest/)
 - [ALSA Docs](https://www.alsa-project.org/wiki/Documentation)

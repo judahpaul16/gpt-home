@@ -69,7 +69,7 @@ class DisplayFactory:
 
             return St7789Display(info)
         except ImportError:
-            logger.error("st7789 driver not available (missing spidev or RPi.GPIO?)")
+            logger.error("st7789 driver not available (missing spidev or gpiod?)")
         return None
 
     @staticmethod

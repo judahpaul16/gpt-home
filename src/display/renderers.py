@@ -1,6 +1,5 @@
 """Shared rendering utilities for display modes."""
 
-import subprocess
 from typing import List, Optional
 
 from .base import BaseDisplay, Color
@@ -26,10 +25,9 @@ def draw_weather_gradient(d: BaseDisplay, top: tuple, bottom: tuple) -> None:
 
 
 def get_cpu_temp() -> Optional[int]:
-    """Get CPU temperature in Celsius."""
     try:
-        output = subprocess.check_output(["vcgencmd", "measure_temp"]).decode()
-        return int(float(output.split("=")[1].split("'")[0]))
+        with open("/sys/class/thermal/thermal_zone0/temp") as f:
+            return int(f.read().strip()) // 1000
     except Exception:
         return None
 

@@ -28,27 +28,29 @@ class I2cDisplay(BaseDisplay):
     def __init__(self, info: DisplayInfo):
         super().__init__(info)
         self._device = None
+        self._serial = None
         self._image: Optional[Image.Image] = None
         self._draw: Optional[ImageDraw.ImageDraw] = None
         self._font_cache = {}
         self._clip_rect = None
+        self._rotate = 0
 
     async def initialize(self) -> bool:
         try:
-            import adafruit_ssd1306
-            import busio
-            from board import SCL, SDA
+            from luma.core.interface.serial import i2c as i2c_serial
+            from luma.oled.device import ssd1306
 
-            i2c = busio.I2C(SCL, SDA)
-            self._device = adafruit_ssd1306.SSD1306_I2C(
-                self.width, self.height, i2c, addr=self.info.address or 0x3C
+            port = self.info.bus if self.info.bus is not None else 1
+            address = self.info.address or 0x3C
+            self._rotate = self.info.rotation or 0
+
+            self._serial = i2c_serial(port=port, address=address)
+            self._device = ssd1306(
+                self._serial,
+                width=self.width,
+                height=self.height,
+                rotate=self._rotate,
             )
-
-            if self.info.rotation:
-                self._device.rotation = self.info.rotation
-
-            self._device.fill(0)
-            self._device.show()
 
             self._image = Image.new("1", (self.width, self.height), 0)
             self._draw = ImageDraw.Draw(self._image)
@@ -138,8 +140,7 @@ class I2cDisplay(BaseDisplay):
 
     def show_sync(self) -> None:
         if self._device and self._image:
-            self._device.image(self._image)
-            self._device.show()
+            self._device.display(self._image)
 
     async def clear(self, color: Color = Colors.BLACK) -> None:
         self.clear_sync(color)
@@ -195,13 +196,24 @@ class I2cDisplay(BaseDisplay):
         self._running = False
         await self.stop_animation()
         if self._device:
-            self._device.fill(0)
-            self._device.show()
+            self._device.hide()
+            self._device.cleanup()
+            self._device = None
 
     def set_rotation(self, rotation: int) -> None:
-        if self._device:
-            self._device.rotation = rotation
-            self._device.show()
+        if self._device and self._serial and rotation != self._rotate:
+            from luma.oled.device import ssd1306
+
+            self._rotate = rotation
+            self._device.cleanup()
+            self._device = ssd1306(
+                self._serial,
+                width=self.width,
+                height=self.height,
+                rotate=rotation,
+            )
+            if self._image:
+                self._device.display(self._image)
 
     def _get_font(self, size: int, font_name: Optional[str] = None):
         cache_key = (size, font_name)
