@@ -366,12 +366,10 @@ if [ -n "$CONFIG_TXT" ]; then
     echo "Configuring PiScreen display support..."
 
     OVERLAYS_DIR=""
-    if [ -d /boot/firmware/current/overlays ]; then
-        OVERLAYS_DIR="/boot/firmware/current/overlays"
+    if [ -d /boot/firmware/overlays ]; then
+        OVERLAYS_DIR="/boot/firmware/overlays"
     elif [ -d /boot/overlays ]; then
         OVERLAYS_DIR="/boot/overlays"
-    elif [ -d /boot/firmware/overlays ]; then
-        OVERLAYS_DIR="/boot/firmware/overlays"
     fi
 
     if [ -n "$OVERLAYS_DIR" ]; then
@@ -598,6 +596,17 @@ if [ -n "$CONFIG_TXT" ]; then
     CONFIG_CHECKSUM_AFTER=$(md5sum "$CONFIG_TXT" 2>/dev/null | awk '{print $1}')
     if [ "$CONFIG_CHECKSUM_BEFORE" != "$CONFIG_CHECKSUM_AFTER" ]; then
         NEEDS_REBOOT=true
+    fi
+
+    if [ "$NEEDS_REBOOT" = false ]; then
+        if grep -q "^dtoverlay=googlevoicehat-soundcard" "$CONFIG_TXT" && \
+           ! arecord -l 2>/dev/null | grep -qi "googlevoicehat\|voicehat"; then
+            NEEDS_REBOOT=true
+        fi
+        if grep -q "^dtoverlay=wm8960-soundcard" "$CONFIG_TXT" && \
+           ! arecord -l 2>/dev/null | grep -qi "wm8960"; then
+            NEEDS_REBOOT=true
+        fi
     fi
 fi
 
