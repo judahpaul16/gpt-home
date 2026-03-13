@@ -181,6 +181,7 @@ function install() {
 }
 
 install chrony
+install git
 install docker
 install alsa-utils
 install libdrm2
