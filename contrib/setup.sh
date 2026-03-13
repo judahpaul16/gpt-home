@@ -464,6 +464,11 @@ if [ -n "$CONFIG_TXT" ]; then
             fi
         fi
 
+        if [ -e /dev/spidev0.0 ] || grep -q "^dtparam=spi=on" "$CONFIG_TXT"; then
+            echo -e "${GREEN}WhisPlay HAT detected (WM8960 audio + SPI display)${NC}"
+            echo -e "${CYAN}SPI display will be auto-configured at runtime${NC}"
+        fi
+
         echo -e "${GREEN}WM8960 audio codec configured${NC}"
     else
         echo -e "${YELLOW}WM8960 not detected — skipping audio codec overlay${NC}"

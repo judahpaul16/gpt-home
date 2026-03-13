@@ -275,7 +275,7 @@ const HardwareTab: React.FC<HardwareTabProps> = ({
                     <div className="px-4 py-3">
                         {displayStatus && !displayStatus.available && (
                             <p className="text-sm text-slate-500 dark:text-slate-400">
-                                Connect a display (HDMI, PiScreen, or SPI).
+                                Connect a display (HDMI or PiScreen).
                             </p>
                         )}
 
