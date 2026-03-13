@@ -968,6 +968,7 @@ async def startup_event():
 
     _detect_phantom_i2s_cards()
     _detect_missing_audio_overlays()
+    _auto_configure_whisplay_display()
 
     await _initialize_mic_gain()
 
@@ -5163,6 +5164,49 @@ def _detect_missing_audio_overlays() -> None:
             logger.info("Enabled missing audio overlay in %s", config_path)
     except Exception as e:
         logger.debug("Could not check for missing audio overlays: %s", e)
+
+
+_WHISPLAY_ST7789_DEFAULTS = {
+    "width": 240,
+    "height": 280,
+    "gpio_dc": 27,
+    "gpio_rst": 4,
+    "gpio_bl": 22,
+    "spi_bus": 0,
+    "spi_cs": 0,
+    "spi_speed_hz": 62_500_000,
+    "gpio_bl_active_low": True,
+}
+
+
+def _auto_configure_whisplay_display() -> None:
+    from src.common import load_settings, save_settings
+
+    try:
+        settings = load_settings()
+    except Exception:
+        return
+
+    if settings.get("st7789"):
+        return
+
+    if not os.path.exists("/dev/spidev0.0"):
+        return
+
+    wm8960_present = False
+    try:
+        cards = Path("/proc/asound/cards").read_text()
+        if "wm8960" in cards.lower():
+            wm8960_present = True
+    except Exception:
+        pass
+
+    if not wm8960_present:
+        return
+
+    settings["st7789"] = dict(_WHISPLAY_ST7789_DEFAULTS)
+    save_settings(settings)
+    logger.info("WhisPlay display auto-configured (WM8960 + SPI detected)")
 
 
 def _find_microphone_card() -> str | None:

@@ -445,7 +445,7 @@ export function useSaveSettings() {
     return useMutation({
         mutationFn: async (data: any) => {
             const response = await axios.post("/api/settings", {
-                action: "write",
+                action: "update",
                 data,
             });
             return response.data;
