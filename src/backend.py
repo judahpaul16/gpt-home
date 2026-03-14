@@ -392,6 +392,9 @@ async def settings(request: Request):
             from src.common import load_settings, save_settings
             existing_settings = load_settings()
             merged_settings = {**existing_settings, **new_settings}
+            for key, val in new_settings.items():
+                if isinstance(val, dict) and isinstance(existing_settings.get(key), dict):
+                    merged_settings[key] = {**existing_settings[key], **val}
             save_settings(merged_settings)
             await _persist_settings_to_db(merged_settings)
 
@@ -5176,6 +5179,7 @@ _WHISPLAY_ST7789_DEFAULTS = {
     "spi_cs": 0,
     "spi_speed_hz": 62_500_000,
     "gpio_bl_active_low": True,
+    "rotation": 180,
 }
 
 
@@ -5187,7 +5191,8 @@ def _auto_configure_whisplay_display() -> None:
     except Exception:
         return
 
-    if settings.get("st7789"):
+    existing = settings.get("st7789")
+    if existing and existing.get("gpio_dc") is not None:
         return
 
     if not os.path.exists("/dev/spidev0.0"):
@@ -5204,7 +5209,10 @@ def _auto_configure_whisplay_display() -> None:
     if not wm8960_present:
         return
 
-    settings["st7789"] = dict(_WHISPLAY_ST7789_DEFAULTS)
+    merged = dict(_WHISPLAY_ST7789_DEFAULTS)
+    if existing:
+        merged.update(existing)
+    settings["st7789"] = merged
     save_settings(settings)
     logger.info("WhisPlay display auto-configured (WM8960 + SPI detected)")
 
