@@ -5807,22 +5807,8 @@ ctl.!default {{
                 import time
 
                 time.sleep(1)
-                try:
-                    subprocess.run(
-                        ["docker", "restart", "gpt-home-spotify-1"],
-                        capture_output=True,
-                        timeout=30,
-                    )
-                except Exception as e:
-                    logger.warning(f"Could not restart spotify container: {e}")
-                try:
-                    subprocess.run(
-                        ["docker", "restart", "gpt-home-backend-1"],
-                        capture_output=True,
-                        timeout=30,
-                    )
-                except Exception as e:
-                    logger.warning(f"Could not restart backend container: {e}")
+                restart_spotifyd()
+                restart_app_container()
 
             threading.Thread(target=restart_containers, daemon=True).start()
             restarting = True
