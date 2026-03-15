@@ -37,7 +37,7 @@ services:
             retries: 3
 
     frontend:
-        image: judahpaul/gpt-home-frontend:latest
+        image: ghcr.io/judahpaul16/gpt-home-frontend:latest
         build:
             context: .
             dockerfile: compose/frontend/Dockerfile
@@ -71,7 +71,7 @@ services:
             - "80"
 
     backend:
-        image: judahpaul/gpt-home-backend:latest
+        image: ghcr.io/judahpaul16/gpt-home-backend:latest
         build:
             context: .
             dockerfile: compose/backend/Dockerfile
@@ -120,7 +120,7 @@ services:
             - "8000"
 
     spotify:
-        image: judahpaul/gpt-home-spotify:latest
+        image: ghcr.io/judahpaul16/gpt-home-spotify:latest
         build:
             context: .
             dockerfile: compose/spotify/Dockerfile

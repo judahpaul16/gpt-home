@@ -74,7 +74,7 @@ jobs:
                   echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
                   echo "VERSION=${VERSION}"
 
-            - name: Build and push ${{ matrix.service.name }}
+            - name: Build and push ${{ matrix.service.name }} to GHCR
               env:
                   VERSION: ${{ steps.get_version.outputs.VERSION }}
                   SERVICE: ${{ matrix.service.name }}
@@ -82,8 +82,17 @@ jobs:
               run: |
                   timeout 3600 docker buildx build --platform linux/arm64 --no-cache \
                     -f $DOCKERFILE \
-                    -t ${{ secrets.DOCKERHUB_USERNAME }}/gpt-home-$SERVICE:$VERSION \
                     -t ghcr.io/${{ github.repository_owner }}/gpt-home-$SERVICE:$VERSION \
-                    -t ${{ secrets.DOCKERHUB_USERNAME }}/gpt-home-$SERVICE:latest \
                     -t ghcr.io/${{ github.repository_owner }}/gpt-home-$SERVICE:latest \
                     --push .
+
+            - name: Push ${{ matrix.service.name }} to Docker Hub
+              continue-on-error: true
+              env:
+                  VERSION: ${{ steps.get_version.outputs.VERSION }}
+                  SERVICE: ${{ matrix.service.name }}
+              run: |
+                  docker buildx imagetools create \
+                    --tag ${{ secrets.DOCKERHUB_USERNAME }}/gpt-home-$SERVICE:$VERSION \
+                    --tag ${{ secrets.DOCKERHUB_USERNAME }}/gpt-home-$SERVICE:latest \
+                    ghcr.io/${{ github.repository_owner }}/gpt-home-$SERVICE:$VERSION
