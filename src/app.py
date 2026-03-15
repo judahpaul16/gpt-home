@@ -331,8 +331,14 @@ async def _init_settings_from_db():
         row = await cur.fetchone()
 
     if row:
-        from src.common import set_settings_cache
-        set_settings_cache(json.loads(row[0]))
+        from src.common import load_settings, set_settings_cache
+        db_settings = json.loads(row[0])
+        file_settings = load_settings()
+        merged = {**file_settings, **db_settings}
+        for key in merged:
+            if isinstance(file_settings.get(key), dict) and isinstance(db_settings.get(key), dict):
+                merged[key] = {**file_settings[key], **db_settings[key]}
+        set_settings_cache(merged)
         logger.debug("Settings loaded from database")
     else:
         from src.common import load_settings, set_settings_cache
