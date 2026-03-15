@@ -52,7 +52,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     dbus libdbus-1-3 libdbus-glib-1-2 \
     libxml2 libxslt1.1 libffi8 libjpeg-turbo8 \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
+    && find /etc/alsa/conf.d/ -xtype l -delete 2>/dev/null || true
 
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 
