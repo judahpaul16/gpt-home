@@ -7,7 +7,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     alsa-utils libasound2t64 libasound2-plugins \
     libpulse0 \
     dbus \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && find /etc/alsa/conf.d/ -xtype l -delete 2>/dev/null || true
 
 RUN curl -O http://ports.ubuntu.com/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_arm64.deb \
     && dpkg -i libssl1.1_1.1.1f-1ubuntu2_arm64.deb \
