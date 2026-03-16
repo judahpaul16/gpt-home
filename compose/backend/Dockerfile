@@ -47,13 +47,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libsdl2-2.0-0 libsdl2-image-2.0-0 libsdl2-mixer-2.0-0 libsdl2-ttf-2.0-0 \
     libdrm2 libgbm1 libinput10 \
-    libgl1-mesa-dri libgles2 \
+    libgl1-mesa-dri libgles2 libegl1 \
     fonts-noto-cjk fonts-dejavu \
     dbus libdbus-1-3 libdbus-glib-1-2 \
     libxml2 libxslt1.1 libffi8 libjpeg-turbo8 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
-    && find /etc/alsa/conf.d/ -xtype l -delete 2>/dev/null || true
+    && (find /etc/alsa/conf.d/ -xtype l -delete 2>/dev/null || true)
 
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 
