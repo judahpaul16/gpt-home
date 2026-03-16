@@ -95,6 +95,7 @@ services:
             - /etc/localtime:/etc/localtime:ro
             - /dev/shm:/dev/shm
             - /usr/share/alsa:/usr/share/alsa
+            - /etc/alsa:/etc/alsa:ro
             - /var/run/docker.sock:/var/run/docker.sock
             - /sys/class/graphics:/sys/class/graphics:ro
             - /sys/class/drm:/sys/class/drm:ro

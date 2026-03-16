@@ -119,7 +119,7 @@ def _configure_alsa_for_pyaudio():
         if not best_card:
             return
 
-        playback_card = "0"
+        playback_card = None
         is_bcm2835 = False
         try:
             aplay_result = subprocess.run(
@@ -128,41 +128,31 @@ def _configure_alsa_for_pyaudio():
             if aplay_result.returncode == 0:
                 best_play_card = None
                 best_play_priority = -1
+                first_play_card = None
                 for line in aplay_result.stdout.lower().split("\n"):
                     if "card" not in line:
                         continue
                     play_card_match = re.search(r"card\s+(\d+):", line)
                     if play_card_match:
                         card_num = play_card_match.group(1)
+                        if first_play_card is None:
+                            first_play_card = card_num
                         for keyword, priority in mic_priorities:
                             if keyword in line and priority > best_play_priority:
                                 best_play_card = card_num
                                 best_play_priority = priority
                                 break
-                if best_play_card:
-                    playback_card = best_play_card
-                for line in aplay_result.stdout.lower().split("\n"):
-                    if f"card {playback_card}:" in line and "bcm2835" in line:
-                        is_bcm2835 = True
-                        break
+                playback_card = best_play_card or first_play_card
+                if playback_card:
+                    for line in aplay_result.stdout.lower().split("\n"):
+                        if f"card {playback_card}:" in line and "bcm2835" in line:
+                            is_bcm2835 = True
+                            break
         except Exception:
             pass
 
-        has_playback_mixer = False
         has_capture_mixer = False
-        volume_controls = ["PCM", "Master", "Speaker", "Headphone", "HDMI"]
         capture_controls = ["Capture", "Mic", "Input", "Digital"]
-        for control in volume_controls:
-            try:
-                result = subprocess.run(
-                    ["amixer", "-c", playback_card, "sget", control],
-                    capture_output=True, text=True, timeout=5,
-                )
-                if result.returncode == 0 and re.search(r"\[\d+%\]", result.stdout):
-                    has_playback_mixer = True
-                    break
-            except Exception:
-                pass
         for control in capture_controls:
             try:
                 result = subprocess.run(
@@ -175,25 +165,8 @@ def _configure_alsa_for_pyaudio():
             except Exception:
                 pass
 
-        softvol_playback = ""
         softvol_capture = ""
-        playback_pcm = '"dmixer"'
         capture_pcm = f'"hw:{best_card},0"'
-
-        if not has_playback_mixer:
-            softvol_playback = f"""
-pcm.softvol_out {{
-    type softvol
-    slave.pcm "dmixer"
-    control {{
-        name "SoftMaster"
-        card {playback_card}
-    }}
-    min_dB -51.0
-    max_dB 0.0
-}}
-"""
-            playback_pcm = '"softvol_out"'
 
         if not has_capture_mixer:
             softvol_capture = f"""
@@ -211,8 +184,61 @@ pcm.softvol_cap {{
             capture_pcm = '"softvol_cap"'
             _softvol_configured = True
 
-        if is_bcm2835:
+        if not playback_card:
             asound_config = f"""{softvol_capture}
+pcm.!default {{
+    type asym
+    playback.pcm "null"
+    capture.pcm {{
+        type plug
+        slave.pcm {capture_pcm}
+    }}
+}}
+
+ctl.!default {{
+    type hw
+    card {best_card}
+}}
+"""
+            print(
+                f"[AUDIO] No playback devices found, capture-only config (card {best_card})",
+                flush=True,
+            )
+        else:
+            has_playback_mixer = False
+            volume_controls = ["PCM", "Master", "Speaker", "Headphone", "HDMI"]
+            for control in volume_controls:
+                try:
+                    result = subprocess.run(
+                        ["amixer", "-c", playback_card, "sget", control],
+                        capture_output=True, text=True, timeout=5,
+                    )
+                    if result.returncode == 0 and re.search(r"\[\d+%\]", result.stdout):
+                        has_playback_mixer = True
+                        break
+                except Exception:
+                    pass
+
+            softvol_playback = ""
+            playback_pcm = '"dmixer"'
+
+            if not has_playback_mixer:
+                softvol_playback = f"""
+pcm.softvol_out {{
+    type softvol
+    slave.pcm "dmixer"
+    control {{
+        name "SoftMaster"
+        card {playback_card}
+    }}
+    min_dB -51.0
+    max_dB 0.0
+}}
+"""
+                playback_pcm = '"softvol_out"'
+
+            if is_bcm2835:
+                asound_config = f"""{softvol_capture}
 pcm.!default {{
     type asym
     playback.pcm {{
@@ -230,8 +256,8 @@ ctl.!default {{
     card {playback_card}
 }}
 """
-        else:
-            asound_config = f"""pcm.dmixer {{
+            else:
+                asound_config = f"""pcm.dmixer {{
     type dmix
     ipc_key 1024
     ipc_perm 0666
@@ -268,16 +294,17 @@ ctl.!default {{
         if os.path.isdir(os.path.dirname(shared_path)):
             with open(shared_path, "w") as f:
                 f.write(asound_config)
-        softvol_info = []
-        if not has_playback_mixer:
-            softvol_info.append("playback=softvol_out")
-        if not has_capture_mixer:
-            softvol_info.append("capture=softvol_cap")
-        softvol_str = f" ({', '.join(softvol_info)})" if softvol_info else ""
-        print(
-            f"[AUDIO] Configured asound.conf: playback=card {playback_card}, capture=card {best_card}{softvol_str}",
-            flush=True,
-        )
+        if playback_card:
+            softvol_info = []
+            if not has_playback_mixer:
+                softvol_info.append("playback=softvol_out")
+            if not has_capture_mixer:
+                softvol_info.append("capture=softvol_cap")
+            softvol_str = f" ({', '.join(softvol_info)})" if softvol_info else ""
+            print(
+                f"[AUDIO] Configured asound.conf: playback=card {playback_card}, capture=card {best_card}{softvol_str}",
+                flush=True,
+            )
     except Exception as e:
         print(f"[AUDIO] Failed to configure ALSA: {e}", flush=True)
 
@@ -789,8 +816,10 @@ class MicrophoneSource(sr.AudioSource):
         self.stream = None
 
     def __enter__(self):
-        from src.audio_capture import get_mic_capture_info, start_mic_listen_feed
+        from src.audio_capture import get_mic_capture_info, start_mic_listen_feed, is_mic_capturing
 
+        if not is_mic_capturing():
+            raise RuntimeError("Mic capture not running — no audio input device available")
         self.SAMPLE_RATE, self.CHUNK = get_mic_capture_info()
         self._queue = queue.Queue(maxsize=200)
         start_mic_listen_feed(self._queue)
@@ -1402,7 +1431,7 @@ async def listen(state_task, stop_event):
         except sr.UnknownValueError:
             return None
         except Exception as e:
-            logger.error("LiteLLM STT failed: %s, falling back to Google", e)
+            logger.error("LiteLLM STT failed: %s: %s, falling back to Google", type(e).__name__, e)
             return None
 
     async def recognize_audio_google():

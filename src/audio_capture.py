@@ -713,15 +713,16 @@ def set_mic_callback(callback: Callable[[list], None]):
     _mic_callback = callback
 
 
-def start_mic_capture():
+def start_mic_capture() -> bool:
     """Start microphone capture for user speech visualization."""
     global _mic_capture
 
     if not PYAUDIO_AVAILABLE:
-        return
+        logger.warning("Mic capture unavailable: no ALSA input devices at startup")
+        return False
 
     if _mic_capture and _mic_capture.is_running():
-        return
+        return True
 
     def callback(values: list):
         if _mic_callback:
@@ -729,6 +730,7 @@ def start_mic_capture():
 
     _mic_capture = AudioCapture(callback=callback, mode=CaptureMode.MICROPHONE)
     _mic_capture.start()
+    return True
 
 
 def stop_mic_capture():
@@ -768,8 +770,10 @@ def get_mic_capture_info() -> tuple:
 
 
 def start_mic_listen_feed(q: _queue_mod.Queue) -> None:
-    if _mic_capture:
+    if _mic_capture and _mic_capture.is_running():
         _mic_capture._listen_queue = q
+    else:
+        logger.warning("Cannot start mic listen feed: mic capture not running")
 
 
 def stop_mic_listen_feed() -> None:
