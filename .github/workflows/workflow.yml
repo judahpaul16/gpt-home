@@ -70,7 +70,14 @@ jobs:
             - name: Get the version
               id: get_version
               run: |
-                  VERSION=$(git tag | sort --version-sort | tail -n1)
+                  VERSION="${{ github.event.release.tag_name }}"
+                  if [ -z "$VERSION" ]; then
+                    VERSION=$(git tag --sort=-version:refname | head -n1)
+                  fi
+                  if [ -z "$VERSION" ]; then
+                    echo "ERROR: No version tag found"
+                    exit 1
+                  fi
                   echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
                   echo "VERSION=${VERSION}"
 
