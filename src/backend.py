@@ -4957,7 +4957,7 @@ def _detect_hdmi_audio_device() -> tuple:
 
 _phantom_i2s_cards: set[str] = set()
 
-_I2S_KEYWORDS = ("googlevoicehat", "voicehat")
+_I2S_KEYWORDS = ("googlevoicehat", "voicehat", "wm8960")
 
 
 def _detect_phantom_i2s_cards() -> None:
@@ -5049,8 +5049,18 @@ def _fix_stale_i2s_overlay() -> None:
             flags=re.MULTILINE,
         )
 
-        has_wm8960 = re.search(r"^dtoverlay=wm8960-soundcard", content, re.MULTILINE)
-        if not has_wm8960:
+        content = re.sub(
+            r"^(dtoverlay=wm8960-soundcard)",
+            r"#\1",
+            content,
+            flags=re.MULTILINE,
+        )
+
+        has_active_i2s = re.search(
+            r"^dtoverlay=(wm8960|googlevoicehat)-soundcard",
+            content, re.MULTILINE,
+        )
+        if not has_active_i2s:
             content = re.sub(
                 r"^#(dtparam=audio=on)",
                 r"\1",
@@ -5126,6 +5136,15 @@ def _detect_missing_audio_overlays() -> None:
                 content = re.sub(
                     r"^(dtparam=audio=on)", r"#\1", content, flags=re.MULTILINE
                 )
+        else:
+            if re.search(r"^dtoverlay=googlevoicehat-soundcard", content, re.MULTILINE):
+                content = re.sub(
+                    r"^(dtoverlay=googlevoicehat-soundcard)",
+                    r"#\1",
+                    content,
+                    flags=re.MULTILINE,
+                )
+                logger.info("Disabled stale googlevoicehat overlay (hardware not detected)")
 
         wm8960_detected = False
         try:
@@ -5158,13 +5177,34 @@ def _detect_missing_audio_overlays() -> None:
 
                 if not re.search(r"^dtparam=i2s=on", content, re.MULTILINE):
                     content += "dtparam=i2s=on\n"
+        else:
+            if re.search(r"^dtoverlay=wm8960-soundcard", content, re.MULTILINE):
+                content = re.sub(
+                    r"^(dtoverlay=wm8960-soundcard)",
+                    r"#\1",
+                    content,
+                    flags=re.MULTILINE,
+                )
+                logger.info("Disabled stale WM8960 overlay (hardware not detected)")
+
+        has_active_i2s = re.search(
+            r"^dtoverlay=(wm8960|googlevoicehat)-soundcard",
+            content, re.MULTILINE,
+        )
+        if not has_active_i2s:
+            content = re.sub(
+                r"^#(dtparam=audio=on)",
+                r"\1",
+                content,
+                flags=re.MULTILINE,
+            )
 
         if content != original:
             Path(config_path).write_text(content)
             _set_reboot_needed(
-                "Audio HAT detected — reboot to enable audio overlay"
+                "Audio overlay configuration changed — reboot to apply"
             )
-            logger.info("Enabled missing audio overlay in %s", config_path)
+            logger.info("Updated audio overlays in %s", config_path)
     except Exception as e:
         logger.debug("Could not check for missing audio overlays: %s", e)
 

@@ -373,8 +373,10 @@ async def startup():
 
         set_mic_callback(_continuous_mic_callback)
         mediator.start(WaveformSource.MICROPHONE)
-        start_mic_capture()
-        logger.debug("Continuous mic capture started for waveform")
+        if start_mic_capture():
+            logger.debug("Continuous mic capture started for waveform")
+        else:
+            logger.warning("Mic capture failed to start — no audio input available")
     except Exception as e:
         logger.error("Waveform mediator init failed: %s", e)
 
