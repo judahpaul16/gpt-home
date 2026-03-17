@@ -1130,6 +1130,13 @@ const Settings: React.FC = () => {
                         mode: settings.display_mode,
                     });
                     if (modeResponse.data.success) {
+                        if (modeResponse.data.warning) {
+                            showAlert(
+                                "warning",
+                                "Display Mode",
+                                modeResponse.data.warning,
+                            );
+                        }
                         setDisplayStatus((prev) =>
                             prev
                                 ? {
@@ -1665,6 +1672,8 @@ const Settings: React.FC = () => {
                                 onVolumeChange={handleVolumeChange}
                                 onMicGainChange={handleMicGainChange}
                                 onVadThresholdChange={handleVadThresholdChange}
+                                galleryImageCount={galleryImages?.length ?? 0}
+                                onNavigateToGallery={() => setActiveTab("gallery")}
                                 setSettings={setSettings}
                                 showConfirm={showConfirm}
                             />

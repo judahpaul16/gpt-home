@@ -943,6 +943,12 @@ async def startup_event():
         if manager and manager.is_available:
             logger.debug("Display manager initialized on startup")
             await _auto_select_hdmi_audio()
+            from src.display.base import DisplayMode
+            if manager._mode == DisplayMode.GALLERY:
+                try:
+                    await _load_gallery_images_for_display(manager)
+                except Exception:
+                    pass
         else:
             logger.info("No full display available on startup")
     except Exception as e:
@@ -4138,6 +4144,13 @@ async def set_display_mode(request: Request):
                     logger.warning(
                         f"Could not fetch weather for display: {weather_err}"
                     )
+            elif mode == DisplayMode.GALLERY:
+                try:
+                    await _load_gallery_images_for_display(manager)
+                except Exception as gallery_err:
+                    logger.warning(
+                        f"Could not load gallery images for display: {gallery_err}"
+                    )
 
             await manager.set_mode(mode)
             return JSONResponse(content={"success": True, "mode": mode_name})
@@ -4328,6 +4341,61 @@ async def _fetch_and_set_weather_data(manager):
                 logger.warning(f"Weather: Open-Meteo returned {response.status}")
         except Exception as om_err:
             logger.warning(f"Weather: Open-Meteo failed: {om_err}")
+
+
+_GALLERY_CACHE_DIR = "/tmp/gpt-home-gallery"
+
+
+async def _refresh_gallery_if_active():
+    try:
+        manager = await ensure_display_initialized()
+        if manager and manager.is_available:
+            from src.display.base import DisplayMode
+            if manager._mode == DisplayMode.GALLERY:
+                await _load_gallery_images_for_display(manager)
+    except Exception:
+        pass
+
+
+async def _load_gallery_images_for_display(manager):
+    os.makedirs(_GALLERY_CACHE_DIR, exist_ok=True)
+    try:
+        await asyncio.wait_for(_fetch_and_cache_gallery(manager), timeout=15.0)
+    except asyncio.TimeoutError:
+        logger.warning("Gallery image loading timed out after 15s")
+    except Exception as e:
+        logger.warning("Failed to load gallery images for display: %s", e)
+
+
+async def _fetch_and_cache_gallery(manager):
+    pool = await get_db_pool()
+    async with pool.connection() as conn:
+        result = await conn.execute(
+            "SELECT filename, data FROM gallery_images ORDER BY updated_at DESC"
+        )
+        rows = await result.fetchall()
+
+    existing = set(os.listdir(_GALLERY_CACHE_DIR))
+    db_filenames = {row[0] for row in rows}
+
+    for stale in existing - db_filenames:
+        try:
+            os.remove(os.path.join(_GALLERY_CACHE_DIR, stale))
+        except OSError:
+            pass
+
+    paths = []
+    for filename, data in rows:
+        path = os.path.join(_GALLERY_CACHE_DIR, filename)
+        if not os.path.exists(path):
+            with open(path, "wb") as f:
+                if isinstance(data, memoryview):
+                    f.write(bytes(data))
+                else:
+                    f.write(data)
+        paths.append(path)
+
+    manager.set_gallery_images(paths)
 
 
 def _wmo_code_to_condition(code: int) -> str:
@@ -4791,6 +4859,8 @@ async def upload_gallery_image(file: UploadFile = File(...)):
             )
             await conn.commit()
 
+        await _refresh_gallery_if_active()
+
         return JSONResponse(
             content={
                 "success": True,
@@ -4823,6 +4893,15 @@ async def delete_gallery_image(filename: str):
             return JSONResponse(
                 content={"success": False, "message": "File not found"}, status_code=404
             )
+
+        cache_path = os.path.join(_GALLERY_CACHE_DIR, safe_name)
+        if os.path.exists(cache_path):
+            try:
+                os.remove(cache_path)
+            except OSError:
+                pass
+
+        await _refresh_gallery_if_active()
 
         return JSONResponse(content={"success": True})
     except Exception as e:

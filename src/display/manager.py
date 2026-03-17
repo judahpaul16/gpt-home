@@ -510,7 +510,7 @@ class DisplayManager:
             self._mode = mode
             return
 
-        if self._mode == mode:
+        if self._mode == mode and mode != DisplayMode.GALLERY:
             return
 
         logger.debug("Changing mode from %s to %s", self._mode.name, mode.name)
