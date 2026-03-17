@@ -1,5 +1,6 @@
 import logging
 import os
+import threading
 import time
 from typing import Any, Dict, Optional, Tuple
 
@@ -53,6 +54,7 @@ class St7789Display(BaseDisplay):
         self._raset_cmd = None
         self._rgb565_buf = None
         self._frame_count = 0
+        self._spi_lock = threading.Lock()
 
     def _compute_offsets(self):
         r = self.info.rotation % 360
@@ -172,6 +174,10 @@ class St7789Display(BaseDisplay):
         time.sleep(0.15)
 
     def _send_command(self, cmd: int, data: bytes = None):
+        with self._spi_lock:
+            self._send_command_unlocked(cmd, data)
+
+    def _send_command_unlocked(self, cmd: int, data: bytes = None):
         self._gpio_set(self._dc_pin, False)
         self._spi.writebytes([cmd])
         if data:
@@ -202,10 +208,10 @@ class St7789Display(BaseDisplay):
     def _refresh_registers(self):
         rotation = self.info.rotation % 360
         madctl = _MADCTL_ROTATION.get(rotation, 0x00)
-        self._send_command(_ST7789_COLMOD, bytes([0x05]))
-        self._send_command(_ST7789_MADCTL, bytes([madctl]))
-        self._send_command(_ST7789_INVON)
-        self._send_command(_ST7789_DISPON)
+        self._send_command_unlocked(_ST7789_COLMOD, bytes([0x05]))
+        self._send_command_unlocked(_ST7789_MADCTL, bytes([madctl]))
+        self._send_command_unlocked(_ST7789_INVON)
+        self._send_command_unlocked(_ST7789_DISPON)
 
     def _precompute_window_cmds(self):
         x0, y0 = self._col_offset, self._row_offset
@@ -221,8 +227,8 @@ class St7789Display(BaseDisplay):
         ])
 
     def _set_window(self):
-        self._send_command(_ST7789_CASET, self._caset_cmd)
-        self._send_command(_ST7789_RASET, self._raset_cmd)
+        self._send_command_unlocked(_ST7789_CASET, self._caset_cmd)
+        self._send_command_unlocked(_ST7789_RASET, self._raset_cmd)
 
     def _cleanup_hw(self):
         if self._spi:
@@ -398,9 +404,6 @@ class St7789Display(BaseDisplay):
             return
 
         self._frame_count += 1
-        if self._frame_count >= 100:
-            self._frame_count = 0
-            self._refresh_registers()
 
         raw = self._pygame.image.tostring(self._back_buffer, "RGB")
         arr = np.frombuffer(raw, dtype=np.uint8).reshape(self.height, self.width, 3)
@@ -417,11 +420,15 @@ class St7789Display(BaseDisplay):
         pixel_data = self._rgb565_buf.astype(">u2").tobytes()
 
         try:
-            self._set_window()
-            self._gpio_set(self._dc_pin, False)
-            self._spi.writebytes([_ST7789_RAMWR])
-            self._gpio_set(self._dc_pin, True)
-            self._spi.writebytes2(pixel_data)
+            with self._spi_lock:
+                if self._frame_count >= 100:
+                    self._frame_count = 0
+                    self._refresh_registers()
+                self._set_window()
+                self._gpio_set(self._dc_pin, False)
+                self._spi.writebytes([_ST7789_RAMWR])
+                self._gpio_set(self._dc_pin, True)
+                self._spi.writebytes2(pixel_data)
         except Exception as e:
             logger.warning("SPI write failed: %s", e)
             self._frame_count = 99
