@@ -52,6 +52,7 @@ class St7789Display(BaseDisplay):
         self._caset_cmd = None
         self._raset_cmd = None
         self._rgb565_buf = None
+        self._frame_count = 0
 
     def _compute_offsets(self):
         r = self.info.rotation % 360
@@ -197,6 +198,14 @@ class St7789Display(BaseDisplay):
 
         self._send_command(_ST7789_DISPON)
         time.sleep(0.1)
+
+    def _refresh_registers(self):
+        rotation = self.info.rotation % 360
+        madctl = _MADCTL_ROTATION.get(rotation, 0x00)
+        self._send_command(_ST7789_COLMOD, bytes([0x05]))
+        self._send_command(_ST7789_MADCTL, bytes([madctl]))
+        self._send_command(_ST7789_INVON)
+        self._send_command(_ST7789_DISPON)
 
     def _precompute_window_cmds(self):
         x0, y0 = self._col_offset, self._row_offset
@@ -388,6 +397,11 @@ class St7789Display(BaseDisplay):
         if not self._back_buffer or not self._pygame or not self._spi:
             return
 
+        self._frame_count += 1
+        if self._frame_count >= 100:
+            self._frame_count = 0
+            self._refresh_registers()
+
         raw = self._pygame.image.tostring(self._back_buffer, "RGB")
         arr = np.frombuffer(raw, dtype=np.uint8).reshape(self.height, self.width, 3)
 
@@ -402,12 +416,15 @@ class St7789Display(BaseDisplay):
 
         pixel_data = self._rgb565_buf.astype(">u2").tobytes()
 
-        self._set_window()
-
-        self._gpio_set(self._dc_pin, False)
-        self._spi.writebytes([_ST7789_RAMWR])
-        self._gpio_set(self._dc_pin, True)
-        self._spi.writebytes2(pixel_data)
+        try:
+            self._set_window()
+            self._gpio_set(self._dc_pin, False)
+            self._spi.writebytes([_ST7789_RAMWR])
+            self._gpio_set(self._dc_pin, True)
+            self._spi.writebytes2(pixel_data)
+        except Exception as e:
+            logger.warning("SPI write failed: %s", e)
+            self._frame_count = 99
 
     async def clear(self, color: Color = Colors.BLACK) -> None:
         self.clear_sync(color)

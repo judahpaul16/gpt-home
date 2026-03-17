@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import time
-from typing import TYPE_CHECKING, Callable, List
+from typing import TYPE_CHECKING, Callable
 
 from ..base import Color, DisplayMode
 from ..palette import Palette
@@ -11,6 +11,8 @@ from ..renderers import draw_gradient_bg, draw_host_ip_overlay
 
 if TYPE_CHECKING:
     from ..manager import DisplayManager
+
+logger = logging.getLogger("display.modes.gallery")
 
 
 async def gallery_loop(
@@ -21,27 +23,26 @@ async def gallery_loop(
     """Main gallery display loop for cycling through images."""
     try:
         last_change = time.time()
-        last_frame = time.perf_counter()
 
         while not stop_check() and not screensaver_check():
             if manager._mode != DisplayMode.GALLERY:
                 break
 
-            now_time = time.perf_counter()
-            dt = min(0.05, now_time - last_frame)
-            last_frame = now_time
+            try:
+                async with manager._render_lock:
+                    d = manager._display
+                    if not d or stop_check() or screensaver_check():
+                        break
 
-            async with manager._render_lock:
-                d = manager._display
-                if not d or stop_check() or screensaver_check():
-                    break
+                    if not manager._gallery_images:
+                        _render_no_images(d, manager)
+                    else:
+                        await _render_gallery_image(d, manager)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.debug("Gallery render error", exc_info=True)
 
-                if not manager._gallery_images:
-                    _render_no_images(d, manager)
-                else:
-                    await _render_gallery_image(d, manager)
-
-            # Check if time to advance to next image
             if time.time() - last_change >= manager._gallery_interval:
                 if manager._gallery_images:
                     manager._gallery_index = (manager._gallery_index + 1) % len(
@@ -70,9 +71,6 @@ def _render_no_images(d, manager: "DisplayManager") -> None:
 
 
 async def _render_gallery_image(d, manager: "DisplayManager") -> None:
-    """Render the current gallery image."""
-    logger = logging.getLogger("display.modes.gallery")
-
     img_path = manager._gallery_images[manager._gallery_index]
     try:
         d.clear_sync(Color(0, 0, 0))

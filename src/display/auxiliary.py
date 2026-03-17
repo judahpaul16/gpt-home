@@ -218,12 +218,6 @@ class AuxiliaryDisplay:
             if self._screensaver_render_task and not self._screensaver_render_task.done():
                 self._screensaver_render_task.cancel()
             self._screensaver_render_task = None
-            self.display.clear_sync()
-            if self.is_color:
-                self._render_dashboard_frame()
-            else:
-                self.draw_header()
-            self.display.show_sync()
             if self.is_color:
                 self._start_dashboard()
 

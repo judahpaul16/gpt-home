@@ -68,6 +68,8 @@ interface HardwareTabProps {
     onVolumeChange: (volume: number) => void;
     onMicGainChange: (gain: number) => void;
     onVadThresholdChange: (threshold: number) => void;
+    galleryImageCount: number;
+    onNavigateToGallery: () => void;
     setSettings: (s: any) => void;
     showConfirm: (
         title: string,
@@ -114,6 +116,8 @@ const HardwareTab: React.FC<HardwareTabProps> = ({
     onVolumeChange,
     onMicGainChange,
     onVadThresholdChange,
+    galleryImageCount,
+    onNavigateToGallery,
     setSettings,
     showConfirm,
 }) => {
@@ -383,7 +387,7 @@ const HardwareTab: React.FC<HardwareTabProps> = ({
                         {displayStatus &&
                             displayStatus.available &&
                             shouldShowDisplayModes(displayStatus) && (
-                                <div className="flex flex-wrap gap-3">
+                                <div className="flex flex-wrap gap-3 items-end">
                                     <div className="flex-1 min-w-[120px]">
                                         <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">
                                             Mode
@@ -412,38 +416,6 @@ const HardwareTab: React.FC<HardwareTabProps> = ({
                                             </select>
                                             <Icons.ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none w-4 h-4" />
                                         </div>
-                                        {settings.display_mode ===
-                                            "gallery" && (
-                                            <div className="mt-1.5 flex items-center gap-2">
-                                                <label className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                                                    Interval
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    min="3"
-                                                    max="60"
-                                                    value={
-                                                        settings.gallery_interval ||
-                                                        10
-                                                    }
-                                                    onChange={(e) =>
-                                                        setSettings({
-                                                            ...settings,
-                                                            gallery_interval:
-                                                                parseInt(
-                                                                    e.target
-                                                                        .value,
-                                                                    10,
-                                                                ),
-                                                        })
-                                                    }
-                                                    className="input-field w-16 text-sm"
-                                                />
-                                                <span className="text-xs text-slate-400">
-                                                    sec
-                                                </span>
-                                            </div>
-                                        )}
                                     </div>
 
                                     {resolutionConfigurable && (
@@ -561,6 +533,51 @@ const HardwareTab: React.FC<HardwareTabProps> = ({
                                             </p>
                                         )}
                                     </div>
+
+                                    {settings.display_mode ===
+                                        "gallery" && (
+                                        <>
+                                            <div className="w-16">
+                                                <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">
+                                                    Interval
+                                                </label>
+                                                <div className="flex items-center gap-1">
+                                                    <input
+                                                        type="number"
+                                                        min="3"
+                                                        max="60"
+                                                        value={
+                                                            settings.gallery_interval ||
+                                                            10
+                                                        }
+                                                        onChange={(e) =>
+                                                            setSettings({
+                                                                ...settings,
+                                                                gallery_interval:
+                                                                    parseInt(
+                                                                        e.target
+                                                                            .value,
+                                                                        10,
+                                                                    ),
+                                                            })
+                                                        }
+                                                        className="input-field w-full text-sm"
+                                                    />
+                                                    <span className="text-[10px] text-slate-500">
+                                                        s
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={onNavigateToGallery}
+                                                className="text-xs text-primary-500 hover:text-primary-400 transition-colors pb-0.5"
+                                            >
+                                                {galleryImageCount > 0
+                                                    ? `${galleryImageCount} image${galleryImageCount !== 1 ? "s" : ""} \u2192`
+                                                    : "Upload images \u2192"}
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
                             )}
                     </div>
@@ -911,30 +928,30 @@ const HardwareTab: React.FC<HardwareTabProps> = ({
                                         : ""}
                                 </p>
                             </div>
+                            {screensaverSettings.style === "bounce" && (
+                                <div className="flex-1 min-w-[120px]">
+                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">
+                                        Text
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={
+                                            settings.screensaver_bounce_text ??
+                                            "GPT Home"
+                                        }
+                                        onChange={(e) =>
+                                            setSettings({
+                                                ...settings,
+                                                screensaver_bounce_text:
+                                                    e.target.value,
+                                            })
+                                        }
+                                        className="input-field w-full text-sm"
+                                        placeholder="GPT Home"
+                                    />
+                                </div>
+                            )}
                         </div>
-                        {screensaverSettings.style === "bounce" && (
-                            <div>
-                                <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">
-                                    Text
-                                </label>
-                                <input
-                                    type="text"
-                                    value={
-                                        settings.screensaver_bounce_text ??
-                                        "GPT Home"
-                                    }
-                                    onChange={(e) =>
-                                        setSettings({
-                                            ...settings,
-                                            screensaver_bounce_text:
-                                                e.target.value,
-                                        })
-                                    }
-                                    className="input-field w-full text-sm"
-                                    placeholder="GPT Home"
-                                />
-                            </div>
-                        )}
                     </div>
                 </div>
 
