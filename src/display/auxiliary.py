@@ -197,16 +197,19 @@ class AuxiliaryDisplay:
                 await asyncio.sleep(10)
                 if self._screensaver_active or self._spotify_active:
                     continue
-                async with self._lock:
-                    self.display.clear_sync()
-                    self._render_dashboard_frame()
-                    await asyncio.get_event_loop().run_in_executor(
-                        None, self.display.show_sync
-                    )
+                try:
+                    async with self._lock:
+                        self.display.clear_sync()
+                        self._render_dashboard_frame()
+                        await asyncio.get_event_loop().run_in_executor(
+                            None, self.display.show_sync
+                        )
+                except asyncio.CancelledError:
+                    raise
+                except Exception as e:
+                    logger.error("Dashboard render error: %s", e)
         except asyncio.CancelledError:
             pass
-        except Exception as e:
-            logger.error("Dashboard render error: %s", e)
 
     # ── Activity / Screensaver ──
 
@@ -218,8 +221,6 @@ class AuxiliaryDisplay:
             if self._screensaver_render_task and not self._screensaver_render_task.done():
                 self._screensaver_render_task.cancel()
             self._screensaver_render_task = None
-            if self.is_color:
-                self._start_dashboard()
 
     async def check_screensaver(self, settings: dict) -> None:
         if not settings.get("screensaver_enabled", True):
