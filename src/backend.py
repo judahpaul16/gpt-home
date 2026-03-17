@@ -5065,14 +5065,14 @@ def _fix_stale_i2s_overlay() -> None:
 
         content = re.sub(
             r"^(dtoverlay=googlevoicehat-soundcard)",
-            r"#phantom:\1",
+            r"#\1",
             content,
             flags=re.MULTILINE,
         )
 
         content = re.sub(
             r"^(dtoverlay=wm8960-soundcard)",
-            r"#phantom:\1",
+            r"#\1",
             content,
             flags=re.MULTILINE,
         )
@@ -5139,12 +5139,12 @@ def _detect_missing_audio_overlays() -> None:
             )
             if not has_overlay:
                 commented = re.search(
-                    r"^#(?:phantom:)?(dtoverlay=googlevoicehat-soundcard)",
+                    r"^#(dtoverlay=googlevoicehat-soundcard)",
                     content, re.MULTILINE,
                 )
                 if commented:
                     content = re.sub(
-                        r"^#(?:phantom:)?(dtoverlay=googlevoicehat-soundcard)",
+                        r"^#(dtoverlay=googlevoicehat-soundcard)",
                         r"\1",
                         content,
                         flags=re.MULTILINE,
@@ -5158,31 +5158,15 @@ def _detect_missing_audio_overlays() -> None:
                 content = re.sub(
                     r"^(dtparam=audio=on)", r"#\1", content, flags=re.MULTILINE
                 )
-        elif _has_real_i2s_card("googlevoicehat", "voicehat"):
-            pass
-        elif re.search(r"^#phantom:dtoverlay=googlevoicehat-soundcard", content, re.MULTILINE):
-            pass
-        elif re.search(r"^#dtoverlay=googlevoicehat-soundcard", content, re.MULTILINE):
-            content = re.sub(
-                r"^#(dtoverlay=googlevoicehat-soundcard)",
-                r"\1",
-                content,
-                flags=re.MULTILINE,
-            )
-            if not re.search(r"^dtparam=i2s=on", content, re.MULTILINE):
-                content += "dtparam=i2s=on\n"
-            content = re.sub(
-                r"^(dtparam=audio=on)", r"#\1", content, flags=re.MULTILINE
-            )
-            logger.info("Re-enabled googlevoicehat overlay for verification on next boot")
-        elif re.search(r"^dtoverlay=googlevoicehat-soundcard", content, re.MULTILINE):
-            content = re.sub(
-                r"^(dtoverlay=googlevoicehat-soundcard)",
-                r"#\1",
-                content,
-                flags=re.MULTILINE,
-            )
-            logger.info("Disabled stale googlevoicehat overlay (hardware not detected)")
+        elif not _has_real_i2s_card("googlevoicehat", "voicehat"):
+            if re.search(r"^dtoverlay=googlevoicehat-soundcard", content, re.MULTILINE):
+                content = re.sub(
+                    r"^(dtoverlay=googlevoicehat-soundcard)",
+                    r"#\1",
+                    content,
+                    flags=re.MULTILINE,
+                )
+                logger.info("Disabled stale googlevoicehat overlay (hardware not detected)")
 
         wm8960_detected = False
         try:
@@ -5201,12 +5185,12 @@ def _detect_missing_audio_overlays() -> None:
             )
             if not has_overlay:
                 commented = re.search(
-                    r"^#(?:phantom:)?(dtoverlay=wm8960-soundcard)",
+                    r"^#(dtoverlay=wm8960-soundcard)",
                     content, re.MULTILINE,
                 )
                 if commented:
                     content = re.sub(
-                        r"^#(?:phantom:)?(dtoverlay=wm8960-soundcard)",
+                        r"^#(dtoverlay=wm8960-soundcard)",
                         r"\1",
                         content,
                         flags=re.MULTILINE,
@@ -5216,18 +5200,15 @@ def _detect_missing_audio_overlays() -> None:
 
                 if not re.search(r"^dtparam=i2s=on", content, re.MULTILINE):
                     content += "dtparam=i2s=on\n"
-        elif _has_real_i2s_card("wm8960"):
-            pass
-        elif re.search(r"^#phantom:dtoverlay=wm8960-soundcard", content, re.MULTILINE):
-            pass
-        elif re.search(r"^dtoverlay=wm8960-soundcard", content, re.MULTILINE):
-            content = re.sub(
-                r"^(dtoverlay=wm8960-soundcard)",
-                r"#\1",
-                content,
-                flags=re.MULTILINE,
-            )
-            logger.info("Disabled stale WM8960 overlay (hardware not detected)")
+        elif not _has_real_i2s_card("wm8960"):
+            if re.search(r"^dtoverlay=wm8960-soundcard", content, re.MULTILINE):
+                content = re.sub(
+                    r"^(dtoverlay=wm8960-soundcard)",
+                    r"#\1",
+                    content,
+                    flags=re.MULTILINE,
+                )
+                logger.info("Disabled stale WM8960 overlay (hardware not detected)")
 
         has_active_i2s = re.search(
             r"^dtoverlay=(wm8960|googlevoicehat)-soundcard",
