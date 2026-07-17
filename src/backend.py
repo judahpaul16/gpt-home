@@ -47,6 +47,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from src.audio_capture import MIC_PRIORITIES
 from src.common import SOURCE_DIR, load_integration_statuses, log_file_path, logger
+from src.task_utils import spawn_background_task
 
 
 class AccessLogFilter(logging.Filter):
@@ -1494,7 +1495,11 @@ async def _refresh_spotify_token() -> Optional[str]:
         )
 
         if not SPOTIFYD_CREDENTIALS_PATH.exists():
-            asyncio.create_task(_provision_spotifyd_credentials(data["access_token"]))
+            spawn_background_task(
+                _provision_spotifyd_credentials(data["access_token"]),
+                name="provision_spotifyd",
+                logger=logger,
+            )
 
         return data["access_token"]
     except Exception as e:
@@ -2026,7 +2031,11 @@ async def spotify_auth_poll():
                 data["refresh_token"],
                 data.get("expires_in", 3600),
             )
-            asyncio.create_task(_provision_spotifyd_credentials(data["access_token"]))
+            spawn_background_task(
+                _provision_spotifyd_credentials(data["access_token"]),
+                name="provision_spotifyd",
+                logger=logger,
+            )
             return JSONResponse(
                 content={
                     "status": "authorized",
@@ -2074,7 +2083,11 @@ async def spotify_auth_callback(request: Request):
         return JSONResponse(status_code=400, content={"error": "Missing token data"})
 
     await _store_spotify_user_token(access_token, refresh_token, expires_in)
-    asyncio.create_task(_provision_spotifyd_credentials(access_token))
+    spawn_background_task(
+        _provision_spotifyd_credentials(access_token),
+        name="provision_spotifyd",
+        logger=logger,
+    )
 
     logger.info("Spotify tokens received from broker")
     return JSONResponse(
