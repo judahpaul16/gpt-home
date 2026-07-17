@@ -437,7 +437,7 @@ from pygame import mixer
 
 SOURCE_DIR = Path(__file__).parent
 ROOT_DIR = SOURCE_DIR.parent
-log_file_path = Path("/app/logs/events.log")
+log_file_path = Path(os.environ.get("GPT_HOME_LOG_FILE", "/app/logs/events.log"))
 
 # LiteLLM TTS/STT compatible providers (by API key prefix/pattern)
 LITELLM_TTS_PROVIDERS = {
@@ -505,6 +505,7 @@ class FlushingFileHandler(logging.FileHandler):
 
 _log_fmt = logging.Formatter("%(levelname)s:%(name)s:%(message)s")
 
+log_file_path.parent.mkdir(parents=True, exist_ok=True)
 handler = FlushingFileHandler(log_file_path)
 handler.setLevel(logging.DEBUG)
 handler.setFormatter(_log_fmt)
