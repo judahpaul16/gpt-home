@@ -1,105 +1,216 @@
-name: CI/CD Pipeline
+name: CI/CD
 
 on:
-    release:
-        types:
-            - published
-    workflow_dispatch:
-        inputs:
-            logLevel:
-                description: "Log level"
-                required: true
-                default: "warning"
-                type: choice
-                options:
-                    - info
-                    - warning
-                    - debug
-            tags:
-                description: "Test scenario tags"
-                required: false
-                type: boolean
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
-    contents: read
-    packages: write
+  contents: write
+  packages: write
 
 jobs:
-    docker:
-        runs-on: [self-hosted, ARM64]
-        timeout-minutes: 360
-        strategy:
-            matrix:
-                service:
-                    - name: frontend
-                      dockerfile: compose/frontend/Dockerfile
-                    - name: backend
-                      dockerfile: compose/backend/Dockerfile
-                    - name: spotify
-                      dockerfile: compose/spotify/Dockerfile
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v3
-              with:
-                  fetch-depth: 0
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Backend tests
+        run: |
+          pip install -r requirements-test.txt
+          pytest tests/
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+      - name: Frontend install
+        working-directory: src/frontend
+        run: npm ci
+      - name: Frontend typecheck and lint
+        working-directory: src/frontend
+        run: npm run check
+      - name: Frontend tests
+        working-directory: src/frontend
+        run: npm test -- --watchAll=false
+      - name: Frontend build
+        working-directory: src/frontend
+        env:
+          NODE_OPTIONS: --openssl-legacy-provider
+        run: npm run build
 
-            - name: Set up QEMU
-              uses: docker/setup-qemu-action@v3
+  release:
+    needs: [check]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]')
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+      - id: version
+        name: Tag each commit at its cumulative version
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # One paginated list, not a per-tag view, so a transient 5xx on a
+          # single lookup cannot misread the baseline as older than it is.
+          RELEASED=$(mktemp)
+          n=0
+          until gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" --jq '.[].tag_name' > "$RELEASED"; do
+            n=$((n + 1))
+            if [ "$n" -ge 5 ]; then echo "release list failed after $n attempts" >&2; exit 1; fi
+            echo "release list failed, retry $n in ${n}0s" >&2
+            sleep "${n}0"
+          done
+          has_release() { grep -qxF "$1" "$RELEASED"; }
 
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@v3
-              with:
-                  driver-opts: network=host
-                  config-inline: |
-                      [registry."docker.io"]
-                        mirrors = ["mirror.gcr.io"]
+          LATEST_TAG=v0.0.0
+          for t in $(git tag --list 'v[0-9]*' --sort=-v:refname); do
+            if has_release "$t"; then LATEST_TAG="$t"; break; fi
+          done
 
-            - name: Login to Docker Hub
-              uses: docker/login-action@v3
-              with:
-                  username: ${{ secrets.DOCKERHUB_USERNAME }}
-                  password: ${{ secrets.DOCKERHUB_PASSWORD }}
+          ACCUM=${LATEST_TAG#v}
+          MAJOR=$(echo "$ACCUM" | cut -d. -f1)
+          MINOR=$(echo "$ACCUM" | cut -d. -f2)
+          PATCH=$(echo "$ACCUM" | cut -d. -f3)
 
-            - name: Login to GitHub Container Registry
-              uses: docker/login-action@v3
-              with:
-                  registry: ghcr.io
-                  username: ${{ github.repository_owner }}
-                  password: ${{ secrets.GH_TOKEN }}
+          if [ "$LATEST_TAG" = "v0.0.0" ]; then
+            RANGE="HEAD~1..HEAD"
+          else
+            RANGE="${LATEST_TAG}..HEAD"
+          fi
 
-            - name: Get the version
-              id: get_version
-              run: |
-                  VERSION="${{ github.event.release.tag_name }}"
-                  if [ -z "$VERSION" ]; then
-                    VERSION=$(git tag --sort=-version:refname | head -n1)
-                  fi
-                  if [ -z "$VERSION" ]; then
-                    echo "ERROR: No version tag found"
-                    exit 1
-                  fi
-                  echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
-                  echo "VERSION=${VERSION}"
+          FINAL=""
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            SHA=${line%% *}
+            SUBJECT=${line#* }
 
-            - name: Build and push ${{ matrix.service.name }} to GHCR
-              env:
-                  VERSION: ${{ steps.get_version.outputs.VERSION }}
-                  SERVICE: ${{ matrix.service.name }}
-                  DOCKERFILE: ${{ matrix.service.dockerfile }}
-              run: |
-                  timeout 3600 docker buildx build --platform linux/arm64 --no-cache \
-                    -f $DOCKERFILE \
-                    -t ghcr.io/${{ github.repository_owner }}/gpt-home-$SERVICE:$VERSION \
-                    -t ghcr.io/${{ github.repository_owner }}/gpt-home-$SERVICE:latest \
-                    --push .
+            if echo "$SUBJECT" | grep -qiE '\[(skip ci|ci skip)\]'; then continue; fi
 
-            - name: Push ${{ matrix.service.name }} to Docker Hub
-              continue-on-error: true
-              env:
-                  VERSION: ${{ steps.get_version.outputs.VERSION }}
-                  SERVICE: ${{ matrix.service.name }}
-              run: |
-                  docker buildx imagetools create \
-                    --tag ${{ secrets.DOCKERHUB_USERNAME }}/gpt-home-$SERVICE:$VERSION \
-                    --tag ${{ secrets.DOCKERHUB_USERNAME }}/gpt-home-$SERVICE:latest \
-                    ghcr.io/${{ github.repository_owner }}/gpt-home-$SERVICE:$VERSION
+            if echo "$SUBJECT" | grep -qi "\[major update\]"; then
+              MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0
+            elif echo "$SUBJECT" | grep -qi "\[minor update\]"; then
+              MINOR=$((MINOR + 1)); PATCH=0
+            else
+              PATCH=$((PATCH + 1))
+            fi
+
+            V="v${MAJOR}.${MINOR}.${PATCH}"
+
+            if ! git rev-parse -q --verify "refs/tags/$V" >/dev/null; then
+              git tag "$V" "$SHA"
+              git push origin "$V"
+            fi
+
+            if ! has_release "$V"; then
+              n=0
+              until OUT=$(gh release create "$V" --target "$SHA" --title "$V" --notes "- ${SHA:0:7} ${SUBJECT}" 2>&1); do
+                if printf '%s' "$OUT" | grep -qi "already exists"; then break; fi
+                n=$((n + 1))
+                if [ "$n" -ge 5 ]; then echo "release create $V failed after $n attempts: $OUT" >&2; exit 1; fi
+                echo "release create $V failed, retry $n in ${n}0s: $OUT" >&2
+                sleep "${n}0"
+              done
+            fi
+
+            FINAL="$V"
+          done < <(git log "$RANGE" --reverse --pretty=tformat:"%H %s")
+
+          if [ -z "$FINAL" ]; then FINAL="$LATEST_TAG"; fi
+          echo "version=$FINAL" >> "$GITHUB_OUTPUT"
+
+  image:
+    needs: [check, release]
+    if: >-
+      ${{ !cancelled()
+      && needs.check.result == 'success'
+      && needs.release.result != 'failure'
+      && (github.event_name == 'workflow_dispatch'
+      || (github.event_name == 'push' && github.ref == 'refs/heads/main')) }}
+    runs-on: [self-hosted, ARM64]
+    timeout-minutes: 360
+    strategy:
+      matrix:
+        service:
+          - name: frontend
+            dockerfile: compose/frontend/Dockerfile
+          - name: backend
+            dockerfile: compose/backend/Dockerfile
+          - name: spotify
+            dockerfile: compose/spotify/Dockerfile
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.release.outputs.version }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
+          config-inline: |
+            [registry."docker.io"]
+              mirrors = ["mirror.gcr.io"]
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GH_TOKEN }}
+
+      - name: Resolve version
+        id: get_version
+        run: |
+          VERSION="${{ needs.release.outputs.version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(git tag --sort=-version:refname | head -n1)
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "ERROR: No version tag found"
+            exit 1
+          fi
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "VERSION=${VERSION}"
+
+      - name: Build and push ${{ matrix.service.name }} to GHCR
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+          SERVICE: ${{ matrix.service.name }}
+          DOCKERFILE: ${{ matrix.service.dockerfile }}
+        run: |
+          timeout 3600 docker buildx build --platform linux/arm64 --no-cache \
+            -f $DOCKERFILE \
+            -t ghcr.io/${{ github.repository_owner }}/gpt-home-$SERVICE:$VERSION \
+            -t ghcr.io/${{ github.repository_owner }}/gpt-home-$SERVICE:latest \
+            --push .
+
+      - name: Push ${{ matrix.service.name }} to Docker Hub
+        continue-on-error: true
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+          SERVICE: ${{ matrix.service.name }}
+        run: |
+          docker buildx imagetools create \
+            --tag ${{ secrets.DOCKERHUB_USERNAME }}/gpt-home-$SERVICE:$VERSION \
+            --tag ${{ secrets.DOCKERHUB_USERNAME }}/gpt-home-$SERVICE:latest \
+            ghcr.io/${{ github.repository_owner }}/gpt-home-$SERVICE:$VERSION
