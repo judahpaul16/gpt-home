@@ -480,4 +480,4 @@ Contributions are certainly welcome! Please read the [`contributing guidelines`]
 This project is licensed under the GNU GPL v3.0 License - see the [`LICENSE`](LICENSE) file for details.
 
 ## 🌟 Star History  
-[![Star History Chart](https://api.star-history.com/svg?repos=judahpaul16/gpt-home&type=Date&theme=dark)](https://star-history.com/#judahpaul16/gpt-home)
+[![Star History Chart](https://star-history.dera.page/svg?repos=judahpaul16/gpt-home&type=Date&theme=dark)](https://star-history.dera.page/#judahpaul16/gpt-home&type=date)
