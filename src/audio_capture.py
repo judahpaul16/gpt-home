@@ -476,21 +476,11 @@ class AudioCapture:
         except Exception:
             return False
 
-    def _capture_loop(self):
-        """Main capture loop running in separate thread."""
-        pyaudio = _get_pyaudio()
-        if pyaudio is None:
-            self._running = False
-            return
-
-        if not self._format_initialized:
-            self.FORMAT = pyaudio.paInt16
-            self._format_initialized = True
-
-        device_index = None
+    def _find_capture_device(self) -> Optional[int]:
+        """Find and validate the input device, refreshing PyAudio between attempts."""
         for attempt in range(5):
             if not self._running:
-                return
+                return None
 
             self._pyaudio = _get_pyaudio_instance()
             if self._pyaudio is None:
@@ -500,8 +490,7 @@ class AudioCapture:
             if self._mode == CaptureMode.MICROPHONE:
                 device_index = self._find_microphone_device(self._pyaudio)
                 if device_index is not None and self._validate_device(self._pyaudio, device_index):
-                    break
-                device_index = None
+                    return device_index
             else:
                 device_index = self._find_monitor_device(self._pyaudio)
 
@@ -516,26 +505,45 @@ class AudioCapture:
                     device_index = self._find_default_input(self._pyaudio)
 
                 if device_index is not None and self._validate_device(self._pyaudio, device_index):
-                    break
-                device_index = None
+                    return device_index
 
             _release_pyaudio_instance()
             time.sleep(1.0 * (attempt + 1))
+        return None
 
-        if device_index is None:
-            logger.error("Could not find audio device after retries")
+    def _close_stream(self) -> None:
+        stream = self._stream
+        self._stream = None
+        if stream is not None:
+            try:
+                stream.stop_stream()
+                stream.close()
+            except Exception:
+                pass
+
+    def _capture_loop(self):
+        """Main capture loop running in separate thread."""
+        pyaudio = _get_pyaudio()
+        if pyaudio is None:
             self._running = False
-            self._cleanup()
             return
 
-        try:
-            device_info = self._pyaudio.get_device_info_by_index(device_index)
-            sample_rate = int(device_info.get("defaultSampleRate", self.RATE))
+        if not self._format_initialized:
+            self.FORMAT = pyaudio.paInt16
+            self._format_initialized = True
 
-            self._capture_sample_rate = sample_rate
+        first_connect = True
+        while self._running:
+            device_index = self._find_capture_device()
+            if device_index is None:
+                logger.error("Could not find audio device after retries")
+                break
 
-            def open_stream():
-                return self._pyaudio.open(
+            try:
+                device_info = self._pyaudio.get_device_info_by_index(device_index)
+                sample_rate = int(device_info.get("defaultSampleRate", self.RATE))
+                self._capture_sample_rate = sample_rate
+                self._stream = self._pyaudio.open(
                     format=self.FORMAT,
                     channels=self.CHANNELS,
                     rate=sample_rate,
@@ -543,25 +551,26 @@ class AudioCapture:
                     input_device_index=device_index,
                     frames_per_buffer=self.CHUNK,
                 )
+            except Exception as e:
+                logger.error("Failed to start capture: %s", e, exc_info=first_connect)
+                if first_connect:
+                    break
+                _release_pyaudio_instance()
+                self._pyaudio = None
+                time.sleep(1.0)
+                continue
 
-            self._stream = open_stream()
+            first_connect = False
             last_frame_at = time.monotonic()
+            stalled = False
 
             while self._running:
-                if self._stream is None:
-                    time.sleep(0.05)
-                    continue
                 try:
                     if self._stream.get_read_available() < self.CHUNK:
                         if time.monotonic() - last_frame_at > self.STALL_SECONDS:
-                            logger.warning(
-                                "No audio from input device for %.0fs, reopening the capture stream",
-                                self.STALL_SECONDS,
-                            )
-                            self._reopen_stream(open_stream)
-                            last_frame_at = time.monotonic()
-                        else:
-                            time.sleep(0.005)
+                            stalled = True
+                            break
+                        time.sleep(0.005)
                         continue
 
                     data = self._stream.read(self.CHUNK, exception_on_overflow=False)
@@ -578,23 +587,31 @@ class AudioCapture:
                     if self._callback and self._running:
                         self._callback(bar_values)
 
-                except IOError as e:
+                except IOError:
                     if time.monotonic() - last_frame_at > self.STALL_SECONDS:
-                        logger.warning("Audio input read failed (%s), reopening the capture stream", e)
-                        self._reopen_stream(open_stream)
-                        last_frame_at = time.monotonic()
+                        stalled = True
+                        break
                     continue
                 except Exception as e:
-                    if self._stream is None:
-                        continue
                     logger.error("Error in capture loop: %s", e)
+                    stalled = True
                     break
 
-        except Exception as e:
-            logger.error("Failed to start capture: %s", e, exc_info=True)
-        finally:
-            self._running = False
-            self._cleanup()
+            self._close_stream()
+
+            if not self._running or not stalled:
+                break
+
+            logger.warning(
+                "No audio from the input device for %.0fs, reconnecting to it fresh",
+                self.STALL_SECONDS,
+            )
+            _release_pyaudio_instance()
+            self._pyaudio = None
+            time.sleep(0.5)
+
+        self._running = False
+        self._cleanup()
 
     def _setup_pulseaudio_monitor(self):
         """Try to set up PulseAudio monitor source for capturing audio output."""
@@ -640,22 +657,6 @@ class AudioCapture:
             pass
         except Exception as e:
             logger.error("PulseAudio setup error: %s", e)
-
-    def _reopen_stream(self, open_stream):
-        stream = self._stream
-        self._stream = None
-        if stream is not None:
-            try:
-                stream.stop_stream()
-                stream.close()
-            except Exception as e:
-                logger.debug("Closing stalled stream: %s", e)
-        time.sleep(0.5)
-        try:
-            self._stream = open_stream()
-        except Exception as e:
-            logger.error("Reopening the capture stream failed: %s", e)
-            time.sleep(2.0)
 
     def _cleanup(self):
         """Clean up audio resources."""

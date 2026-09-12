@@ -126,23 +126,29 @@ def _configure_alsa_for_pyaudio():
                 ["aplay", "-l"], capture_output=True, text=True, timeout=5
             )
             if aplay_result.returncode == 0:
-                best_play_card = None
-                best_play_priority = -1
-                first_play_card = None
+                play_cards: list[tuple[str, str]] = []
                 for line in aplay_result.stdout.lower().split("\n"):
                     if "card" not in line:
                         continue
                     play_card_match = re.search(r"card\s+(\d+):", line)
                     if play_card_match:
-                        card_num = play_card_match.group(1)
-                        if first_play_card is None:
-                            first_play_card = card_num
-                        for keyword, priority in mic_priorities:
-                            if keyword in line and priority > best_play_priority:
-                                best_play_card = card_num
-                                best_play_priority = priority
-                                break
-                playback_card = best_play_card or first_play_card
+                        play_cards.append((play_card_match.group(1), line))
+
+                others = [c for c, _ in play_cards if c != best_card]
+                hdmi_card = next(
+                    (
+                        c
+                        for c, line in play_cards
+                        if c != best_card and ("hdmi" in line or "vc4" in line)
+                    ),
+                    None,
+                )
+                if hdmi_card:
+                    playback_card = hdmi_card
+                elif others:
+                    playback_card = others[0]
+                elif play_cards:
+                    playback_card = play_cards[0][0]
                 if playback_card:
                     for line in aplay_result.stdout.lower().split("\n"):
                         if f"card {playback_card}:" in line and "bcm2835" in line:
@@ -1582,11 +1588,20 @@ async def speak(text, stop_event=asyncio.Event(), word_callback=None):
                     except Exception:
                         total_duration = len(words) * 0.4
 
-                    audio_device = os.environ.get("AUDIODEV", "default")
-                    logger.debug("TTS playing audio on device: %s", audio_device)
+                    audio_device = os.environ.get("AUDIODEV") or "default"
+                    wav_path = f"{tmp.name}.wav"
+                    subprocess.run(
+                        [
+                            "ffmpeg", "-y", "-i", tmp.name,
+                            "-f", "wav", "-acodec", "pcm_s16le",
+                            "-ac", "2", "-ar", "48000", wav_path,
+                        ],
+                        capture_output=True,
+                        timeout=30,
+                    )
+                    logger.debug("TTS playing %s on device %s", wav_path, audio_device)
                     audio_proc = subprocess.Popen(
-                        f"ffmpeg -i {tmp.name} -f wav -acodec pcm_s16le -ac 2 -ar 48000 - 2>/dev/null | aplay -D {audio_device}",
-                        shell=True,
+                        ["aplay", "-D", audio_device, wav_path],
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
                     )
@@ -1632,6 +1647,10 @@ async def speak(text, stop_event=asyncio.Event(), word_callback=None):
                         if stderr_text and audio_proc.returncode != 0:
                             logger.warning("TTS audio stderr: %s", stderr_text)
                     os.unlink(tmp.name)
+                    try:
+                        os.unlink(wav_path)
+                    except OSError:
+                        pass
 
                 logger.debug("TTS completed with %s", model)
             except Exception as e:

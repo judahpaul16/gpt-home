@@ -56,6 +56,34 @@ def get_env_all(*keys: str) -> dict[str, Optional[str]]:
     return {key: env_values.get(key) or os.getenv(key) for key in keys}
 
 
+def get_integration_fields(name: str) -> dict:
+    """Fields saved for an integration on the Integrations page.
+
+    Credentials entered in the web UI live in the `integrations` table
+    (keys like "BRIDGE IP ADDRESS", "API KEY"), not in environment
+    variables, so tools read them from here first.
+    """
+    import json
+
+    try:
+        import psycopg
+
+        dsn = os.getenv(
+            "DATABASE_URL",
+            "postgresql://gpt_home:gpt_home_secret@db:5432/gpt_home",
+        )
+        with psycopg.connect(dsn, connect_timeout=3) as conn:
+            row = conn.execute(
+                "SELECT fields::text FROM integrations WHERE name = %s",
+                (name.lower(),),
+            ).fetchone()
+        if row and row[0]:
+            return json.loads(row[0])
+    except Exception:
+        pass
+    return {}
+
+
 def get_host_ip() -> str:
     """Get the host LAN IP address from inside a Docker container."""
     import subprocess

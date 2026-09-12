@@ -4,14 +4,15 @@ from datetime import datetime, timedelta
 import caldav
 from langchain_core.tools import tool
 
-from .env_utils import get_env, get_host_ip
+from .env_utils import get_env, get_host_ip, get_integration_fields
 
 
 def _get_calendar():
     """Get CalDAV calendar connection."""
-    url = get_env("CALDAV_URL")
-    username = get_env("CALDAV_USERNAME")
-    password = get_env("CALDAV_PASSWORD")
+    fields = get_integration_fields("caldav")
+    url = fields.get("URL") or get_env("CALDAV_URL")
+    username = fields.get("USERNAME") or get_env("CALDAV_USERNAME")
+    password = fields.get("PASSWORD") or get_env("CALDAV_PASSWORD")
 
     if not all([url, username, password]):
         return None, False
@@ -46,7 +47,7 @@ def calendar_tool(command: str) -> str:
 
     if not is_configured:
         host_ip = get_host_ip()
-        return f"Calendar is not configured. Please visit http://{host_ip}/settings to add your CalDAV credentials."
+        return f"Calendar is not configured. Please visit http://{host_ip}/integrations to add your CalDAV credentials."
 
     if not calendar:
         return "No calendars found in your CalDAV account."

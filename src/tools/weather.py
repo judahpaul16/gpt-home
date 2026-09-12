@@ -6,7 +6,7 @@ import aiohttp
 from common import logger
 from langchain_core.tools import tool
 
-from .env_utils import get_env
+from .env_utils import get_env, get_integration_fields
 
 # Cache for IP-based location (avoid repeated lookups)
 _location_cache: dict = {}
@@ -208,7 +208,9 @@ async def weather_tool(query: str) -> str:
     Returns:
         Weather information string
     """
-    api_key = get_env("OPEN_WEATHER_API_KEY")
+    api_key = get_integration_fields("openweather").get("API KEY") or get_env(
+        "OPEN_WEATHER_API_KEY"
+    )
 
     # Try to extract city from query
     city_match = re.search(

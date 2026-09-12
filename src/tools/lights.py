@@ -2,7 +2,7 @@ import re
 
 from langchain_core.tools import tool
 
-from .env_utils import get_env, get_host_ip
+from .env_utils import get_env, get_host_ip, get_integration_fields
 
 HUE_COLORS = {
     "red": 0,
@@ -20,8 +20,9 @@ def _get_bridge():
     """Get Philips Hue bridge connection."""
     from phue import Bridge
 
-    bridge_ip = get_env("PHILIPS_HUE_BRIDGE_IP")
-    username = get_env("PHILIPS_HUE_USERNAME")
+    fields = get_integration_fields("philipshue")
+    bridge_ip = fields.get("BRIDGE IP ADDRESS") or get_env("PHILIPS_HUE_BRIDGE_IP")
+    username = fields.get("USERNAME") or get_env("PHILIPS_HUE_USERNAME")
 
     if not bridge_ip or not username:
         return None
@@ -37,7 +38,8 @@ def lights_tool(command: str) -> str:
 
     Args:
         command: Light command like "turn on lights", "turn off lights",
-                "dim lights to 50", "change lights to red", "set brightness to 80"
+                "dim lights to 50", "change lights to red", "set brightness to 80".
+                A bare "lights" toggles all lights.
 
     Returns:
         Status message about the action taken
@@ -61,7 +63,7 @@ def lights_tool(command: str) -> str:
 
     if not bridge:
         host_ip = get_host_ip()
-        return f"Philips Hue is not configured. Please visit http://{host_ip}/settings to connect your Hue Bridge."
+        return f"Philips Hue is not configured. Please visit http://{host_ip}/integrations to connect your Hue Bridge."
 
     command_lower = command.lower()
 
@@ -91,4 +93,13 @@ def lights_tool(command: str) -> str:
         bridge.set_group(0, "bri", brightness)
         return f"Setting brightness to {brightness_pct}%."
 
-    return "I didn't understand that light command. Try 'turn on lights', 'set lights to blue', or 'dim lights to 50'."
+    if re.search(r"\blights?\b", command_lower) or "toggle" in command_lower:
+        currently_on = False
+        try:
+            currently_on = bool(bridge.get_group(0, "on"))
+        except Exception:
+            pass
+        bridge.set_group(0, "on", not currently_on)
+        return f"Turning {'off' if currently_on else 'on'} all lights."
+
+    return "I didn't understand that light command. Try 'lights' to toggle, 'turn on lights', 'set lights to blue', or 'dim lights to 50'."

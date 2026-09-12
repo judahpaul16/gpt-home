@@ -5461,12 +5461,20 @@ async def _auto_select_hdmi_audio() -> bool:
         return True
 
     try:
+        mic_card = _find_microphone_card()
         result = subprocess.run(
             ["aplay", "-l"], capture_output=True, text=True, timeout=5
         )
         if result.returncode == 0:
             for line in result.stdout.lower().split("\n"):
                 if line.startswith("card ") and "usb" in line:
+                    card_match = re.match(r"card (\d+):", line)
+                    if (
+                        card_match
+                        and mic_card is not None
+                        and card_match.group(1) == str(mic_card)
+                    ):
+                        continue
                     logger.debug(
                         "USB audio output device detected, skipping HDMI auto-select"
                     )

@@ -632,7 +632,11 @@ async def fetch_weather_data(
                 on_data(default_data)
             return default_data
 
-        api_key = os.getenv("OPEN_WEATHER_API_KEY")
+        from src.tools.env_utils import get_integration_fields
+
+        api_key = get_integration_fields("openweather").get("API KEY") or os.getenv(
+            "OPEN_WEATHER_API_KEY"
+        )
         async with aiohttp.ClientSession() as session:
             # Try OpenWeatherMap first if API key is set
             if api_key:
