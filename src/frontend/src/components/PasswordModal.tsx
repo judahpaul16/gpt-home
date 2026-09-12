@@ -209,14 +209,21 @@ const PasswordModal: React.FC<PasswordModalProps> = ({
                                     onChange={handleInput}
                                     onKeyDown={handleKeyDown}
                                     autoFocus
-                                    className="input-field pl-12 pr-12"
+                                    autoComplete={
+                                        hashedPassword
+                                            ? "current-password"
+                                            : "new-password"
+                                    }
+                                    className="input-field pl-12 pr-14"
                                 />
                                 <button
                                     type="button"
+                                    tabIndex={-1}
                                     onClick={() =>
                                         setShowPassword(!showPassword)
                                     }
-                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                                    aria-label={showPassword ? "Hide password" : "Show password"}
+                                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                                 >
                                     {showPassword ? (
                                         <Icons.EyeOff />
@@ -244,6 +251,7 @@ const PasswordModal: React.FC<PasswordModalProps> = ({
                                         value={confirmInput}
                                         onChange={handleConfirmInput}
                                         onKeyDown={handleKeyDown}
+                                        autoComplete="new-password"
                                         className="input-field pl-12"
                                     />
                                 </motion.div>

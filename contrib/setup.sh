@@ -315,6 +315,29 @@ else
     echo -e "${YELLOW}Could not find config.txt - HDMI configuration skipped.${NC}"
 fi
 
+CMDLINE_TXT=""
+if [ -n "$CONFIG_TXT" ] && [ -f "$(dirname "$CONFIG_TXT")/cmdline.txt" ]; then
+    CMDLINE_TXT="$(dirname "$CONFIG_TXT")/cmdline.txt"
+fi
+
+if [ -n "$CMDLINE_TXT" ]; then
+    echo "Configuring the kernel console for the display..."
+    if [ ! -f "${CMDLINE_TXT}.gpt-home-backup" ]; then
+        sudo cp "$CMDLINE_TXT" "${CMDLINE_TXT}.gpt-home-backup"
+    fi
+    for tok in consoleblank=0 vt.global_cursor_default=0; do
+        if ! grep -qw "$tok" "$CMDLINE_TXT"; then
+            echo "Adding $tok to $CMDLINE_TXT"
+            sudo sed -i "1 s/\$/ $tok/" "$CMDLINE_TXT"
+        fi
+    done
+fi
+
+if systemctl list-unit-files getty@.service >/dev/null 2>&1; then
+    echo "Releasing tty1 from the login prompt so the display owns the screen..."
+    sudo systemctl disable --now getty@tty1.service >/dev/null 2>&1 || true
+fi
+
 # Try to power on HDMI now if tvservice is available
 if command -v tvservice >/dev/null 2>&1; then
     echo "Attempting to power on HDMI output..."

@@ -471,7 +471,7 @@ const EventLogs: React.FC = () => {
                     ) : (
                         <div
                             ref={logContainerRef}
-                            className="h-[500px] overflow-y-auto p-4 font-mono text-sm bg-slate-900 dark:bg-dark-950 rounded-2xl border border-slate-200 dark:border-dark-700 shadow-lg shadow-slate-200/50 dark:shadow-dark-950/50"
+                            className="h-[500px] overflow-y-auto p-4 font-mono text-sm bg-white dark:bg-dark-950 rounded-2xl border border-slate-200 dark:border-dark-700 shadow-lg shadow-slate-200/50 dark:shadow-dark-950/50"
                         >
                             <AnimatePresence initial={false}>
                                 {filteredLogs.length === 0 ? (
@@ -494,7 +494,7 @@ const EventLogs: React.FC = () => {
                                                 }
                                                 animate={{ opacity: 1, x: 0 }}
                                                 className={cn(
-                                                    "py-2 px-3 mb-1 rounded-lg text-slate-200 whitespace-pre-wrap break-all",
+                                                    "py-2 px-3 mb-1 rounded-lg text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-all",
                                                     log.isNew &&
                                                         "ring-2 ring-primary-500/50 bg-primary-500/10",
                                                 )}
@@ -514,7 +514,7 @@ const EventLogs: React.FC = () => {
                                                     />
                                                     {log.type.toUpperCase()}
                                                 </span>
-                                                <span className="text-slate-400">
+                                                <span className="text-slate-600 dark:text-slate-400">
                                                     {log.content.substring(
                                                         log.content.indexOf(
                                                             ":",

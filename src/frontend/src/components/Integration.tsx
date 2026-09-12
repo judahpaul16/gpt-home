@@ -292,7 +292,7 @@ const Integration: React.FC<IntegrationProps> = ({
                     }
                     className={cn(
                         "flex items-center gap-2 text-sm",
-                        status ? "btn-danger" : "btn-success",
+                        status ? "btn-danger" : "btn-primary",
                     )}
                 >
                     {status ? (
@@ -399,6 +399,20 @@ const Integration: React.FC<IntegrationProps> = ({
                                             <code className="block bg-amber-200/50 dark:bg-amber-800/30 px-3 py-2 rounded-lg text-xs font-mono break-all">
                                                 https://gpt-home.judahpaul.com/spotify/callback
                                             </code>
+                                            <p className="mt-2 opacity-90">
+                                                The redirect is handled by an
+                                                open source OAuth broker. To
+                                                run your own, see{" "}
+                                                <a
+                                                    href="https://github.com/judahpaul16/gpt-home-oauth-broker"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="underline font-medium"
+                                                >
+                                                    gpt-home-oauth-broker
+                                                </a>
+                                                .
+                                            </p>
                                         </div>
                                     </div>
                                 )}

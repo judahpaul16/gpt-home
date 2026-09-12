@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional, Tuple
 from PIL import Image
 
 from ..base import BaseDisplay, Color, Colors, DisplayInfo
+from ..console import Console
 
 logger = logging.getLogger("display.kmsdrm")
 
@@ -38,6 +39,7 @@ class KmsdrmDisplay(BaseDisplay):
         self._back_buffer = None
         self._font_cache: Dict[Tuple[int, Optional[str]], Any] = {}
         self._initialized = False
+        self._console = Console()
 
     async def initialize(self) -> bool:
         logger.debug("Initializing KMSDRM display...")
@@ -69,6 +71,8 @@ class KmsdrmDisplay(BaseDisplay):
                 "Screen surface: %d-bit, masks R=0x%X G=0x%X B=0x%X",
                 screen_bits, screen_masks[0], screen_masks[1], screen_masks[2],
             )
+
+            self._console.acquire()
 
             self._running = True
             self._initialized = True
@@ -302,6 +306,9 @@ class KmsdrmDisplay(BaseDisplay):
         if not self._screen or not self._back_buffer or not self._pygame:
             return
 
+        if not self._console.held:
+            self._console.acquire()
+
         self._screen.blit(self._back_buffer, (0, 0))
 
         with _suppress_stderr():
@@ -310,10 +317,14 @@ class KmsdrmDisplay(BaseDisplay):
     async def show(self) -> None:
         self.show_sync()
 
+    def restore_tty(self) -> None:
+        self._console.release()
+
     async def shutdown(self) -> None:
         logger.debug("Shutting down KMSDRM display")
         self._running = False
         self._initialized = False
+        self._console.release()
 
         if self._pygame:
             try:

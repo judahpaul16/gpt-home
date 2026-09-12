@@ -91,6 +91,40 @@ async def get_db_pool() -> psycopg_pool.AsyncConnectionPool:
     return _db_pool
 
 
+async def init_tables():
+    pool = await get_db_pool()
+    async with pool.connection() as conn:
+        await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS gallery_images (
+                        id SERIAL PRIMARY KEY,
+                        filename VARCHAR(255) UNIQUE NOT NULL,
+                        data BYTEA NOT NULL,
+                        mime_type VARCHAR(100) NOT NULL,
+                        size INTEGER NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+
+        await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS app_settings (
+                        key TEXT PRIMARY KEY,
+                        value TEXT NOT NULL,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+
+        await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS integrations (
+                        id SERIAL PRIMARY KEY,
+                        name TEXT UNIQUE NOT NULL,
+                        fields JSONB NOT NULL DEFAULT '{}'::jsonb,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+        await conn.commit()
+
+
 async def _persist_settings_to_db(settings: dict):
     pool = await get_db_pool()
     async with pool.connection() as conn:
@@ -117,6 +151,18 @@ logging.getLogger("sse_starlette.sse").setLevel(logging.WARNING)
 ROOT_DIR = SOURCE_DIR.parent
 ENV_FILE_PATH = ROOT_DIR / ".env"
 FRONTEND_ENV_PATH = SOURCE_DIR / "frontend" / ".env"
+
+
+def _apply_litellm_key(val: Optional[str]) -> None:
+    val = (val or "").strip()
+    if val:
+        os.environ["LITELLM_API_KEY"] = val
+        if os.getenv("EMBEDDING_MODEL", "openai:text-embedding-3-small").startswith("openai:"):
+            os.environ["OPENAI_API_KEY"] = val
+    else:
+        os.environ.pop("LITELLM_API_KEY", None)
+        os.environ.pop("OPENAI_API_KEY", None)
+    litellm.api_key = val
 
 
 def _run_host_command(cmd: list, timeout: int = 5) -> str:
@@ -374,6 +420,7 @@ async def settings(request: Request):
                         unset_key(str(ENV_FILE_PATH), "LITELLM_API_KEY")
                 except Exception as e:
                     logger.warning(f"Failed to update LITELLM_API_KEY env var: {e}")
+                _apply_litellm_key(val)
 
             if "embedding_model" in new_settings:
                 val = new_settings.get("embedding_model")
@@ -931,12 +978,11 @@ _voice_assistant_task = None
 async def startup_event():
     global _display_monitor_task, _voice_assistant_task
 
-    # Initialize database and migrate gallery images
     try:
-        await get_db_pool()
-        logger.debug("Gallery database initialized")
+        await init_tables()
+        logger.debug("Database tables ready")
     except Exception as e:
-        logger.warning(f"Gallery database initialization failed: {e}")
+        logger.warning(f"Database initialization failed: {e}")
 
     # Initialize display manager immediately on startup
     try:
@@ -1046,23 +1092,6 @@ async def hash_password_route(request: Request):
         incoming_data = await request.json()
         password = incoming_data["password"]
         hashed_password = generate_hashed_password(password)
-
-        # Persist hashed password in the database
-        try:
-            pool = await get_db_pool()
-            async with pool.connection() as conn:
-                await conn.execute(
-                    """
-                    INSERT INTO app_settings (key, value, updated_at)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP)
-                    ON CONFLICT (key)
-                    DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
-                    """,
-                    ("hashed_password", hashed_password),
-                )
-                await conn.commit()
-        except Exception:
-            pass
 
         return JSONResponse(
             content={"success": True, "hashedPassword": hashed_password}
@@ -1313,7 +1342,7 @@ MPRIS_OBJECT_PATH = "/org/mpris/MediaPlayer2"
 
 # Spotify OAuth broker configuration
 # The broker handles OAuth redirects and token exchange for headless devices
-SPOTIFY_BROKER_URL = "https://gpt-home.judahpaul.com"
+SPOTIFY_BROKER_URL = os.getenv("SPOTIFY_BROKER_URL", "https://gpt-home.judahpaul.com").rstrip("/")
 SPOTIFY_SCOPES = (
     "user-read-playback-state user-modify-playback-state user-read-currently-playing"
 )

@@ -122,6 +122,8 @@ class DisplayManager:
         self._tool_context: Dict[str, Any] = {}
         self._frame: int = 0
         self._streaming_text: str = ""
+        self._streaming_updated_at: float = 0.0
+        self._streaming_idle_timeout: float = 20.0
         self._state = AnimationState.IDLE
         self._render_lock = asyncio.Lock()
         self._has_tool_animation: bool = False
@@ -448,10 +450,22 @@ class DisplayManager:
             logger.debug("Activating screensaver after %.0fs of inactivity", elapsed)
             await self._activate_screensaver()
 
+    async def _check_stuck_response(self) -> None:
+        """A response left on screen with no render loop behind it returns to idle."""
+        if self._state != AnimationState.STREAMING:
+            return
+        if self._render_task and not self._render_task.done():
+            return
+        if time.time() - self._streaming_updated_at < self._streaming_idle_timeout:
+            return
+        logger.warning("Response text stayed on screen with no render loop, resuming idle")
+        await self.resume_idle()
+
     async def _screensaver_monitor_loop(self) -> None:
         try:
             while True:
                 await asyncio.sleep(10)
+                await self._check_stuck_response()
                 await self._check_screensaver_timeout()
         except asyncio.CancelledError:
             pass
@@ -550,25 +564,8 @@ class DisplayManager:
 
     def _restore_tty(self) -> None:
         """Restore TTY to text mode."""
-        if not self._display:
-            return
-        # Check if display has restore_tty method
-        if hasattr(self._display, "restore_tty"):
+        if self._display:
             self._display.restore_tty()
-        else:
-            # Try to restore TTY using ioctl
-            try:
-                import fcntl
-                import os
-
-                KD_TEXT = 0x00
-                KDSETMODE = 0x4B3A
-                tty_path = "/dev/tty1"
-                if os.path.exists(tty_path):
-                    with open(tty_path, "w") as tty:
-                        fcntl.ioctl(tty.fileno(), KDSETMODE, KD_TEXT)
-            except Exception:
-                pass
 
     async def _start_mode_loop(self) -> None:
         """Start the render loop for current mode."""
@@ -1439,10 +1436,13 @@ class DisplayManager:
             self._streaming_text = ""
 
         self._streaming_text += (" " if self._streaming_text else "") + word
+        self._streaming_updated_at = time.time()
         await self._render_streaming_text()
 
     async def clear_streaming(self) -> None:
         self._streaming_text = ""
+        if self._state == AnimationState.STREAMING and not self._has_tool_animation:
+            await self.resume_idle()
 
     def _render_waveform_inline(self, d, dt: float, voice_gated: bool = True) -> None:
         """Render waveform bars inline within any mode loop.

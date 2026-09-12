@@ -25,11 +25,23 @@ const serviceIcons: { [key: string]: React.FC<{ className?: string }> } = {
     CalDAV: Icons.Calendar,
 };
 
-const serviceColors: { [key: string]: string } = {
-    Spotify: "from-emerald-500 to-emerald-600",
-    OpenWeather: "from-amber-500 to-orange-500",
-    PhilipsHue: "from-violet-500 to-purple-600",
-    CalDAV: "from-primary-500 to-cyan-500",
+const serviceColors: { [key: string]: { header: string; chip: string } } = {
+    Spotify: {
+        header: "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-900/40",
+        chip: "bg-emerald-500",
+    },
+    OpenWeather: {
+        header: "bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-900/40",
+        chip: "bg-amber-500",
+    },
+    PhilipsHue: {
+        header: "bg-violet-50 dark:bg-violet-900/20 border-violet-100 dark:border-violet-900/40",
+        chip: "bg-violet-500",
+    },
+    CalDAV: {
+        header: "bg-primary-50 dark:bg-primary-900/20 border-primary-100 dark:border-primary-900/40",
+        chip: "bg-primary-500",
+    },
 };
 
 interface SpotifyAuthStatus {
@@ -186,7 +198,7 @@ const Integrations: React.FC<IntegrationsProps> = ({
             >
                 {Object.keys(integrations).map((name) => {
                     const ServiceIcon = serviceIcons[name];
-                    const colorClass = serviceColors[name];
+                    const colors = serviceColors[name];
                     const isActive =
                         integrations[name as keyof typeof integrations].status;
 
@@ -197,27 +209,23 @@ const Integrations: React.FC<IntegrationsProps> = ({
                             className="card overflow-hidden group"
                         >
                             {/* Header section */}
-                            <div
-                                className={`bg-gradient-to-r ${colorClass} p-6 relative overflow-hidden`}
-                            >
-                                <div className="absolute inset-0 bg-black/10" />
-                                <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full" />
-                                <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-white/10 rounded-full" />
-
-                                <div className="relative flex items-center justify-between">
+                            <div className={`border-b p-6 ${colors.header}`}>
+                                <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-4">
-                                        <div className="p-3 bg-white/20 backdrop-blur-sm rounded-xl">
+                                        <div
+                                            className={`p-3 rounded-xl shadow-sm ${colors.chip}`}
+                                        >
                                             <ServiceIcon className="w-7 h-7 text-white" />
                                         </div>
                                         <div>
-                                            <h3 className="text-xl font-semibold text-white">
+                                            <h3 className="text-xl font-semibold text-slate-900 dark:text-white">
                                                 {name}
                                             </h3>
                                             <div className="flex items-center gap-2 mt-1">
                                                 <span
-                                                    className={`w-2 h-2 rounded-full ${isActive ? "bg-white animate-pulse" : "bg-white/50"}`}
+                                                    className={`w-2 h-2 rounded-full ${isActive ? "bg-emerald-500 animate-pulse" : "bg-slate-400 dark:bg-slate-500"}`}
                                                 />
-                                                <span className="text-sm text-white/80">
+                                                <span className="text-sm text-slate-600 dark:text-slate-400">
                                                     {isActive
                                                         ? "Connected"
                                                         : "Not connected"}

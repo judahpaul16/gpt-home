@@ -2,8 +2,9 @@ import logging
 
 from common import *
 
-from src.backend import get_db_pool
+from src.backend import get_db_pool, init_tables
 from src.routes import action_router
+from src.wake_word import command_after_wake_word
 
 logger = logging.getLogger("app")
 
@@ -239,13 +240,13 @@ async def main():
                 )
                 logger.debug(f"[app] clean_text: {clean_text!r}, keyword: {keyword!r}")
 
-                if keyword in clean_text:
-                    actual_text = clean_text.split(keyword, 1)[1].strip()
-                    logger.info("Keyword found, actual_text: %r", actual_text)
-                    await duck_volume()
-                else:
+                actual_text = command_after_wake_word(clean_text, keyword)
+                if actual_text is None:
                     _consecutive_silence_count += 1
                     continue
+
+                logger.info("Keyword found, actual_text: %r", actual_text)
+                await duck_volume()
 
                 if actual_text:
                     say_heard = settings.get("sayHeard", True)
@@ -287,41 +288,6 @@ async def main():
             await handle_error(error_message, state_task)
 
 
-async def _init_tables():
-    """Initialize database tables."""
-    pool = await get_db_pool()
-    async with pool.connection() as conn:
-        await conn.execute("""
-                    CREATE TABLE IF NOT EXISTS gallery_images (
-                        id SERIAL PRIMARY KEY,
-                        filename VARCHAR(255) UNIQUE NOT NULL,
-                        data BYTEA NOT NULL,
-                        mime_type VARCHAR(100) NOT NULL,
-                        size INTEGER NOT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                """)
-
-        await conn.execute("""
-                    CREATE TABLE IF NOT EXISTS app_settings (
-                        key TEXT PRIMARY KEY,
-                        value TEXT NOT NULL,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                """)
-
-        await conn.execute("""
-                    CREATE TABLE IF NOT EXISTS integrations (
-                        id SERIAL PRIMARY KEY,
-                        name TEXT UNIQUE NOT NULL,
-                        fields JSONB NOT NULL DEFAULT '{}'::jsonb,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                """)
-        await conn.commit()
-
-
 async def _init_settings_from_db():
     pool = await get_db_pool()
     async with pool.connection() as conn:
@@ -354,7 +320,7 @@ async def _init_settings_from_db():
 
 
 async def startup():
-    await _init_tables()
+    await init_tables()
     await _init_settings_from_db()
 
     await initialize_system()

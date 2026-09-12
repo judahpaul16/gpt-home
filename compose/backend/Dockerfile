@@ -31,6 +31,14 @@ RUN python3 -m venv /env && \
     /env/bin/pip install --no-cache-dir --default-timeout=1000 --retries 5 --upgrade pip wheel setuptools && \
     MAKEFLAGS="-j1" CFLAGS="-O0" /env/bin/pip install --no-cache-dir --default-timeout=1000 --retries 5 -r src/requirements.txt
 
+RUN /env/bin/python -c "\
+from langgraph.prebuilt import create_react_agent; \
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver; \
+from langgraph.store.postgres import AsyncPostgresStore; \
+from langmem import create_manage_memory_tool, create_search_memory_tool; \
+from langchain_litellm import ChatLiteLLM; \
+import pygame"
+
 # --- Runtime stage ---
 FROM ubuntu:24.04
 

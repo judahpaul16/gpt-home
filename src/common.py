@@ -480,7 +480,7 @@ def litellm_stt_available():
 
 
 # Load .env files - main .env for API keys, frontend/.env for other config
-load_dotenv(dotenv_path=ROOT_DIR / ".env")
+load_dotenv(dotenv_path=ROOT_DIR / ".env", override=True)
 load_dotenv(dotenv_path=SOURCE_DIR / "frontend" / ".env", override=False)
 
 # Add a new 'SUCCESS' logging level
@@ -890,13 +890,19 @@ def audio_has_speech(
             logger.debug("Peak too low: %.3f < %.3f, rejecting", peak_ratio, min_peak)
             has_speech = False
 
+        voiced = detector.detect_voice_in_audio_data(audio_data) if has_speech else False
+        if has_speech and not voiced:
+            logger.debug("Loud enough but no human voice in it, rejecting")
+            has_speech = False
+
         logger.debug(
-            "VAD: dB=%.1f, threshold=%s, duration=%.2fs, peak=%.3f (min=%.3f), has_speech=%s",
+            "VAD: dB=%.1f, threshold=%s, duration=%.2fs, peak=%.3f (min=%.3f), voiced=%s, has_speech=%s",
             metrics.db_level,
             threshold_db,
             duration,
             peak_ratio,
             min_peak,
+            voiced,
             has_speech,
         )
         return has_speech
@@ -1401,8 +1407,6 @@ async def listen(state_task, stop_event):
                     wav_file.writeframes(raw_data)
 
                 try:
-                    stg = load_settings()
-                    keyword = stg.get("keyword", "computer")
                     logger.debug(
                         "Sending audio to %s for transcription...",
                         model,
@@ -1412,7 +1416,6 @@ async def listen(state_task, stop_event):
                             model=model,
                             file=audio_file,
                             language=stt_language,
-                            prompt=f"Voice assistant wake word: {keyword}.",
                         )
                         text = (
                             response.text
@@ -1582,7 +1585,7 @@ async def speak(text, stop_event=asyncio.Event(), word_callback=None):
                     audio_device = os.environ.get("AUDIODEV", "default")
                     logger.debug("TTS playing audio on device: %s", audio_device)
                     audio_proc = subprocess.Popen(
-                        f"ffmpeg -i {tmp.name} -f wav -acodec pcm_s16le -ar 44100 - 2>/dev/null | aplay -D {audio_device}",
+                        f"ffmpeg -i {tmp.name} -f wav -acodec pcm_s16le -ac 2 -ar 48000 - 2>/dev/null | aplay -D {audio_device}",
                         shell=True,
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
@@ -1755,13 +1758,14 @@ async def speak_with_display(text, display_manager=None):
     await restore_all_headers()
 
     stop_event = asyncio.Event()
-    await speak(text, stop_event, word_callback=on_word)
-
-    if dm and dm.is_available:
-        try:
-            await dm.clear_streaming()
-        except Exception:
-            pass
+    try:
+        await speak(text, stop_event, word_callback=on_word)
+    finally:
+        if dm and dm.is_available:
+            try:
+                await dm.clear_streaming()
+            except Exception as e:
+                logger.warning("Display did not return to idle after speaking: %s", e)
 
 
 async def handle_error(message, state_task):

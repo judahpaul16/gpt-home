@@ -189,6 +189,7 @@ class AudioCapture:
         self.RATE = 44100
         self.CHUNK = 1024  # ~23ms at 44100Hz
         self.NUM_BARS = 32
+        self.STALL_SECONDS = 3.0
 
         # For smoothing
         self._prev_values = [0.0] * self.NUM_BARS
@@ -533,21 +534,38 @@ class AudioCapture:
 
             self._capture_sample_rate = sample_rate
 
-            self._stream = self._pyaudio.open(
-                format=self.FORMAT,
-                channels=self.CHANNELS,
-                rate=sample_rate,
-                input=True,
-                input_device_index=device_index,
-                frames_per_buffer=self.CHUNK,
-            )
+            def open_stream():
+                return self._pyaudio.open(
+                    format=self.FORMAT,
+                    channels=self.CHANNELS,
+                    rate=sample_rate,
+                    input=True,
+                    input_device_index=device_index,
+                    frames_per_buffer=self.CHUNK,
+                )
+
+            self._stream = open_stream()
+            last_frame_at = time.monotonic()
 
             while self._running:
                 if self._stream is None:
                     time.sleep(0.05)
                     continue
                 try:
+                    if self._stream.get_read_available() < self.CHUNK:
+                        if time.monotonic() - last_frame_at > self.STALL_SECONDS:
+                            logger.warning(
+                                "No audio from input device for %.0fs, reopening the capture stream",
+                                self.STALL_SECONDS,
+                            )
+                            self._reopen_stream(open_stream)
+                            last_frame_at = time.monotonic()
+                        else:
+                            time.sleep(0.005)
+                        continue
+
                     data = self._stream.read(self.CHUNK, exception_on_overflow=False)
+                    last_frame_at = time.monotonic()
                     self._raw_buffer.append(data)
                     lq = self._listen_queue
                     if lq is not None:
@@ -560,7 +578,11 @@ class AudioCapture:
                     if self._callback and self._running:
                         self._callback(bar_values)
 
-                except IOError:
+                except IOError as e:
+                    if time.monotonic() - last_frame_at > self.STALL_SECONDS:
+                        logger.warning("Audio input read failed (%s), reopening the capture stream", e)
+                        self._reopen_stream(open_stream)
+                        last_frame_at = time.monotonic()
                     continue
                 except Exception as e:
                     if self._stream is None:
@@ -618,6 +640,22 @@ class AudioCapture:
             pass
         except Exception as e:
             logger.error("PulseAudio setup error: %s", e)
+
+    def _reopen_stream(self, open_stream):
+        stream = self._stream
+        self._stream = None
+        if stream is not None:
+            try:
+                stream.stop_stream()
+                stream.close()
+            except Exception as e:
+                logger.debug("Closing stalled stream: %s", e)
+        time.sleep(0.5)
+        try:
+            self._stream = open_stream()
+        except Exception as e:
+            logger.error("Reopening the capture stream failed: %s", e)
+            time.sleep(2.0)
 
     def _cleanup(self):
         """Clean up audio resources."""
