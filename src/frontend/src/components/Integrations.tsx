@@ -57,6 +57,7 @@ const Integrations: React.FC<IntegrationsProps> = ({
 }) => {
     const [spotifyAuthStatus, setSpotifyAuthStatus] =
         useState<SpotifyAuthStatus | null>(null);
+    const [speakerPaired, setSpeakerPaired] = useState<boolean | null>(null);
 
     // Fetch Spotify auth status
     const fetchSpotifyAuthStatus = useCallback(async () => {
@@ -65,6 +66,12 @@ const Integrations: React.FC<IntegrationsProps> = ({
             setSpotifyAuthStatus(response.data);
         } catch (error) {
             console.error("Failed to fetch Spotify auth status:", error);
+        }
+        try {
+            const speaker = await axios.get("/api/spotify/speaker-status");
+            setSpeakerPaired(Boolean(speaker.data.paired));
+        } catch (error) {
+            console.error("Failed to fetch speaker status:", error);
         }
     }, []);
 
@@ -267,6 +274,11 @@ const Integrations: React.FC<IntegrationsProps> = ({
                                     spotifyAuthStatus={
                                         name === "Spotify"
                                             ? spotifyAuthStatus
+                                            : undefined
+                                    }
+                                    speakerPaired={
+                                        name === "Spotify"
+                                            ? speakerPaired
                                             : undefined
                                     }
                                     onSpotifyConnected={

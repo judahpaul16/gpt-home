@@ -20,6 +20,7 @@ interface IntegrationProps {
     toggleStatus: (name: string) => void;
     setShowOverlay: (visible: boolean) => void;
     spotifyAuthStatus?: SpotifyAuthStatus | null;
+    speakerPaired?: boolean | null;
     onSpotifyConnected?: () => void;
 }
 
@@ -30,6 +31,7 @@ const Integration: React.FC<IntegrationProps> = ({
     toggleStatus,
     setShowOverlay,
     spotifyAuthStatus,
+    speakerPaired,
     onSpotifyConnected,
 }) => {
     const queryClient = useQueryClient();
@@ -39,7 +41,72 @@ const Integration: React.FC<IntegrationProps> = ({
     const [loading, setLoading] = useState(false);
     const [authLoading, setAuthLoading] = useState(false);
     const [authPolling, setAuthPolling] = useState(false);
+    const [pairLoading, setPairLoading] = useState(false);
+    const [pairCode, setPairCode] = useState("");
     const { confirmConfig, showConfirm, closeConfirm } = useConfirm();
+
+    const handlePairSpeaker = async () => {
+        setPairLoading(true);
+        setError("");
+        try {
+            const response = await axios.post("/api/spotify/pair-speaker");
+            const { user_code, verification_url, interval } = response.data;
+            setPairCode(user_code);
+
+            const pairWindow = window.open(
+                verification_url,
+                "spotify-pair",
+                "width=500,height=700,menubar=no,toolbar=no",
+            );
+
+            const pollMs = Math.max(interval || 5, 5) * 1000;
+            const pollInterval = setInterval(async () => {
+                try {
+                    const poll = await axios.get(
+                        "/api/spotify/pair-speaker/poll",
+                    );
+                    if (poll.data.status === "authorized") {
+                        clearInterval(pollInterval);
+                        setPairLoading(false);
+                        setPairCode("");
+                        if (pairWindow && !pairWindow.closed) {
+                            pairWindow.close();
+                        }
+                        if (onSpotifyConnected) {
+                            onSpotifyConnected();
+                        }
+                    }
+                } catch (err: any) {
+                    if (err.response?.data?.status === "error") {
+                        clearInterval(pollInterval);
+                        setPairLoading(false);
+                        setPairCode("");
+                        setError(
+                            err.response.data.error || "Pairing failed",
+                        );
+                        if (pairWindow && !pairWindow.closed) {
+                            pairWindow.close();
+                        }
+                    }
+                }
+            }, pollMs);
+
+            setTimeout(
+                () => {
+                    clearInterval(pollInterval);
+                },
+                10 * 60 * 1000,
+            );
+        } catch (err: any) {
+            setError(
+                err.response?.data?.error ||
+                    err.message ||
+                    "Failed to start speaker pairing",
+            );
+            setPairLoading(false);
+            setPairCode("");
+        }
+    };
 
     const handleSpotifyAuthorize = async () => {
         setAuthLoading(true);
@@ -282,6 +349,32 @@ const Integration: React.FC<IntegrationProps> = ({
                                 <>
                                     <Icons.Music className="w-4 h-4" />
                                     Authorize
+                                </>
+                            )}
+                        </button>
+                    )}
+                {/* Spotify: Show Pair Speaker button when authorized but the speaker is not paired */}
+                {name === "Spotify" &&
+                    status &&
+                    spotifyAuthStatus &&
+                    !spotifyAuthStatus.needs_auth &&
+                    speakerPaired === false && (
+                        <button
+                            onClick={handlePairSpeaker}
+                            disabled={pairLoading}
+                            className="btn-primary flex items-center gap-2 text-sm"
+                        >
+                            {pairLoading ? (
+                                <>
+                                    <Spinner size="sm" />
+                                    {pairCode
+                                        ? `If prompted, enter code ${pairCode}`
+                                        : "Loading..."}
+                                </>
+                            ) : (
+                                <>
+                                    <Icons.Music className="w-4 h-4" />
+                                    Pair Speaker
                                 </>
                             )}
                         </button>

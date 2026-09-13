@@ -47,7 +47,6 @@ from sse_starlette.sse import EventSourceResponse
 
 from src.audio_capture import MIC_PRIORITIES
 from src.common import SOURCE_DIR, load_integration_statuses, log_file_path, logger
-from src.task_utils import spawn_background_task
 
 
 class AccessLogFilter(logging.Filter):
@@ -1323,11 +1322,11 @@ _spotify_playback_cache: Dict[str, Any] = {}
 _spotify_last_check: float = 0
 _spotify_monitor_task: Optional[asyncio.Task] = None
 
-# Path to credentials.json populated by spotifyd via zeroconf
-SPOTIFY_CREDENTIALS_PATH = Path("/root/.spotifyd/cache/zeroconf/credentials.json")
-
 # Path to librespot OAuth credentials used by spotifyd for auto-login
 SPOTIFYD_CREDENTIALS_PATH = Path("/root/.spotifyd/cache/oauth/credentials.json")
+
+# Path to reusable credentials cached by spotifyd after a successful login
+SPOTIFYD_SESSION_CREDENTIALS_PATH = Path("/root/.spotifyd/cache/credentials.json")
 
 # D-Bus MPRIS interface for spotifyd control
 SPOTIFYD_DBUS_PREFIX = "org.mpris.MediaPlayer2.spotifyd"
@@ -1335,17 +1334,20 @@ MPRIS_PLAYER_INTERFACE = "org.mpris.MediaPlayer2.Player"
 MPRIS_OBJECT_PATH = "/org/mpris/MediaPlayer2"
 DBUS_PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
 
-
-SPOTIFYD_SYSTEM_BUS_NAME = "rs.spotifyd.instance1"
-SPOTIFYD_DBUS_PREFIX = "org.mpris.MediaPlayer2.spotifyd"
-MPRIS_OBJECT_PATH = "/org/mpris/MediaPlayer2"
-
 # Spotify OAuth broker configuration
 # The broker handles OAuth redirects and token exchange for headless devices
 SPOTIFY_BROKER_URL = os.getenv("SPOTIFY_BROKER_URL", "https://gpt-home.judahpaul.com").rstrip("/")
 SPOTIFY_SCOPES = (
     "user-read-playback-state user-modify-playback-state user-read-currently-playing"
 )
+
+# Spotify's desktop client ID, the one enabled for the device pairing flow that
+# spotifyd's login accepts tokens from
+SPOTIFY_DESKTOP_CLIENT_ID = "65b708073fc0480ea92a077233ca87bd"
+SPOTIFY_ACCOUNTS_URL = "https://accounts.spotify.com"
+
+# In-flight speaker pairing state (device authorization grant)
+_speaker_pairing: Optional[Dict[str, Any]] = None
 
 # Device ID for broker-based authorization
 _device_id: Optional[str] = None
@@ -1522,13 +1524,6 @@ async def _refresh_spotify_token() -> Optional[str]:
             data.get("refresh_token", token_data["refresh_token"]),
             data.get("expires_in", 3600),
         )
-
-        if not SPOTIFYD_CREDENTIALS_PATH.exists():
-            spawn_background_task(
-                _provision_spotifyd_credentials(data["access_token"]),
-                name="provision_spotifyd",
-                logger=logger,
-            )
 
         return data["access_token"]
     except Exception as e:
@@ -1784,22 +1779,35 @@ def _spotifyd_transfer_playback() -> bool:
         return False
 
 
-async def _persist_spotify_credentials_to_db() -> bool:
-    """
-    Read spotifyd's zeroconf credentials and persist them to the database.
-    This ensures credentials survive container restarts.
-    Returns True if credentials were persisted.
-    """
-    if not SPOTIFY_CREDENTIALS_PATH.exists():
-        return False
-
+async def _get_speaker_token() -> Optional[Dict[str, Any]]:
+    """Get the stored speaker pairing tokens from the database."""
     try:
-        with open(SPOTIFY_CREDENTIALS_PATH, "r") as f:
-            creds = json.load(f)
-
         pool = await get_db_pool()
         async with pool.connection() as conn:
-            # Store the raw zeroconf credentials under a special key
+            cur = await conn.execute(
+                "SELECT value FROM app_settings WHERE key = %s",
+                ("spotify_speaker_token",),
+            )
+            row = await cur.fetchone()
+        if row and row[0]:
+            return json.loads(row[0])
+    except Exception as e:
+        logger.debug(f"Error getting speaker token: {e}")
+    return None
+
+
+async def _store_speaker_token(
+    access_token: str, refresh_token: str, expires_in: int
+) -> bool:
+    """Store the speaker pairing tokens in the database."""
+    try:
+        pool = await get_db_pool()
+        async with pool.connection() as conn:
+            token_data = {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "expires_at": int(time.time()) + expires_in,
+            }
             await conn.execute(
                 """
                 INSERT INTO app_settings (key, value, updated_at)
@@ -1807,99 +1815,83 @@ async def _persist_spotify_credentials_to_db() -> bool:
                 ON CONFLICT (key)
                 DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
                 """,
-                ("spotify_zeroconf_credentials", json.dumps(creds)),
+                ("spotify_speaker_token", json.dumps(token_data)),
             )
             await conn.commit()
-        logger.debug("Spotify zeroconf credentials persisted to database")
+        logger.info("Spotify speaker token stored")
         return True
     except Exception as e:
-        logger.warning(f"Failed to persist Spotify credentials: {e}")
+        logger.error(f"Failed to store speaker token: {e}")
         return False
 
 
-async def _restore_spotify_credentials_from_db() -> bool:
-    """
-    Restore spotifyd's zeroconf credentials from database to file.
-    Called on startup if the file doesn't exist but DB has credentials.
-    Returns True if credentials were restored.
-    """
-    if SPOTIFY_CREDENTIALS_PATH.exists():
-        # File already exists, no need to restore
-        return False
+async def _get_speaker_access_token() -> Optional[str]:
+    """Get a valid speaker access token, refreshing it when it is near expiry."""
+    token_data = await _get_speaker_token()
+    if not token_data:
+        return None
+
+    if token_data.get("expires_at", 0) > time.time() + 60:
+        return token_data.get("access_token")
+
+    refresh_token = token_data.get("refresh_token")
+    if not refresh_token:
+        return None
 
     try:
-        pool = await get_db_pool()
-        async with pool.connection() as conn:
-            cur = await conn.execute(
-                "SELECT value FROM app_settings WHERE key = %s",
-                ("spotify_zeroconf_credentials",),
+        response = requests.post(
+            f"{SPOTIFY_ACCOUNTS_URL}/api/token",
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token,
+                "client_id": SPOTIFY_DESKTOP_CLIENT_ID,
+            },
+            timeout=10,
+        )
+        if response.status_code != 200:
+            logger.error(
+                f"Speaker token refresh failed: {response.status_code} - {response.text}"
             )
-            row = await cur.fetchone()
-
-        if not row or not row[0]:
-            return False
-
-        creds = json.loads(row[0])
-
-        # Ensure directory exists
-        SPOTIFY_CREDENTIALS_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-        with open(SPOTIFY_CREDENTIALS_PATH, "w") as f:
-            json.dump(creds, f)
-
-        logger.info("Spotify credentials restored from database")
-        return True
+            return None
+        data = response.json()
+        await _store_speaker_token(
+            data["access_token"],
+            data.get("refresh_token", refresh_token),
+            data.get("expires_in", 3600),
+        )
+        return data["access_token"]
     except Exception as e:
-        logger.warning(f"Failed to restore Spotify credentials: {e}")
-        return False
+        logger.error(f"Failed to refresh speaker token: {e}")
+        return None
 
 
-async def _provision_spotifyd_credentials(
-    access_token: Optional[str] = None,
-) -> bool:
-    if SPOTIFYD_CREDENTIALS_PATH.exists():
+async def _provision_spotifyd_credentials(force: bool = False) -> bool:
+    if SPOTIFYD_SESSION_CREDENTIALS_PATH.exists() and not force:
         try:
-            with open(SPOTIFYD_CREDENTIALS_PATH, "r") as f:
-                existing = json.load(f)
-            if existing.get("auth_type") == 1:
-                return True
+            with open(SPOTIFYD_SESSION_CREDENTIALS_PATH, "r") as f:
+                if json.load(f).get("auth_type") == 1:
+                    SPOTIFYD_CREDENTIALS_PATH.unlink(missing_ok=True)
+                    return True
         except Exception:
             pass
 
+    access_token = await _get_speaker_access_token()
     if not access_token:
-        sp = await get_spotify_user_client()
-        if not sp:
-            return False
-        token_data = await _get_spotify_user_token()
-        if not token_data:
-            return False
-        access_token = token_data.get("access_token")
-        if not access_token:
-            return False
-
-    try:
-        sp = spotipy.Spotify(auth=access_token)
-        user_info = sp.current_user()
-        username = user_info.get("id") if user_info else None
-        if not username:
-            logger.warning("Could not get Spotify username for credential provisioning")
-            return False
-    except Exception as e:
-        logger.warning(f"Failed to get Spotify user info: {e}")
         return False
 
     try:
         SPOTIFYD_CREDENTIALS_PATH.parent.mkdir(parents=True, exist_ok=True)
         creds = {
-            "username": username,
             "auth_type": 3,
             "auth_data": base64.b64encode(access_token.encode()).decode(),
         }
         with open(SPOTIFYD_CREDENTIALS_PATH, "w") as f:
             json.dump(creds, f)
         os.chmod(str(SPOTIFYD_CREDENTIALS_PATH), 0o600)
+        if force:
+            SPOTIFYD_SESSION_CREDENTIALS_PATH.unlink(missing_ok=True)
 
-        logger.info(f"Provisioned spotifyd credentials for user {username}")
+        logger.info("Provisioned spotifyd credentials")
 
         restart_spotifyd()
         logger.info("Restarted spotifyd to pick up new credentials")
@@ -1933,27 +1925,6 @@ async def get_spotify_client_credentials() -> Optional[Dict[str, str]]:
     except Exception as e:
         logger.error(f"Error retrieving Spotify client credentials: {e}")
         return None
-
-
-async def get_spotify_auth_status() -> Dict[str, Any]:
-    """
-    Check the status of Spotify authentication.
-    Also handles persisting/restoring credentials to/from database.
-    Returns status info including whether credentials exist.
-    """
-    # First, try to restore from DB if file doesn't exist
-    if not SPOTIFY_CREDENTIALS_PATH.exists():
-        await _restore_spotify_credentials_from_db()
-
-    has_credentials = SPOTIFY_CREDENTIALS_PATH.exists()
-
-    # If credentials exist, persist them to DB for durability
-    if has_credentials:
-        await _persist_spotify_credentials_to_db()
-
-    return {
-        "has_credentials": has_credentials,
-    }
 
 
 @app.get("/api/spotify/auth-status")
@@ -1995,7 +1966,7 @@ async def spotify_auth_url():
         return JSONResponse(
             status_code=400,
             content={
-                "error": "Spotify CLIENT ID and SECRET not configured. Add them in Settings > Integrations."
+                "error": "Spotify CLIENT ID and SECRET not configured. Add them on the Integrations page."
             },
         )
 
@@ -2060,11 +2031,6 @@ async def spotify_auth_poll():
                 data["refresh_token"],
                 data.get("expires_in", 3600),
             )
-            spawn_background_task(
-                _provision_spotifyd_credentials(data["access_token"]),
-                name="provision_spotifyd",
-                logger=logger,
-            )
             return JSONResponse(
                 content={
                     "status": "authorized",
@@ -2112,15 +2078,136 @@ async def spotify_auth_callback(request: Request):
         return JSONResponse(status_code=400, content={"error": "Missing token data"})
 
     await _store_spotify_user_token(access_token, refresh_token, expires_in)
-    spawn_background_task(
-        _provision_spotifyd_credentials(access_token),
-        name="provision_spotifyd",
-        logger=logger,
-    )
 
     logger.info("Spotify tokens received from broker")
     return JSONResponse(
         content={"success": True, "message": "Spotify authorized successfully!"}
+    )
+
+
+@app.post("/api/spotify/pair-speaker")
+async def spotify_pair_speaker():
+    """
+    Start the device pairing flow for the speaker.
+    Returns the code and URL the user approves at spotify.com/pair.
+    """
+    global _speaker_pairing
+
+    if _speaker_pairing and _speaker_pairing.get("expires_at", 0) > time.time():
+        return JSONResponse(
+            content={
+                "user_code": _speaker_pairing["user_code"],
+                "verification_url": _speaker_pairing["verification_url"],
+                "interval": _speaker_pairing["interval"],
+            }
+        )
+
+    try:
+        response = requests.post(
+            f"{SPOTIFY_ACCOUNTS_URL}/oauth2/device/authorize",
+            data={"client_id": SPOTIFY_DESKTOP_CLIENT_ID, "scope": "streaming"},
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to start speaker pairing: {e}")
+        return JSONResponse(
+            status_code=503, content={"error": f"Could not reach Spotify: {e}"}
+        )
+
+    _speaker_pairing = {
+        "device_code": data["device_code"],
+        "user_code": data["user_code"],
+        "verification_url": data.get("verification_uri_complete")
+        or data.get("verification_uri", "https://spotify.com/pair"),
+        "interval": data.get("interval", 5),
+        "expires_at": time.time() + data.get("expires_in", 600),
+    }
+    return JSONResponse(
+        content={
+            "user_code": _speaker_pairing["user_code"],
+            "verification_url": _speaker_pairing["verification_url"],
+            "interval": _speaker_pairing["interval"],
+        }
+    )
+
+
+@app.get("/api/spotify/pair-speaker/poll")
+async def spotify_pair_speaker_poll():
+    """
+    Poll the pairing flow. On approval, stores the speaker tokens and
+    provisions spotifyd.
+    """
+    global _speaker_pairing
+
+    if not _speaker_pairing:
+        return JSONResponse(content={"status": "idle"})
+
+    if _speaker_pairing.get("expires_at", 0) < time.time():
+        _speaker_pairing = None
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": "error",
+                "error": "Pairing code expired. Start pairing again.",
+            },
+        )
+
+    try:
+        response = requests.post(
+            f"{SPOTIFY_ACCOUNTS_URL}/api/token",
+            data={
+                "client_id": SPOTIFY_DESKTOP_CLIENT_ID,
+                "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+                "device_code": _speaker_pairing["device_code"],
+            },
+            timeout=10,
+        )
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to poll speaker pairing: {e}")
+        return JSONResponse(
+            status_code=503, content={"error": f"Could not reach Spotify: {e}"}
+        )
+
+    if response.status_code == 200:
+        data = response.json()
+        _speaker_pairing = None
+        await _store_speaker_token(
+            data["access_token"],
+            data["refresh_token"],
+            data.get("expires_in", 3600),
+        )
+        await _provision_spotifyd_credentials(force=True)
+        return JSONResponse(
+            content={"status": "authorized", "message": "Speaker paired successfully!"}
+        )
+
+    error = {}
+    try:
+        error = response.json()
+    except Exception:
+        pass
+
+    if error.get("error") in ("authorization_pending", "slow_down"):
+        return JSONResponse(content={"status": "pending"})
+
+    _speaker_pairing = None
+    return JSONResponse(
+        status_code=400,
+        content={
+            "status": "error",
+            "error": error.get("error", f"Pairing failed ({response.status_code})"),
+        },
+    )
+
+
+@app.get("/api/spotify/speaker-status")
+async def spotify_speaker_status():
+    """Report whether the speaker has been paired with a Spotify account."""
+    token_data = await _get_speaker_token()
+    return JSONResponse(
+        content={"paired": bool(token_data and token_data.get("refresh_token"))}
     )
 
 
@@ -2344,7 +2431,7 @@ async def spotify_control(request: Request):
             return JSONResponse(
                 status_code=503,
                 content={
-                    "message": "Spotify not authorized. Please authorize in Settings > Integrations."
+                    "message": "Spotify not authorized. Please authorize on the Integrations page."
                 },
             )
 
@@ -2404,12 +2491,21 @@ async def spotify_control(request: Request):
                         device_id = await _get_gpt_home_device_id(sp)
 
                     if not device_id:
-                        logger.warning("GPT Home device not found, restarting spotifyd")
-                        restart_spotifyd()
-                        await asyncio.sleep(3)
-                        _spotifyd_transfer_playback()
-                        await asyncio.sleep(2)
-                        device_id = await _get_gpt_home_device_id(sp)
+                        if not await _get_speaker_token():
+                            return JSONResponse(
+                                status_code=503,
+                                content={
+                                    "message": "The speaker is not paired with Spotify yet. Pair it on the Integrations page."
+                                },
+                            )
+                        logger.warning(
+                            "GPT Home device not found, refreshing speaker login"
+                        )
+                        if await _provision_spotifyd_credentials(force=True):
+                            await asyncio.sleep(5)
+                            _spotifyd_transfer_playback()
+                            await asyncio.sleep(2)
+                            device_id = await _get_gpt_home_device_id(sp)
 
                     if not device_id:
                         return JSONResponse(
